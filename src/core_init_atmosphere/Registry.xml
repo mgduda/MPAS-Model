@@ -468,6 +468,11 @@
                         <var name="defc_b" packages="gwd_stage_in;vertical_stage_in;met_stage_in"/>
                         <var name="cell_gradient_coef_x" packages="gwd_stage_in;vertical_stage_in;met_stage_in"/>
                         <var name="cell_gradient_coef_y" packages="gwd_stage_in;vertical_stage_in;met_stage_in"/>
+                        <var name="deformation_coef_c2" packages="gwd_stage_in;vertical_stage_in;met_stage_in"/>
+                        <var name="deformation_coef_s2" packages="gwd_stage_in;vertical_stage_in;met_stage_in"/>
+                        <var name="deformation_coef_cs" packages="gwd_stage_in;vertical_stage_in;met_stage_in"/>
+                        <var name="deformation_coef_c" packages="gwd_stage_in;vertical_stage_in;met_stage_in"/>
+                        <var name="deformation_coef_s" packages="gwd_stage_in;vertical_stage_in;met_stage_in"/>
                         <var name="coeffs_reconstruct" packages="gwd_stage_in;vertical_stage_in;met_stage_in"/>
                         <var name="cf1" packages="met_stage_in"/>
                         <var name="cf2" packages="met_stage_in"/>
@@ -573,6 +578,11 @@
                         <var name="defc_b"/>
                         <var name="cell_gradient_coef_x"/>
                         <var name="cell_gradient_coef_y"/>
+                        <var name="deformation_coef_c2"/>
+                        <var name="deformation_coef_s2"/>
+                        <var name="deformation_coef_cs"/>
+                        <var name="deformation_coef_c"/>
+                        <var name="deformation_coef_s"/>
                         <var name="coeffs_reconstruct"/>
                         <var name="cf1" packages="vertical_stage_out;met_stage_out"/>
                         <var name="cf2" packages="vertical_stage_out;met_stage_out"/>
@@ -1113,6 +1123,21 @@
 
                 <var name="cell_gradient_coef_y" type="real" dimensions="maxEdges nCells" units="m^-1"
                      description="Coefficients for computing the y (meridional) derivative of a cell-centered variable"/>
+
+                <var name="deformation_coef_c2" type="real" dimensions="maxEdges nCells" units="unitless"
+                     description="Coefficients for computing the cos-squared terms of the 3d deformation"/>
+ 
+                <var name="deformation_coef_s2" type="real" dimensions="maxEdges nCells" units="unitless"
+                     description="Coefficients for computing the sine-squared terms of the 3d deformation"/>
+
+                <var name="deformation_coef_cs" type="real" dimensions="maxEdges nCells" units="unitless"
+                     description="Coefficients for computing the cos-sine terms of the 3d deformation"/>
+
+                <var name="deformation_coef_c" type="real" dimensions="maxEdges nCells" units="unitless"
+                     description="Coefficients for computing the cos-only terms of the 3d deformation"/>
+
+                <var name="deformation_coef_s" type="real" dimensions="maxEdges nCells" units="unitless"
+                     description="Coefficients for computing the sine-only terms of the 3d deformation"/>
 
                 <!-- arrays required for reconstruction of velocity field -->
                 <var name="coeffs_reconstruct" type="real" dimensions="R3 maxEdges nCells" units="unitless"
