@@ -11,6 +11,7 @@ module atm_advection
    use mpas_derived_types
    use mpas_pool_routines
    use mpas_constants
+   use mpas_vector_operations
    use mpas_abort, only : mpas_dmpar_global_abort
    use mpas_log, only : mpas_log_write
 
@@ -764,6 +765,7 @@ module atm_advection
       integer, dimension(:), pointer :: nEdgesOnCell
       real (kind=RKIND), dimension(:), pointer :: xCell, yCell, zCell
       real (kind=RKIND), dimension(:), pointer :: xVertex, yVertex, zVertex
+      real (kind=RKIND), dimension(:), pointer :: xEdge, yEdge, zEdge
 
       real (kind=RKIND), dimension(nCells) :: theta_abs
 
@@ -774,14 +776,22 @@ module atm_advection
       integer :: iCell
       real (kind=RKIND) :: pii
       real (kind=RKIND), dimension(25) :: xp, yp
+      real (kind=RKIND) :: xe, ye
+
       
       real (kind=RKIND) :: length_scale
       integer, dimension(25) :: cell_list
 
-      integer :: iv
+      integer :: iv, ie
       logical :: do_the_cell
       real (kind=RKIND) :: area_cell, sint2, cost2, sint_cost, dx, dy
 
+      logical, pointer :: is_periodic
+      real(kind=RKIND), pointer :: x_period, y_period
+
+      call mpas_pool_get_config(mesh, 'is_periodic', is_periodic)
+      call mpas_pool_get_config(mesh, 'x_period', x_period)
+      call mpas_pool_get_config(mesh, 'y_period', y_period)
 
       call mpas_pool_get_array(mesh, 'defc_a', defc_a)
       call mpas_pool_get_array(mesh, 'defc_b', defc_b)
@@ -803,6 +813,9 @@ module atm_advection
       call mpas_pool_get_array(mesh, 'xVertex', xVertex)
       call mpas_pool_get_array(mesh, 'yVertex', yVertex)
       call mpas_pool_get_array(mesh, 'zVertex', zVertex)
+      call mpas_pool_get_array(mesh, 'xEdge', xEdge)
+      call mpas_pool_get_array(mesh, 'yEdge', yEdge)
+      call mpas_pool_get_array(mesh, 'zEdge', zEdge)
 
       defc_a(:,:) = 0.
       defc_b(:,:) = 0.
@@ -900,21 +913,58 @@ module atm_advection
 
          else     ! On an x-y plane
 
-            theta_abs(iCell) = 0.0
-
-            xp(1) = xCell(iCell)
-            yp(1) = yCell(iCell)
-
-            do i=2,n
-               iv = verticesOnCell(i-1,iCell)
-               xp(i) = xVertex(iv)
-               yp(i) = yVertex(iv)
+            do i=1,n-1
+               iv = verticesOnCell(i,iCell)
+               xp(i) = mpas_fix_periodicity(xVertex(iv),xCell(iCell),x_period) - xCell(iCell)
+               yp(i) = mpas_fix_periodicity(yVertex(iv),yCell(iCell),y_period) - yCell(iCell)
             end do
+
+            ! if(iCell.lt.11) then
+            !  call mpas_log_write(' setting defc coefs, cell $i', intArgs=(/iCell/))
+            !  do i=1,n-1
+            !    iv = verticesOnCell(i,iCell)
+            !    call mpas_log_write(' xp,yp,xvc,yvc, $r $r $r $r', realArgs=(/xp(i),yp(i),xVertex(iv)-xCell(iCell),yVertex(iv)-yCell(iCell)/))
+            !  end do
+            ! end if
+
+            do i=1,n-1
+              ie = edgesOnCell(i,iCell)
+              xe = mpas_fix_periodicity(xEdge(ie),xCell(iCell),x_period) - xCell(iCell)
+              ye = mpas_fix_periodicity(yEdge(ie),yCell(iCell),y_period) - yCell(iCell)
+              thetat(i) = atan2(ye,xe)
+            end do
+
+            ! if(iCell .lt. 11) then
+            !   call mpas_log_write(' edge angles, plane calc, cell $i', intArgs=(/iCell/))
+            !   do i=1,n-1
+            !     call mpas_log_write(' edge angle $r', realArgs=(/thetat(i)*180./3.1415926/))
+            !   end do
+            ! end if
+
+            theta_abs(iCell) = thetat(1)
 
          end if
 
          ! (1) compute cell area on the tangent plane used in the integrals
          ! (2) compute angle of cell edge normal vector.  here we are repurposing thetat
+         thetat(1) = theta_abs(iCell)
+
+         do i=2,n-1
+            ip1 = i+1
+            if (ip1 == n) ip1 = 1
+            thetat(i) = plane_angle( 0.0_RKIND, 0.0_RKIND, 0.0_RKIND,  &
+                                     xp(i)-xp(i-1), yp(i)-yp(i-1), 0.0_RKIND,  &
+                                     xp(ip1)-xp(i), yp(ip1)-yp(i), 0.0_RKIND,  &
+                                     0.0_RKIND, 0.0_RKIND, 1.0_RKIND)
+            thetat(i) = thetat(i) + thetat(i-1)
+         end do
+
+            if(iCell .lt. 11) then
+              call mpas_log_write(' edge angles, generic calc, cell $i', intArgs=(/iCell/))
+              do i=1,n-1
+                call mpas_log_write(' edge angle $r', realArgs=(/thetat(i)*180./3.1415926/))
+              end do
+            end if
 
          area_cell = 0.
          do i=1,n-1
