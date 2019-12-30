@@ -765,7 +765,8 @@ module atm_advection
       integer, dimension(:), pointer :: nEdgesOnCell
       real (kind=RKIND), dimension(:), pointer :: xCell, yCell, zCell
       real (kind=RKIND), dimension(:), pointer :: xVertex, yVertex, zVertex
-      real (kind=RKIND), dimension(:), pointer :: xEdge, yEdge, zEdge
+      real (kind=RKIND), dimension(:), pointer :: xEdge, yEdge, zEdge, angleEdge
+      real (kind=RKIND), dimension(:), pointer :: areaCell
 
       real (kind=RKIND), dimension(nCells) :: theta_abs
 
@@ -784,7 +785,11 @@ module atm_advection
 
       integer :: iv, ie
       logical :: do_the_cell
+<<<<<<< HEAD
       real (kind=RKIND) :: area_cell, sint2, cost2, sint_cost, dx, dy
+=======
+      real (kind=RKIND) :: area_cell, sint2, cost2, sint_cost
+>>>>>>> 94ba9031b (Fixed error in w_x, w_y deformation coefficients.)
 
       logical, pointer :: is_periodic
       real(kind=RKIND), pointer :: x_period, y_period
@@ -816,6 +821,8 @@ module atm_advection
       call mpas_pool_get_array(mesh, 'xEdge', xEdge)
       call mpas_pool_get_array(mesh, 'yEdge', yEdge)
       call mpas_pool_get_array(mesh, 'zEdge', zEdge)
+      call mpas_pool_get_array(mesh, 'angleEdge', angleEdge)
+      call mpas_pool_get_array(mesh, 'areaCell', areaCell)
 
       defc_a(:,:) = 0.
       defc_b(:,:) = 0.
@@ -959,12 +966,12 @@ module atm_advection
             thetat(i) = thetat(i) + thetat(i-1)
          end do
 
-            if(iCell .lt. 11) then
-              call mpas_log_write(' edge angles, generic calc, cell $i', intArgs=(/iCell/))
-              do i=1,n-1
-                call mpas_log_write(' edge angle $r', realArgs=(/thetat(i)*180./3.1415926/))
-              end do
-            end if
+         !   if(iCell .lt. 11) then
+         !     call mpas_log_write(' edge angles, generic calc, cell $i', intArgs=(/iCell/))
+         !     do i=1,n-1
+         !       call mpas_log_write(' edge angle $r', realArgs=(/thetat(i)*180./3.1415926/))
+         !     end do
+         !   end if
 
          area_cell = 0.
          do i=1,n-1
@@ -1000,14 +1007,232 @@ module atm_advection
                deformation_coef_c2(i,iCell) = - deformation_coef_c2(i,iCell)
                deformation_coef_s2(i,iCell) = - deformation_coef_s2(i,iCell)
                deformation_coef_cs(i,iCell) = - deformation_coef_cs(i,iCell)
-               deformation_coef_c(i,iCell) = - deformation_coef_c(i,iCell)
-               deformation_coef_s(i,iCell) = - deformation_coef_s(i,iCell)
+!               deformation_coef_c(i,iCell) = - deformation_coef_c(i,iCell)
+!               deformation_coef_s(i,iCell) = - deformation_coef_s(i,iCell)
             end if
  
          end do
 
       end do
 
+      call atm_init_test_coefs( deformation_coef_c2, deformation_coef_s2, &
+                                deformation_coef_cs, deformation_coef_c,  &
+                                deformation_coef_s,                       &
+                                is_periodic, on_a_sphere,                 &
+                                x_period, y_period,                       &
+                                xEdge, yEdge, zEdge,                      &
+                                xCell, yCell, zCell, nCells,              &
+                                angleEdge, nEdgesOnCell, edgesOnCell )
+
+
    end subroutine atm_initialize_deformation_weights
 
  end module atm_advection
+!-----------------------
+
+      subroutine atm_init_test_coefs( deformation_coef_c2, deformation_coef_s2, &
+                                      deformation_coef_cs, deformation_coef_c,  &
+                                      deformation_coef_s,                       &
+                                      is_periodic, on_a_sphere,                 &
+                                      x_period, y_period,                       &
+                                      xEdge, yEdge, zEdge,                      &
+                                      xCell, yCell, zCell, nCells,              &
+                                      angleEdge, nEdgesOnCell, edgesOnCell )
+
+      implicit none
+
+      logical :: is_periodic, on_a_sphere
+      integer :: nCells
+      integer, dimension(:) :: nEdgesOnCell
+      real (kind=RKIND) :: x_period, y_period
+      real (kind=RKIND), dimension(:,:) :: deformation_coef_c2, deformation_coef_s2
+      real (kind=RKIND), dimension(:,:) :: deformation_coef_cs
+      real (kind=RKIND), dimension(:,:) :: deformation_coef_c, deformation_coef_s
+      integer, dimension(:,:) :: edgesOnCell
+      real (kind=RKIND), dimension(:) :: angleEdge, xEdge, yEdge, zEdge
+      real (kind=RKIND), dimension(:) :: xCell, yCell, zCell
+
+      ! local variables
+
+      integer :: iCell, iEdge, ie
+      real (kind=RKIND) :: cos_edge, sin_edge, ux, uy, vx, vy, wx, wy
+      real (kind=RKIND) :: xc, yc, xe, ye
+      real (kind=RKIND) :: angle_e, ue, ve, we, e_int
+      real (kind=RKIND) :: dudx, dudy, dvdx, dvdy, dwdx, dwdy
+      real (kind=RKIND) :: dudx_c, dudy_c, dvdx_c, dvdy_c, dwdx_c, dwdy_c
+
+      real (kind=RKIND) :: dudx_err_max, dudy_err_max, dvdx_err_max, dvdy_err_max, dwdx_err_max, dwdy_err_max
+      real (kind=RKIND) :: dudx_err_tot, dudy_err_tot, dvdx_err_tot, dvdy_err_tot, dwdx_err_tot, dwdy_err_tot
+      real (kind=RKIND) :: dudx_max, dudy_max, dvdx_max, dvdy_max, dwdx_max, dwdy_max
+
+      real (kind=RKIND) :: ang
+      real (kind=RKIND), parameter :: x_vel= 1.0, y_vel=1.0, w_vel=1.0
+      real (kind=RKIND) :: u_edge, v_edge, w_edge, x, y, angle, xl, yl
+      real (kind=RKIND) :: dudx_cell, dudy_cell, dvdx_cell, dvdy_cell, dwdx_cell, dwdy_cell
+
+      !  Test tunction definitions
+      !
+      !  here are the velocity field functions and their derivatives.
+      !  First a simple test: U = x_vel*(-x+y), V = y_vel * (-x+y), W = w_vel*(-x+y)
+
+      u_edge(x,y,ang,xl,yl) =  (x_vel*(x+y)) * cos(ang) + (y_vel * (x+y) * sin(ang))
+      v_edge(x,y,ang,xl,yl) = -(x_vel*(x+y)) * sin(ang) + (y_vel * (x+y) * cos(ang))
+      w_edge(x,y,xl,yl) = w_vel * (x+y)
+
+      dudx_cell(x,y,xl,yl) = x_vel
+      dudy_cell(x,y,xl,yl) = x_vel
+      dvdx_cell(x,y,xl,yl) = y_vel
+      dvdy_cell(x,y,xl,yl) = y_vel
+      dwdx_cell(x,y,xl,yl) = w_vel
+      dwdy_cell(x,y,xl,yl) = w_vel
+
+      ! -----------------
+
+      if ( (.not. on_a_sphere) .and. (is_periodic) ) then  ! test is for doubly-periodic Cartesian plane only
+
+      dudx_err_max = 0.
+      dudy_err_max = 0.
+      dvdx_err_max = 0.
+      dvdy_err_max = 0.
+      dwdx_err_max = 0.
+      dwdy_err_max = 0.
+
+      dudx_err_tot = 0.
+      dudy_err_tot = 0.
+      dvdx_err_tot = 0.
+      dvdy_err_tot = 0.
+      dwdx_err_tot = 0.
+      dwdy_err_tot = 0.
+
+      dudx_max = 0.
+      dudy_max = 0.
+      dvdx_max = 0.
+      dvdy_max = 0.
+      dwdx_max = 0.
+      dwdy_max = 0.
+
+      do iCell = 1, nCells
+
+        dudx = 0.
+        dudy = 0.
+        dvdx = 0.
+        dvdy = 0.
+        dwdx = 0.
+        dwdy = 0.
+
+        xc = xCell(iCell)
+        yc = yCell(iCell)
+
+        dudx_c = dudx_cell(xc,yc,x_period,y_period)
+        dudy_c = dudy_cell(xc,yc,x_period,y_period)
+        dvdx_c = dvdx_cell(xc,yc,x_period,y_period)
+        dvdy_c = dvdy_cell(xc,yc,x_period,y_period)
+        dwdx_c = dwdx_cell(xc,yc,x_period,y_period)
+        dwdy_c = dwdy_cell(xc,yc,x_period,y_period)
+
+        do iEdge = 1, nEdgesOnCell(iCell)
+
+          ie = edgesOnCell(iEdge,iCell)
+          angle_e = angleEdge(ie)
+          xe = xEdge(ie)
+          ye = yEdge(ie)
+
+          xe = mpas_fix_periodicity(xe,xc,x_period)
+          ye = mpas_fix_periodicity(ye,yc,y_period)
+
+          ue = u_edge(xe,ye,angle_e,x_period,y_period)
+          ve = v_edge(xe,ye,angle_e,x_period,y_period)
+          we = w_edge(xe,ye,x_period,y_period)
+
+          dudx = dudx + deformation_coef_c2(iEdge,iCell)*ue &
+                      - deformation_coef_cs(iEdge,iCell)*ve
+          dudy = dudy + deformation_coef_cs(iEdge,iCell)*ue &
+                      - deformation_coef_s2(iEdge,iCell)*ve
+          dvdx = dvdx + deformation_coef_cs(iEdge,iCell)*ue &
+                      + deformation_coef_c2(iEdge,iCell)*ve
+          dvdy = dvdy + deformation_coef_s2(iEdge,iCell)*ue &
+                      + deformation_coef_cs(iEdge,iCell)*ve
+
+          dwdx = dwdx + deformation_coef_c(iEdge,iCell)*we
+          dwdy = dwdy + deformation_coef_s(iEdge,iCell)*we
+
+        end do
+
+        ! call mpas_log_write(' u_x, u_y, $r, $r ', realArgs=(/dudx, dudy/))
+        ! call mpas_log_write(' v_x, v_y, $r, $r ', realArgs=(/dvdx, dvdy/))
+        ! call mpas_log_write(' w_x, w_y, $r, $r ', realArgs=(/dwdx, dwdy/))
+
+        ! check result for cell          
+
+        e_int = abs(dudx_c - dudx)
+        dudx_err_tot = dudx_err_tot + e_int
+        dudx_err_max = max(dudx_err_max, e_int) 
+
+        e_int = abs(dudy_c - dudy)
+        dudy_err_tot = dudy_err_tot + e_int
+        dudy_err_max = max(dudy_err_max, e_int) 
+
+        e_int = abs(dvdx_c - dvdx)
+        dvdx_err_tot = dvdx_err_tot + e_int
+        dvdx_err_max = max(dvdx_err_max, e_int) 
+
+        e_int = abs(dvdy_c - dvdy)
+        dvdy_err_tot = dvdy_err_tot + e_int
+        dvdy_err_max = max(dvdy_err_max, e_int) 
+
+        e_int = abs(dwdx_c - dwdx)
+        dwdx_err_tot = dwdx_err_tot + e_int
+        dwdx_err_max = max(dwdx_err_max, e_int) 
+
+        e_int = abs(dwdy_c - dwdy)
+        dwdy_err_tot = dwdy_err_tot + e_int
+        dwdy_err_max = max(dwdy_err_max, e_int) 
+
+        dudx_max = max(dudx_max, abs(dudx_c))
+        dudy_max = max(dudy_max, abs(dudy_c))
+        dvdx_max = max(dvdx_max, abs(dvdx_c))
+        dvdy_max = max(dvdy_max, abs(dvdy_c))
+        dwdx_max = max(dwdx_max, abs(dwdx_c))
+        dwdy_max = max(dwdy_max, abs(dwdy_c))
+
+      end do
+
+      ! scale errors
+
+      dudx_err_max = dudx_err_max/dudx_max
+      dudy_err_max = dudy_err_max/dudy_max
+      dvdx_err_max = dvdx_err_max/dvdx_max
+      dvdy_err_max = dvdy_err_max/dvdy_max
+      dwdx_err_max = dwdx_err_max/dwdx_max
+      dwdy_err_max = dwdy_err_max/dwdy_max
+
+      dudx_err_tot = dudx_err_tot/dudx_max/real(nCells)
+      dudy_err_tot = dudy_err_tot/dudy_max/real(nCells)
+      dvdx_err_tot = dvdx_err_tot/dvdx_max/real(nCells)
+      dvdy_err_tot = dvdy_err_tot/dvdy_max/real(nCells)
+      dwdx_err_tot = dwdx_err_tot/dwdx_max/real(nCells)
+      dwdy_err_tot = dwdy_err_tot/dwdy_max/real(nCells)
+
+      ! output 
+
+      call mpas_log_write('  ')
+      call mpas_log_write(' deformation coefficients check ')
+      call mpas_log_write(' dudx check, max abs(dudx), max and avg error  $r, $r, $r', &
+                          realArgs=(/dudx_max, dudx_err_max, dudx_err_tot/))
+      call mpas_log_write(' dudy check, max abs(dudy), max and avg error  $r, $r, $r', &
+                          realArgs=(/dudy_max, dudy_err_max, dudy_err_tot/))
+      call mpas_log_write(' dvdx check, max abs(dvdx), max and avg error  $r, $r, $r', &
+                          realArgs=(/dvdx_max, dvdx_err_max, dvdx_err_tot/))
+      call mpas_log_write(' dvdy check, max abs(dvdy), max and avg error  $r, $r, $r', &
+                          realArgs=(/dvdy_max, dvdy_err_max, dvdy_err_tot/))
+      call mpas_log_write(' dwdx check, max abs(dwdx), max and avg error  $r, $r, $r', &
+                          realArgs=(/dwdx_max, dwdx_err_max, dwdx_err_tot/))
+      call mpas_log_write(' dwdy check, max abs(dwdy), max and avg error  $r, $r, $r', &
+                          realArgs=(/dwdy_max, dwdy_err_max, dwdy_err_tot/))
+      call mpas_log_write('  ')
+
+      end if
+
+      end subroutine atm_init_test_coefs
+
+end module atm_advection
