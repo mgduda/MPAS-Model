@@ -16,10 +16,13 @@ module mpas_atm_dissipation_models
                                  deformation_coef_c2, deformation_coef_s2, deformation_coef_cs,     &
                                  invDt, h_mom_eddy_visc4, config_visc4_2dsmag, h_theta_eddy_visc4,  &
                                  cellStart, cellEnd, nEdgesOnCell, edgesOnCell,                     &
-                                 nCells, nEdges, nVertLevels, maxEdges                             )
+                                 nCells, nEdges                                                    )
+
+      use mpas_atm_dimensions  !  pull nVertLevels and maxEdges from here
+
       implicit none
       
-      integer, intent(in) :: cellStart, cellEnd, nCells, nEdges, nVertLevels, maxEdges
+      integer, intent(in) :: cellStart, cellEnd, nCells, nEdges
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(in) :: u
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(in) :: v
       real (kind=RKIND), dimension(maxEdges,nCells+1), intent(in) :: deformation_coef_c2

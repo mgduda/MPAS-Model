@@ -5245,7 +5245,7 @@ module atm_time_integration
                                  deformation_coef_c2, deformation_coef_s2, deformation_coef_cs,     &
                                  invDt, h_mom_eddy_visc4, config_visc4_2dsmag, h_theta_eddy_visc4,  &
                                  cellStart, cellEnd, nEdgesOnCell, edgesOnCell,                     &
-                                 nCells, nEdges, nVertLevels, maxEdges                             )
+                                 nCells, nEdges                                                    )
 
          else if(config_horiz_mixing == "2d_fixed") then
 
