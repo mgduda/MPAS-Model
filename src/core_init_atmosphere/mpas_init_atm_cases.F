@@ -393,13 +393,30 @@ module init_atm_cases
             call init_atm_case_cam_mpas(stream_manager, domain % dminfo, block_ptr, &
                                         mesh, block_ptr % dimensions, block_ptr % configs, nVertLevels)
 
+      else if (config_init_case == 10) then
+
+         call mpas_log_write(' les test case ')
+         block_ptr => domain % blocklist
+         do while (associated(block_ptr))
+
+            call mpas_pool_get_dimension(block_ptr % dimensions, 'nCells', nCells)
+            call mpas_pool_get_dimension(block_ptr % dimensions, 'nVertLevels', nVertLevels)
+
+            call mpas_pool_get_subpool(block_ptr % structs, 'mesh', mesh)
+            call mpas_pool_get_subpool(block_ptr % structs, 'state', state)
+            call mpas_pool_get_subpool(block_ptr % structs, 'diag', diag)
+
+            call mpas_log_write(' calling test case setup ')
+            call init_atm_case_les(domain % dminfo, mesh, nCells, nVertLevels, state, diag, config_init_case, block_ptr % configs)
+            call decouple_variables(mesh, nCells, nVertLevels, state, diag)
+            call mpas_log_write(' returned from test case setup ')
             block_ptr => block_ptr % next
          end do
 
       else
 
          call mpas_log_write(' ***********************************************************', messageType=MPAS_LOG_ERR)
-         call mpas_log_write(' Only test cases 1 through 9 and 13 are currently supported.', messageType=MPAS_LOG_ERR)
+         call mpas_log_write(' Only test cases 1 through 10 and 13 are currently supported.', messageType=MPAS_LOG_ERR)
          call mpas_log_write(' ***********************************************************', messageType=MPAS_LOG_CRIT)
 
       end if
@@ -6186,6 +6203,564 @@ call mpas_log_write('Done with soil consistency check')
 
    end subroutine init_atm_case_lbc
 
+!---------------------
+
+   subroutine init_atm_case_les(dminfo, mesh, nCells, nVertLevels, state, diag, test_case, configs)
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   ! Large Eddy Simulation (les) test case setup
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      implicit none
+
+      type (dm_info), intent(in) :: dminfo
+      type (mpas_pool_type), intent(inout) :: mesh
+      integer, intent(in) :: nCells
+      integer, intent(in) :: nVertLevels
+      type (mpas_pool_type), intent(inout) :: state
+      type (mpas_pool_type), intent(inout) :: diag
+      type (mpas_pool_type), intent(inout):: configs
+
+      integer, intent(in) :: test_case
+
+      real (kind=RKIND), dimension(:), pointer :: rdzw, dzu, rdzu, fzm, fzp
+      real (kind=RKIND), dimension(:,:), pointer :: zgrid, zxu, zz, hx, cqw
+      real (kind=RKIND), dimension(:,:), pointer :: ppb, pb, rho_zz, rb, rr, tb, rtb, p, pp, dss, t, rt, u, ru
+      real (kind=RKIND), dimension(:,:,:), pointer :: scalars
+      real (kind=RKIND), dimension(:,:,:), pointer :: zb, zb3
+
+      !This is temporary variable here. It just need when calculate tangential velocity v.
+      integer :: eoe, j
+      integer, dimension(:), pointer :: nEdgesOnEdge 
+      integer, dimension(:,:), pointer :: edgesOnEdge, cellsOnEdge
+      real (kind=RKIND), dimension(:,:), pointer :: weightsOnEdge
+
+      integer :: iCell, iCell1, iCell2 , iEdge, vtx1, vtx2, ivtx, i, k, nz, nz1, itr, cell1, cell2
+      integer, pointer :: nEdges, nVertices, maxEdges, nCellsSolve
+      integer, pointer :: index_qv
+
+      real (kind=RKIND), dimension(nVertLevels + 1 ) :: znu, znw, znwc, znwv
+      real (kind=RKIND), dimension(nVertLevels + 1 ) :: znuc, znuv
+
+      real (kind=RKIND), dimension(nVertLevels + 1 ) :: zc, zw, ah
+      real (kind=RKIND), dimension(nVertLevels ) :: zu, dzw, rdzwp, rdzwm
+
+      real (kind=RKIND), dimension(nVertLevels, nCells) :: relhum, thi, tbi, cqwb
+
+      real (kind=RKIND) ::  r, xnutr
+      real (kind=RKIND) ::  ztemp, zd, zt, dz, str
+
+      real (kind=RKIND), dimension(nVertLevels ) :: qvb
+      real (kind=RKIND), dimension(nVertLevels ) :: t_init_1d
+
+      real (kind=RKIND) :: d1, d2, d3, cof1, cof2
+      real (kind=RKIND), pointer :: cf1, cf2, cf3
+      real (kind=RKIND) :: ztr, thetar, ttr, thetas, um, us, zts, pitop, pibtop, ptopb, ptop, rcp, rcv, p0
+      real (kind=RKIND) :: radx, radz, zcent, xmid, delt, xloc, rad, yloc, ymid, a_scale
+      real (kind=RKIND) :: pres, temp, es, qvs
+
+      real (kind=RKIND), dimension(:), pointer :: xCell, yCell, zCell
+      real (kind=RKIND), dimension(:), pointer :: xEdge, yEdge, zEdge
+      real (kind=RKIND), dimension(:), pointer :: xVertex, yVertex, zVertex
+      real (kind=RKIND), dimension(:), pointer :: dcEdge, dvEdge, areaCell, areaTriangle
+      real (kind=RKIND), dimension(:,:), pointer :: kiteAreasOnVertex
+      logical, pointer :: on_a_sphere
+      real (kind=RKIND), pointer :: sphere_radius
+      real (kind=RKIND), pointer :: config_ztop
+
+      real (kind=RKIND), dimension(:,:), pointer :: t_init, w, rw, v, rho, theta
+      real (kind=RKIND), dimension(:), pointer :: u_init, qv_init, angleEdge, fEdge, fVertex
+      real (kind=RKIND) :: u_vel, v_vel, randx
+
+      call mpas_pool_get_array(mesh, 'xCell', xCell)
+      call mpas_pool_get_array(mesh, 'yCell', yCell)
+      call mpas_pool_get_array(mesh, 'zCell', zCell)
+      call mpas_pool_get_array(mesh, 'xEdge', xEdge)
+      call mpas_pool_get_array(mesh, 'yEdge', yEdge)
+      call mpas_pool_get_array(mesh, 'zEdge', zEdge)
+      call mpas_pool_get_array(mesh, 'xVertex', xVertex)
+      call mpas_pool_get_array(mesh, 'yVertex', yVertex)
+      call mpas_pool_get_array(mesh, 'zVertex', zVertex)
+      call mpas_pool_get_array(mesh, 'dvEdge', dvEdge)
+      call mpas_pool_get_array(mesh, 'dcEdge', dcEdge)
+      call mpas_pool_get_array(mesh, 'areaCell', areaCell)
+      call mpas_pool_get_array(mesh, 'areaTriangle', areaTriangle)
+      call mpas_pool_get_array(mesh, 'kiteAreasOnVertex', kiteAreasOnVertex)
+
+      call mpas_pool_get_config(mesh, 'on_a_sphere', on_a_sphere)
+      call mpas_pool_get_config(mesh, 'sphere_radius', sphere_radius)
+      call mpas_pool_get_config(configs, 'config_ztop', config_ztop)
+
+      !
+      ! Scale all distances
+      !
+
+      a_scale = 1.0
+
+      xCell(:) = xCell(:) * a_scale
+      yCell(:) = yCell(:) * a_scale
+      zCell(:) = zCell(:) * a_scale
+      xVertex(:) = xVertex(:) * a_scale
+      yVertex(:) = yVertex(:) * a_scale
+      zVertex(:) = zVertex(:) * a_scale
+      xEdge(:) = xEdge(:) * a_scale
+      yEdge(:) = yEdge(:) * a_scale
+      zEdge(:) = zEdge(:) * a_scale
+      dvEdge(:) = dvEdge(:) * a_scale
+      dcEdge(:) = dcEdge(:) * a_scale
+      areaCell(:) = areaCell(:) * a_scale**2.0
+      areaTriangle(:) = areaTriangle(:) * a_scale**2.0
+      kiteAreasOnVertex(:,:) = kiteAreasOnVertex(:,:) * a_scale**2.0
+
+      call mpas_pool_get_array(mesh, 'weightsOnEdge', weightsOnEdge)
+      call mpas_pool_get_array(mesh, 'nEdgesOnEdge', nEdgesOnEdge)
+      call mpas_pool_get_array(mesh, 'edgesOnEdge', edgesOnEdge)
+      call mpas_pool_get_array(mesh, 'cellsOnEdge', cellsOnEdge)
+
+      call mpas_pool_get_dimension(mesh, 'nEdges', nEdges)
+      call mpas_pool_get_dimension(mesh, 'nVertices', nVertices)
+      call mpas_pool_get_dimension(mesh, 'nCellsSolve', nCellsSolve)
+      call mpas_pool_get_dimension(mesh, 'maxEdges', maxEdges)
+      nz1 = nVertLevels
+      nz = nz1 + 1
+
+      call mpas_pool_get_array(mesh, 'zgrid', zgrid)
+      call mpas_pool_get_array(mesh, 'zb', zb)
+      call mpas_pool_get_array(mesh, 'zb3', zb3)
+      call mpas_pool_get_array(mesh, 'rdzw', rdzw)
+      call mpas_pool_get_array(mesh, 'dzu', dzu)
+      call mpas_pool_get_array(mesh, 'rdzu', rdzu)
+      call mpas_pool_get_array(mesh, 'fzm', fzm)
+      call mpas_pool_get_array(mesh, 'fzp', fzp)
+      call mpas_pool_get_array(mesh, 'zxu', zxu)
+      call mpas_pool_get_array(mesh, 'zz', zz)
+      call mpas_pool_get_array(mesh, 'hx', hx)
+      call mpas_pool_get_array(mesh, 'dss', dss)
+      call mpas_pool_get_array(mesh, 't_init', t_init)
+      call mpas_pool_get_array(mesh, 'u_init', u_init)
+      call mpas_pool_get_array(mesh, 'qv_init', qv_init)
+      call mpas_pool_get_array(mesh, 'angleEdge', angleEdge)
+      call mpas_pool_get_array(mesh, 'fEdge', fEdge)
+      call mpas_pool_get_array(mesh, 'fVertex', fVertex)
+
+      call mpas_pool_get_array(mesh, 'cf1', cf1)
+      call mpas_pool_get_array(mesh, 'cf2', cf2)
+      call mpas_pool_get_array(mesh, 'cf3', cf3)
+
+      call mpas_pool_get_array(diag, 'pressure_base', ppb)
+      call mpas_pool_get_array(diag, 'exner_base', pb)
+      call mpas_pool_get_array(diag, 'rho_base', rb)
+      call mpas_pool_get_array(diag, 'theta_base', tb)
+      call mpas_pool_get_array(diag, 'rtheta_base', rtb)
+      call mpas_pool_get_array(diag, 'exner', p)
+      call mpas_pool_get_array(diag, 'cqw', cqw)
+
+      call mpas_pool_get_array(diag, 'pressure_p', pp)
+      call mpas_pool_get_array(diag, 'rho_p', rr)
+      call mpas_pool_get_array(diag, 'rtheta_p', rt)
+      call mpas_pool_get_array(diag, 'ru', ru)
+      call mpas_pool_get_array(diag, 'rw', rw)
+      call mpas_pool_get_array(diag, 'v', v)
+      call mpas_pool_get_array(diag, 'rho', rho)
+      call mpas_pool_get_array(diag, 'theta', theta)
+
+      call mpas_pool_get_array(state, 'rho_zz', rho_zz)
+      call mpas_pool_get_array(state, 'theta_m', t)
+      call mpas_pool_get_array(state, 'u', u)
+      call mpas_pool_get_array(state, 'w', w)
+      call mpas_pool_get_array(state, 'scalars', scalars)
+
+      call mpas_pool_get_dimension(state, 'index_qv', index_qv)
+
+      scalars(:,:,:) = 0.
+
+      call atm_initialize_advection_rk(mesh, nCells, nEdges, maxEdges, on_a_sphere, sphere_radius )
+      call atm_initialize_deformation_weights(mesh, nCells, on_a_sphere, sphere_radius)
+      
+      xnutr = 0.
+      zd = 12000.
+
+      p0 = 1.e+05
+      rcp = rgas/cp
+      rcv = rgas/(cp-rgas)
+
+     call mpas_log_write(' point 1 in test case setup ')
+
+! We may pass in an hx(:,:) that has been precomputed elsewhere.
+! For now it is independent of k
+
+      do iCell=1,nCells
+        do k=1,nz
+          hx(k,iCell) = 0.  ! les on a flat Cartesian plane
+        end do
+      end do
+
+!      write(0,*) ' dz = ',dz
+      call mpas_log_write(' hx computation complete ')
+
+      !     metrics for hybrid coordinate and vertical stretching
+
+      str = 1.0  ! no stretching in les case: constant dz
+      ! zt = 20000.
+      zt = config_ztop
+      dz = zt/float(nz1)
+
+
+      do k=1,nz
+
+            ! zw(k) = zt*(real(k-1)*dz/zt)**str 
+            zw(k) = float(k-1)*dz
+            zc(k) = zw(k)
+!
+!           ah(k) governs the transition between terrain-following 
+!           and pureheight coordinates
+!                ah(k) = 0 is a terrain-following coordinate
+!                ah(k) = 1 is a height coordinate
+ 
+!            ah(k) = 1.-cos(.5*pii*(k-1)*dz/zt)**6
+            ah(k) = 1.
+!            call mpas_log_write(' k, zc, zw, ah = $i $r $r $r', intArgs=(/k/), realArgs=(/zc(k),zw(k),ah(k)/))
+      end do
+      do k=1,nz1
+         dzw (k) = zw(k+1)-zw(k)
+         rdzw(k) = 1./dzw(k)
+         zu(k  ) = .5*(zw(k)+zw(k+1))
+      end do
+      do k=2,nz1
+         dzu (k)  = .5*(dzw(k)+dzw(k-1))
+         rdzu(k)  =  1./dzu(k)
+         fzp (k)  = .5* dzw(k  )/dzu(k)
+         fzm (k)  = .5* dzw(k-1)/dzu(k)
+         rdzwp(k) = dzw(k-1)/(dzw(k  )*(dzw(k)+dzw(k-1)))
+         rdzwm(k) = dzw(k  )/(dzw(k-1)*(dzw(k)+dzw(k-1)))
+      end do
+
+!**********  how are we storing cf1, cf2 and cf3?
+
+      COF1 = (2.*DZU(2)+DZU(3))/(DZU(2)+DZU(3))*DZW(1)/DZU(2) 
+      COF2 =     DZU(2)        /(DZU(2)+DZU(3))*DZW(1)/DZU(3) 
+      CF1  = FZP(2) + COF1
+      CF2  = FZM(2) - COF1 - COF2
+      CF3  = COF2       
+
+      do iCell=1,nCells
+        do k=1,nz
+            zgrid(k,iCell) = ah(k)*(zc(k)*(1.-hx(k,iCell)/zt)+hx(k,iCell)) &
+                           + (1.-ah(k)) * zc(k)
+        end do
+        do k=1,nz1
+          zz (k,iCell) = (zw(k+1)-zw(k))/(zgrid(k+1,iCell)-zgrid(k,iCell))
+        end do
+      end do
+
+      do i=1, nEdges
+        iCell1 = cellsOnEdge(1,i)
+        iCell2 = cellsOnEdge(2,i)
+        do k=1,nz1
+          zxu (k,i) = 0.5 * (zgrid(k,iCell2)-zgrid(k,iCell1) + zgrid(k+1,iCell2)-zgrid(k+1,iCell1)) / dcEdge(i)
+        end do
+      end do
+      do i=1, nCells
+        do k=1,nz1
+          ztemp = .5*(zgrid(k+1,i)+zgrid(k,i))
+          dss(k,i) = 0.
+          ztemp = zgrid(k,i)
+          if(ztemp.gt.zd+.1)  then
+             dss(k,i) = dss(k,i)+xnutr*sin(.5*pii*(ztemp-zd)/(zt-zd))**2
+          end if
+        end do
+      end do
+
+!
+! initialization
+!
+         do i=1,nCells
+            do k=1,nz1
+
+               ztemp = .5*(zgrid(k,i)+zgrid(k+1,i))
+
+               ! if(ztemp .gt. ztr) then
+               !   t (k,i) = thetar*exp(9.8*(ztemp-ztr)/(1003.*ttr))
+               !   relhum(k,i) = 0.25
+               !  else
+               !   t (k,i) = 300.+43.*(ztemp/ztr)**1.25
+               !   relhum(k,i) = (1.-0.75*(ztemp/ztr)**1.25)
+               !   if(t(k,i).lt.thetas) t(k,i) = thetas
+               ! end if
+
+               t(k,i) = atm_get_sounding('theta',ztemp)
+               scalars(index_qv,k,i) = atm_get_sounding('qv',ztemp)
+
+               tb(k,i) = t(k,i)
+               thi(k,i) = t(k,i)
+               tbi(k,i) = t(k,i)
+               cqw(k,i) = 1.
+               cqwb(k,i) = 1.
+            end do
+         end do
+
+!  set the velocity field - we are on a plane here.
+
+         do i=1, nEdges
+            cell1 = cellsOnEdge(1,i)
+            cell2 = cellsOnEdge(2,i)
+            if(cell1 <= nCellsSolve .or. cell2 <= nCellsSolve) then
+               do k=1,nz1
+                  ztemp = .25*( zgrid(k,cell1 )+zgrid(k+1,cell1 )  &
+                               +zgrid(k,cell2)+zgrid(k+1,cell2))
+                  u_vel = atm_get_sounding('u',ztemp)
+                  v_vel = atm_get_sounding('v',ztemp)
+                  u(k,i) = cos(angleEdge(i))*u_vel - sin(angleEdge(i))*v_vel
+                  if(i == 1 ) u_init(k) = u(k,i)
+               end do
+            end if
+         end do
+
+         call mpas_dmpar_bcast_reals(dminfo, nz1, u_init)
+
+!
+!    for reference sounding 
+!
+     do itr=1,30
+
+      pitop = 1.-.5*dzw(1)*gravity*(1.+scalars(index_qv,1,1))/(cp*t(1,1)*zz(1,1))
+      pibtop = 1.-.5*dzw(1)*gravity*(1.+qvb(1))/(cp*tb(1,1)*zz(1,1))
+      do k=2,nz1
+         pitop = pitop-dzu(k)*gravity/(cp*cqw(k,1)*.5*(t(k,1)+t(k-1,1))   &
+                                   *.5*(zz(k,1)+zz(k-1,1)))
+         pibtop = pibtop-dzu(k)*gravity/(cp*cqwb(k,1)*.5*(tb(k,1)+tb(k-1,1))   &
+                                   *.5*(zz(k,1)+zz(k-1,1)))
+
+         !call mpas_log_write('$i $r $r $r $r', intArgs=(/k/), realArgs=(/pitop,tb(k,1),dzu(k),tb(k,1)/))
+      end do
+      pitop = pitop-.5*dzw(nz1)*gravity*(1.+scalars(index_qv,nz1,1))/(cp*t(nz1,1)*zz(nz1,1))
+      pibtop = pibtop-.5*dzw(nz1)*gravity*(1.+qvb(nz1))/(cp*tb(nz1,1)*zz(nz1,1))
+
+      call mpas_dmpar_bcast_real(dminfo, pitop)
+      call mpas_dmpar_bcast_real(dminfo, pibtop)
+
+      ptopb = p0*pibtop**(1./rcp)
+      call mpas_log_write('ptopb = $r', realArgs=(/0.01_RKIND*ptopb/))
+
+      do i=1, nCells
+         pb(nz1,i) = pibtop+.5*dzw(nz1)*gravity*(1.+qvb(nz1))/(cp*tb(nz1,i)*zz(nz1,i))
+         p (nz1,i) = pitop+.5*dzw(nz1)*gravity*(1.+scalars(index_qv,nz1,i))/(cp*t (nz1,i)*zz(nz1,i))
+         do k=nz1-1,1,-1
+            pb(k,i)  = pb(k+1,i) + dzu(k+1)*gravity/(cp*cqwb(k+1,i)*.5*(tb(k,i)+tb(k+1,i))   &
+                                           *.5*(zz(k,i)+zz(k+1,i)))
+            p (k,i)  = p (k+1,i) + dzu(k+1)*gravity/(cp*cqw(k+1,i)*.5*(t (k,i)+t (k+1,i))   &
+                                           *.5*(zz(k,i)+zz(k+1,i)))
+         end do
+         do k=1,nz1
+            rb (k,i) = pb(k,i)**(1./rcv)/((rgas/p0)*tb(k,i)*zz(k,i))
+            rtb(k,i) = rb(k,i)*tb(k,i)
+            rr (k,i) = p (k,i)**(1./rcv)/((rgas/p0)*t (k,i)*zz(k,i))-rb(k,i)
+            ppb(k,i) = p0*(zz(k,i)*rgas*rtb(k,i)/p0)**(cp/cv)
+         end do
+      end do
+
+     !
+     ! update water vapor mixing ratio from humidity profile
+     !
+     ! do i= 1,nCells
+     !    do k=1,nz1
+     !       temp     = p(k,i)*thi(k,i)
+     !       pres     = p0*p(k,i)**(1./rcp)
+     !       qvs      = 380.*exp(17.27*(temp-273.)/(temp-36.))/pres
+     !       scalars(index_qv,k,i) = min(0.014_RKIND,relhum(k,i)*qvs)
+     !    end do
+     ! end do
+
+      do k=1,nz1
+!*********************************************************************
+!           QVB = QV INCLUDES MOISTURE IN REFERENCE STATE
+!            qvb(k) = scalars(index_qv,k,1)
+!           QVB = 0 PRODUCES DRY REFERENCE STATE
+            qvb(k) = 0.
+!*********************************************************************
+      end do
+
+      do i= 1,nCells
+         do k=1,nz1
+            t (k,i) = thi(k,i)*(1.+1.61*scalars(index_qv,k,i))
+            tb(k,i) = tbi(k,i)*(1.+1.61*qvb(k))
+         end do
+         do k=2,nz1
+            cqw (k,i) = 1./(1.+.5*(scalars(index_qv,k,i)+scalars(index_qv,k-1,i)))
+            cqwb(k,i) = 1./(1.+.5*(qvb(k)+qvb(k-1)))
+         end do
+      end do
+
+      end do !end of iteration loop
+
+      call mpas_log_write(' base state sounding ')
+      call mpas_log_write(' k,     pb,     rb,     tb,     rtb,     t,     rr,      p,    qvb')
+      do k=1,nVertLevels
+         call mpas_log_write('$i $r $r $r $r $r $r $r $r', intArgs=(/k/), realArgs=(/pb(k,1),rb(k,1),tb(k,1),rtb(k,1),t(k,1),rr(k,1),p(k,1),qvb(k)/))
+      end do
+
+!
+!     potential temperature perturbation
+!
+
+      do i=1,nCells
+        do k = 1,4  ! same as in WRF
+          call random_number(randx)
+          thi(k,i) = thi(k,i) + 0.1*(randx-0.5)
+           t (k,i) = thi(k,i)*(1.+1.61*scalars(index_qv,k,i))
+        end do
+      end do
+
+      do itr=1,30
+
+        pitop = 1.-.5*dzw(1)*gravity*(1.+scalars(index_qv,1,1))/(cp*t(1,1)*zz(1,1))
+        do k=2,nz1
+          pitop = pitop-dzu(k)*gravity/(cp*cqw(k,1)*.5*(t (k,1)+t (k-1,1)) &
+                                                  *.5*(zz(k,1)+zz(k-1,1)))
+        end do
+        pitop = pitop - .5*dzw(nz1)*gravity*(1.+scalars(index_qv,nz1,1))/(cp*t(nz1,1)*zz(nz1,1))
+        ptop = p0*pitop**(1./rcp)
+        call mpas_log_write('ptop  = $r $r', realArgs=(/0.01_RKIND*ptop, 0.01_RKIND*ptopb/))
+
+        call mpas_dmpar_bcast_real(dminfo, ptop)
+
+        do i = 1, nCells
+
+          pp(nz1,i) = ptop-ptopb+.5*dzw(nz1)*gravity*   &
+                       (rr(nz1,i)+(rr(nz1,i)+rb(nz1,i))*scalars(index_qv,nz1,i))
+          do k=nz1-1,1,-1
+!             pp(k,i) = pp(k+1,i)+.5*dzu(k+1)*gravity*                   &
+!                            (rr(k  ,i)+(rr(k  ,i)+rb(k  ,i))*scalars(index_qv,k  ,i)  &
+!                            +rr(k+1,i)+(rr(k+1,i)+rb(k+1,i))*scalars(index_qv,k+1,i))
+               pp(k,i) = pp(k+1,i)+dzu(k+1)*gravity*(    &
+                            fzm(k+1)*(rb(k+1,i)*(scalars(index_qv,k+1,i)-qvb(k+1))    &
+                                     +rr(k+1,i)*(1.+scalars(index_qv,k+1,i)))         &
+                           +fzp(k+1)*(rb(k  ,i)*(scalars(index_qv,k  ,i)-qvb(k))      &
+                                     +rr(k  ,i)*(1.+scalars(index_qv,k  ,i))))
+          end do
+          if (itr==1.and.i==1) then
+             do k=1,nz1
+                call mpas_log_write('pp-check $r', realArgs=(/pp(k,i)/))
+             end do
+          end if
+          do k=1,nz1
+             rt(k,i) = (pp(k,i)/(rgas*zz(k,i))                   &
+                     -rtb(k,i)*(p(k,i)-pb(k,i)))/p(k,i)       
+             p (k,i) = (zz(k,i)*(rgas/p0)*(rtb(k,i)+rt(k,i)))**rcv
+             rr(k,i) = (rt(k,i)-rb(k,i)*(t(k,i)-tb(k,i)))/t(k,i)
+          end do
+
+        end do ! loop over cells
+
+      end do !  iteration loop
+!----------------------------------------------------------------------
+!
+      do k=1,nz1
+         qv_init(k) = scalars(index_qv,k,1)
+      end do
+
+      t_init_1d(:) = t(:,1)
+      call mpas_dmpar_bcast_reals(dminfo, nz1, t_init_1d)
+      call mpas_dmpar_bcast_reals(dminfo, nz1, qv_init)
+
+      do i=1,nCells
+         do k=1,nz1
+            t_init(k,i) = t_init_1d(k)
+            rho_zz(k,i) = rb(k,i)+rr(k,i)
+         end do
+      end do
+
+      do i=1,nEdges
+        cell1 = cellsOnEdge(1,i)
+        cell2 = cellsOnEdge(2,i)
+        if(cell1 <= nCellsSolve .or. cell2 <= nCellsSolve) then
+          do k=1,nz1
+            ru (k,i)  = 0.5*(rho_zz(k,cell1)+rho_zz(k,cell2))*u(k,i)    
+          end do
+        end if
+      end do
+
+
+      !
+      !  we are assuming w and rw are zero for this initialization
+      !  i.e., no terrain
+      !
+       rw = 0.0
+       w = 0.0
+
+       zb = 0.0
+       zb3 = 0.0
+
+      !
+      ! Generate rotated Coriolis field - same settings as in WRF
+      !
+      do iEdge=1,nEdges
+         fEdge(iEdge) = 1.e-04
+      end do
+
+      do iVtx=1,nVertices
+         fVertex(iVtx) = 1.e-04
+      end do
+
+      !
+      ! Compute mass fluxes tangential to each edge (i.e., through the faces of dual grid cells)
+      !
+      v(:,:) = 0.0
+      do iEdge = 1, nEdges
+         do i=1,nEdgesOnEdge(iEdge)
+            eoe = edgesOnEdge(i,iEdge)
+            if (eoe > 0) then
+               do k = 1, nVertLevels
+                 v(k,iEdge) = v(k,iEdge) + weightsOnEdge(i,iEdge) * u(k, eoe)
+              end do
+            end if
+         end do
+      end do
+
+     ! call mpas_log_write(' k,u_init, t_init, qv_init ')
+     ! do k=1,nVertLevels
+     !   call mpas_log_write('$i $r $r $r', intArgs=(/k/), realArgs=(/u_init(k),t_init(k,1),qv_init(k)/))
+     ! end do
+
+      ! Compute rho and theta from rho_zz and theta_m
+      do iCell=1,nCells
+         do k=1,nVertLevels
+            rho(k,iCell) = rho_zz(k,iCell) * zz(k,iCell)
+            theta(k,iCell) = t(k,iCell) / (1.0 + 1.61 * scalars(index_qv,k,iCell))
+         end do
+      end do
+
+   end subroutine init_atm_case_les
+
+
+   real (kind=RKIND) function atm_get_sounding( variable, height )
+
+     implicit none
+     real (kind=RKIND), intent(in) :: height
+     character(len=*), intent(in) :: variable
+
+     atm_get_sounding = -999.
+
+     if(variable == 'u') then 
+        atm_get_sounding = 0.
+     else if (variable == 'v') then
+        atm_get_sounding = 0.
+     else if (variable == 'qv') then
+        atm_get_sounding = 0.
+     else if (variable == 'theta') then
+
+        if(height .le. 1000.) then
+          atm_get_sounding = 300.
+        else if(height .le. 1150.) then
+          atm_get_sounding = 300. + (height-1000.)*8./150.
+        else
+          atm_get_sounding = 308. + (height-1150.)*3./1000.
+        end if
+
+      end if 
+
+   end function atm_get_sounding
+
+!-----------
 
    !-----------------------------------------------------------------------
    !  routine init_atm_case_cam_mpas
