@@ -9,6 +9,7 @@
 module mpas_atm_dissipation_models
 
   use mpas_kind_types, only : RKIND
+  use mpas_atmphys_constants
 
     contains
 
@@ -73,6 +74,20 @@ module mpas_atm_dissipation_models
             h_theta_eddy_visc4 = h_mom_eddy_visc4
 
       end subroutine smagorinsky_2d
+
+!---------------------------------------                                                                                                              
+
+      subroutine calculate_n2(bn2, theta, scalars, num_scalars, index_qv, cellStart, cellEnd, nCells)
+
+      use mpas_atm_dimensions  !  pull nVertLevels and maxEdges from here                                                                             
+
+      integer, intent(in) :: cellStart, cellEnd, nCells
+      integer, intent(in) :: index_qv
+      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(out) :: bn2
+      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: theta
+      real (kind=RKIND), dimension(:,:,:) :: scalars
+
+      end subroutine calculate_n2
 
 !---------------------------------------                                                                                                              
 
