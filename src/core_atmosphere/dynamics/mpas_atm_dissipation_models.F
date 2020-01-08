@@ -77,16 +77,25 @@ module mpas_atm_dissipation_models
 
 !---------------------------------------                                                                                                              
 
-      subroutine calculate_n2(bn2, theta, scalars, num_scalars, index_qv, cellStart, cellEnd, nCells)
+      subroutine calculate_n2( bn2, theta, exner, pressure_b, pp, zgrid, scalars, index_qv, &
+                               cellStart, cellEnd, nCells)
 
-      use mpas_atm_dimensions  !  pull nVertLevels and maxEdges from here                                                                             
+      use mpas_atm_dimensions  !  pull nVertLevels and num_scalars from here                                                                             
 
       integer, intent(in) :: cellStart, cellEnd, nCells
       integer, intent(in) :: index_qv
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(out) :: bn2
-      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: theta
-      real (kind=RKIND), dimension(:,:,:) :: scalars
+      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: theta, exner, pressure_b, pp
+      real (kind=RKIND), dimension(nVertLevels+1,nCells+1), intent(in) :: zgrid
+      real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1), intent(in) :: scalars
 
+            do iCell = cellStart,cellEnd
+!DIR$ IVDEP
+               do k=1, nVertLevels
+                  ! Moist Brunt-Vaisala frequency according to Durran and Klemp (1982) Eq. 36
+                  bn2(k,iCell) = 0.
+               end do
+            end do
       end subroutine calculate_n2
 
 !---------------------------------------                                                                                                              
