@@ -88,13 +88,19 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: theta, exner, pressure_b, pp
       real (kind=RKIND), dimension(nVertLevels+1,nCells+1), intent(in) :: zgrid
       real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1), intent(in) :: scalars
+! local
+      real (kind=RKIND) :: dz
+
 
             do iCell = cellStart,cellEnd
 !DIR$ IVDEP
-               do k=1, nVertLevels
+               do k=2, nVertLevels-1
                   ! Moist Brunt-Vaisala frequency according to Durran and Klemp (1982) Eq. 36
-                  bn2(k,iCell) = 0.
+                  dz = 0.5 * (zgrid(k+2,iCell)+zgrid(k+1,iCell)) - 0.5 * (zgrid(k,iCell)+zgrid(k-1,iCell))
+                  bn2(k,iCell) = gravity * (theta(k+1,iCell) - theta(k-1,iCell) ) / theta(k,iCell) / dz
                end do
+               bn2(1,iCell) = bn2(2,iCell)
+               bn2(nVertLevels,iCell) = bn2(nVertLevels-1,iCell)
             end do
       end subroutine calculate_n2
 
