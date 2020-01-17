@@ -89,22 +89,24 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(nVertLevels+1,nCells+1), intent(in) :: zgrid
       real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1), intent(in) :: scalars
 ! local
-      real (kind=RKIND) :: dz, theta
+      real (kind=RKIND) :: dz
+      real (kind=RKIND), dimension(nVertLevels) :: theta
 
 
             do iCell = cellStart,cellEnd
 !DIR$ IVDEP
+               do k=1, nVertLevels
+                  theta(k) = theta_m(k,iCell) / (1._RKIND + rvord * scalars(index_qv,k,iCell))
+               end do
                do k=2, nVertLevels-1
                   ! Moist Brunt-Vaisala frequency according to Durran and Klemp (1982) Eq. 36
-                  theta = theta_m(k,iCell) / (1._RKIND + rvord * scalars(index_qv,k,iCell))
-                  thetap = theta_m(k+1,iCell) / (1._RKIND + rvord * scalars(index_qv,k+1,iCell))
-                  thetam = theta_m(k-1,iCell) / (1._RKIND + rvord * scalars(index_qv,k-1,iCell))
                   dz = 0.5 * (zgrid(k+2,iCell)+zgrid(k+1,iCell)) - 0.5 * (zgrid(k,iCell)+zgrid(k-1,iCell))
-                  bn2(k,iCell) = gravity * (thetap - thetam ) / theta / dz
+                  bn2(k,iCell) = gravity * (theta(k+1) - theta(k-1) ) / theta(k) / dz
                end do
                bn2(1,iCell) = bn2(2,iCell)
                bn2(nVertLevels,iCell) = bn2(nVertLevels-1,iCell)
             end do
+
       end subroutine calculate_n2
 
 !---------------------------------------                                                                                                              
