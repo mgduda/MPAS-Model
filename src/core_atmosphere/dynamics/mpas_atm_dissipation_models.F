@@ -77,7 +77,7 @@ module mpas_atm_dissipation_models
 
 !---------------------------------------                                                                                                              
 
-      subroutine calculate_n2( bn2, theta, exner, pressure_b, pp, zgrid, scalars, index_qv, &
+      subroutine calculate_n2( bn2, theta_m, exner, pressure_b, pp, zgrid, scalars, index_qv, &
                                cellStart, cellEnd, nCells)
 
       use mpas_atm_dimensions  !  pull nVertLevels and num_scalars from here                                                                             
@@ -85,19 +85,22 @@ module mpas_atm_dissipation_models
       integer, intent(in) :: cellStart, cellEnd, nCells
       integer, intent(in) :: index_qv
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(out) :: bn2
-      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: theta, exner, pressure_b, pp
+      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: theta_m, exner, pressure_b, pp
       real (kind=RKIND), dimension(nVertLevels+1,nCells+1), intent(in) :: zgrid
       real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1), intent(in) :: scalars
 ! local
-      real (kind=RKIND) :: dz
+      real (kind=RKIND) :: dz, theta
 
 
             do iCell = cellStart,cellEnd
 !DIR$ IVDEP
                do k=2, nVertLevels-1
                   ! Moist Brunt-Vaisala frequency according to Durran and Klemp (1982) Eq. 36
+                  theta = theta_m(k,iCell) / (1._RKIND + rvord * scalars(index_qv,k,iCell))
+                  thetap = theta_m(k+1,iCell) / (1._RKIND + rvord * scalars(index_qv,k+1,iCell))
+                  thetam = theta_m(k-1,iCell) / (1._RKIND + rvord * scalars(index_qv,k-1,iCell))
                   dz = 0.5 * (zgrid(k+2,iCell)+zgrid(k+1,iCell)) - 0.5 * (zgrid(k,iCell)+zgrid(k-1,iCell))
-                  bn2(k,iCell) = gravity * (theta(k+1,iCell) - theta(k-1,iCell) ) / theta(k,iCell) / dz
+                  bn2(k,iCell) = gravity * (thetap - thetam ) / theta / dz
                end do
                bn2(1,iCell) = bn2(2,iCell)
                bn2(nVertLevels,iCell) = bn2(nVertLevels-1,iCell)
