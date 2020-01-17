@@ -4864,9 +4864,9 @@ module atm_time_integration
       call mpas_pool_get_array(state, 'w', w, 2)
       call mpas_pool_get_array(state, 'theta_m', theta_m, 2)
       call mpas_pool_get_array(state, 'theta_m', theta_m_save, 1)
-      call mpas_pool_get_array(state, 'theta', theta, 2)
       call mpas_pool_get_array(state, 'scalars', scalars, 2)
 
+      call mpas_pool_get_array(diag, 'theta', theta)
       call mpas_pool_get_array(diag, 'uReconstructZonal', ur_cell)
       call mpas_pool_get_array(diag, 'uReconstructMeridional', vr_cell)
       call mpas_pool_get_array(diag, 'rho_edge', rho_edge)
