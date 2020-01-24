@@ -5280,7 +5280,7 @@ module atm_time_integration
          else if (config_les_model == "3d_smagorinsky") then
 
             ! call to 3D smagorinsky here...
-                  call calculate_n2( bn2, theta_m, exner, pressure_b, pp, zgrid, scalars, index_qv, &
+                  call calculate_n2( bn2, theta_m, exner, pressure_b, pp, zgrid, scalars, index_qv, qtot, &
                                      cellStart, cellEnd, nCells)
 
          end if
