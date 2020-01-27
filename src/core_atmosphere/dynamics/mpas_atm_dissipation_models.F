@@ -77,36 +77,58 @@ module mpas_atm_dissipation_models
 
 !---------------------------------------                                                                                                              
 
-      subroutine calculate_n2( bn2, theta_m, exner, pressure_b, pp, zgrid, scalars, index_qv, qtot, &
+      subroutine calculate_n2( bn2, theta_m, exner, pressure_b, pp, zgrid, scalars, index_qv, index_qc, qtot, &
                                cellStart, cellEnd, nCells)
 
       use mpas_atm_dimensions  !  pull nVertLevels and num_scalars from here                                                                             
 
       integer, intent(in) :: cellStart, cellEnd, nCells
-      integer, intent(in) :: index_qv
+      integer, intent(in) :: index_qv, index_qc
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(out) :: bn2
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: theta_m, exner, pressure_b, pp, qtot
       real (kind=RKIND), dimension(nVertLevels+1,nCells+1), intent(in) :: zgrid
       real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1), intent(in) :: scalars
 ! local
-      real (kind=RKIND) :: dz
-      real (kind=RKIND), dimension(nVertLevels) :: thetav
+      real (kind=RKIND) :: dz, esw, qc_cr
+      real (kind=RKIND), dimension(nVertLevels) :: theta, thetav, qvsw, temp, coefa
 
-
+            qc_cr = 0.00001         ! in kg/kg
+            
             do iCell = cellStart,cellEnd
 !DIR$ IVDEP
                do k=1, nVertLevels
 ! qtot is qv plus all species - thetav includes moist loading (rvord-1 gives 0.61 * qv)
-                  thetav(k) = theta_m(k,iCell) / (1._RKIND + rvord * scalars(index_qv,k,iCell)) &
-                                               * (1._RKIND + rvord * scalars(index_qv,k,iCell) - qtot(k, iCell))
+                  theta(k) = theta_m(k,iCell) / (1._RKIND + rvord * scalars(index_qv,k,iCell))
+                  thetav(k) = theta(k) * (1._RKIND + rvord * scalars(index_qv,k,iCell) - qtot(k, iCell))
+
+                  temp(k) = exner(k,iCell) * theta(k)
+
+                  p = pressure_b(k,iCell) + pp(k,iCell)
+                  esw = 1000. * svp1 * exp(svp2 * (temp(k) - svpt0) / (temp(k) - svp3))
+                  if (p < esw) esw = p * 0.99     ! fix for pressure < esw
+                  qvsw(k) = ep_2 * esw / (p - esw)
+
+                  coefa(k) = ( 1.0 + xlv * qvsw(k)/ R_d / temp(k) ) / &
+                     ( 1.0 + xlv * xlv *qvsw(k) / Cp / R_v / temp(k) / temp(k) ) 
+
                end do
+
                do k=2, nVertLevels-1
-                  ! Moist Brunt-Vaisala frequency according to Durran and Klemp (1982) Eq. 36
                   dz = 0.5 * (zgrid(k+2,iCell)+zgrid(k+1,iCell)) - 0.5 * (zgrid(k,iCell)+zgrid(k-1,iCell))
-                  bn2(k,iCell) = gravity * (thetav(k+1) - thetav(k-1) ) / thetav(k) / dz
+
+                  if ( scalars(index_qc,k,iCell) < qc_cr ) then
+                     ! Dry Brunt-Vaisala frequency
+                     bn2(k,iCell) = gravity * (thetav(k+1) - thetav(k-1) ) / thetav(k) / dz
+                  else
+                     ! Moist Brunt-Vaisala frequency according to Durran and Klemp (1982) Eq. 36
+                     bn2(k,iCell) = gravity * ( coefa(k) * ((theta(k+1) - theta(k-1) ) / theta(k) / dz & 
+                                 + xlv / cp / temp(k) * ( qvsw(k+1) - qvsw(k-1)) / dz ) &
+                                 - ( qtot(k+1, iCell) - qtot(k-1, iCell) ) / dz )
+                  endif
                end do
                bn2(1,iCell) = bn2(2,iCell)
                bn2(nVertLevels,iCell) = bn2(nVertLevels-1,iCell)
+
             end do
 
       end subroutine calculate_n2
