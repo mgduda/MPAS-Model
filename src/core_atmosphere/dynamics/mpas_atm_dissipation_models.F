@@ -90,16 +90,15 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1), intent(in) :: scalars
 ! local
       real (kind=RKIND) :: dz, esw, qc_cr
-      real (kind=RKIND), dimension(nVertLevels) :: theta, thetav, qvsw, temp, coefa
+      real (kind=RKIND), dimension(nVertLevels) :: theta, qvsw, temp, coefa
 
             qc_cr = 0.00001         ! in kg/kg
             
             do iCell = cellStart,cellEnd
 !DIR$ IVDEP
                do k=1, nVertLevels
-! qtot is qv plus all species - thetav includes moist loading (rvord-1 gives 0.61 * qv)
+
                   theta(k) = theta_m(k,iCell) / (1._RKIND + rvord * scalars(index_qv,k,iCell))
-                  thetav(k) = theta(k) * (1._RKIND + rvord * scalars(index_qv,k,iCell) - qtot(k, iCell))
 
                   temp(k) = exner(k,iCell) * theta(k)
 
@@ -118,7 +117,9 @@ module mpas_atm_dissipation_models
 
                   if ( scalars(index_qc,k,iCell) < qc_cr ) then
                      ! Dry Brunt-Vaisala frequency
-                     bn2(k,iCell) = gravity * (thetav(k+1) - thetav(k-1) ) / thetav(k) / dz
+                     bn2(k,iCell) = gravity * ((theta(k+1) - theta(k-1) ) / theta(k)  / dz  &
+                                  + rvord * (scalars(index_qv,k+1,iCell) - scalars(index_qv,k-1,iCell)) / dz &
+                                 - ( qtot(k+1, iCell) - qtot(k-1, iCell) ) / dz )
                   else
                      ! Moist Brunt-Vaisala frequency according to Durran and Klemp (1982) Eq. 36
                      bn2(k,iCell) = gravity * ( coefa(k) * ((theta(k+1) - theta(k-1) ) / theta(k) / dz & 
