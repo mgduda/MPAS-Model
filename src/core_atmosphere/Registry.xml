@@ -1959,6 +1959,9 @@
                 <var name="kdiff" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^{-1}"
                      description="Smagorinsky horizontal eddy viscosity"/>
 
+                <var name="eddy_visc_vert" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^{-1}"
+                     description="vertical eddy viscosity"/>
+
                 <var name="bn2" type="real" dimensions="nVertLevels nCells Time" units="s^{-2}"
                      description="Square of Brunt-Vaisala frequency"/>
 
