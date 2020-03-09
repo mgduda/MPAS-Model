@@ -166,7 +166,7 @@ module mpas_atm_dissipation_models
         end do
 
         do k=2,nVertLevels-1
-          rdz = 2./(zgrid(k+2,iCell)+zgrid(k+1,iCell)-zgrid(k,iCell)-zgrid(k-1,iCell))
+          rdz = 1./(zgrid(k+2,iCell)+zgrid(k+1,iCell)-zgrid(k,iCell)-zgrid(k-1,iCell))
           dudz(k) = (uCell(k+1,iCell)-uCell(k-1,iCell))*rdz
           dvdz(k) = (vCell(k+1,iCell)-vCell(k-1,iCell))*rdz
         end do
@@ -725,7 +725,8 @@ module mpas_atm_dissipation_models
 
          end if  ! vertical mixing of horizontal momentum for fixe viscosity
 
-         if ( config_les_model == "3d_smagorinsky") then
+         ! test section - always execute this code
+         ! if ( config_les_model == "3d_smagorinsky") then
 
                do iEdge=edgeSolveStart,edgeSolveEnd
 
@@ -758,7 +759,8 @@ module mpas_atm_dissipation_models
 
                end do
 
-         end if
+         !  end if 
+         !  end test section
 
 
       end subroutine u_dissipation_3d
@@ -1020,7 +1022,8 @@ module mpas_atm_dissipation_models
 
       end if
 
-         if ( config_les_model == "3d_smagorinsky") then
+         ! test section - always execute this code
+         ! if ( config_les_model == "3d_smagorinsky") then
 
              do iCell = cellSolveStart,cellSolveEnd ! vertical mixing for each column
                 ! compute turbulent fluxes
@@ -1034,7 +1037,7 @@ module mpas_atm_dissipation_models
                 end do
              end do
 
-          end if
+          ! end if
 
       end subroutine w_dissipation_3d
 
@@ -1358,7 +1361,7 @@ module mpas_atm_dissipation_models
 
          end if
 
-         ! test section
+         ! test section - always execute this code
          ! if ( config_les_model == "3d_smagorinsky") then
 
              do iCell = cellSolveStart,cellSolveEnd ! vertical mixing for each column
