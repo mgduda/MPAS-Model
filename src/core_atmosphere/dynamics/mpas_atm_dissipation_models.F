@@ -119,6 +119,8 @@ module mpas_atm_dissipation_models
       real (kind=RKIND) :: rdz, def2, pr_inv, wk
 
       pr_inv = 1./prandtl
+      ! testing
+      pr_inv = 0.
 
       do iCell = cellStart,cellEnd
 
@@ -136,8 +138,8 @@ module mpas_atm_dissipation_models
         do iEdge=1,nEdgesOnCell(iCell)
 
           ie = EdgesOnCell(iEdge,iCell)
-          cell1 = edgesOnCell(1,ie)
-          cell2 = edgesOnCell(2,ie)
+          cell1 = cellsOnEdge(1,ie)
+          cell2 = cellsOnEdge(2,ie)
 
           do k=1,nVertLevels
             dudx(k) = dudx(k) + deformation_coef_c2(iEdge,iCell)*u(k,ie) &
@@ -152,8 +154,8 @@ module mpas_atm_dissipation_models
 
           do k=1,nVertLevels+1
             wk = 0.5*(w(k,cell1)+w(k,cell2))
-            dwdx(k) = dwdx(k) + deformation_coef_c(iEdge,iCell)*wk
-            dwdy(k) = dwdy(k) + deformation_coef_s(iEdge,iCell)*wk
+             dwdx(k) = dwdx(k) + deformation_coef_c(iEdge,iCell)*wk
+             dwdy(k) = dwdy(k) + deformation_coef_s(iEdge,iCell)*wk
           end do
 
         end do
@@ -165,33 +167,33 @@ module mpas_atm_dissipation_models
 
         do k=2,nVertLevels-1
           rdz = 2./(zgrid(k+2,iCell)+zgrid(k+1,iCell)-zgrid(k,iCell)-zgrid(k-1,iCell))
-          dudz(k) = (u(k+1,iCell)-u(k-1,iCell))*rdz
-          dvdz(k) = (v(k+1,iCell)-v(k-1,iCell))*rdz
+          dudz(k) = (uCell(k+1,iCell)-uCell(k-1,iCell))*rdz
+          dvdz(k) = (vCell(k+1,iCell)-vCell(k-1,iCell))*rdz
         end do
 
         k = 1
         rdz = 1./(zgrid(k+1,iCell)-zgrid(k,iCell))
-        dudz(k) = (u(k+1,iCell)-u(k,iCell))*rdz
-        dvdz(k) = (v(k+1,iCell)-v(k,iCell))*rdz
+        dudz(k) = (uCell(k+1,iCell)-uCell(k,iCell))*rdz
+        dvdz(k) = (vCell(k+1,iCell)-vCell(k,iCell))*rdz
 
         k = nVertLevels-1
         rdz = 1./(zgrid(k+1,iCell)-zgrid(k,iCell))
-        dudz(k+1) = (u(k+1,iCell)-u(k,iCell))*rdz
-        dvdz(k+1) = (v(k+1,iCell)-v(k,iCell))*rdz
+        dudz(k+1) = (uCell(k+1,iCell)-uCell(k,iCell))*rdz
+        dvdz(k+1) = (vCell(k+1,iCell)-vCell(k,iCell))*rdz
 
         do k=1, nVertLevels
           ! here is the 3D Smagorinsky formulation, 
           ! followed by imposition of an upper bound on the eddy viscosity
-          d_11(k) = 2*dudx(k)
-          d_22(k) = 2*dvdy(k)
-          d_33(k) = 2*dwdz(k)
+          d_11(k) = 2.*dudx(k)
+          d_22(k) = 2.*dvdy(k)
+          d_33(k) = 2.*dwdz(k)
           d_12(k) = dudy(k) + dvdx(k)
           d_13(k) = dwdx(k) + dudz(k)
           d_23(k) = dwdy(k) + dvdz(k)
 
           def2 = 0.5*(d_11(k)**2 + d_22(k)**2 + d_33(k)**2) + d_12(k)**2 + d_13(k)**2 + d_23(k)**2
 
-          eddy_visc_horz(k,iCell) = (c_s * config_len_disp)**2 * max(0.,def2 - pr_inv*bv_freq2(k,iCell))
+          eddy_visc_horz(k,iCell) = (c_s * config_len_disp)**2 * sqrt(max(0.,def2 - pr_inv*bv_freq2(k,iCell)))
           eddy_visc_horz(k,iCell) = min(eddy_visc_horz(k,iCell),(0.01*config_len_disp**2) * invDt)
           eddy_visc_vert(k,iCell) = eddy_visc_horz(k,iCell)
 
@@ -745,6 +747,11 @@ module mpas_atm_dissipation_models
                      turb_vflux(k) = rho_k_at_w*zz_at_w*rdzu(k)*(u(k,iEdge)-u(k-1,iEdge))
                   end do
 
+                  ! test conditions for supercell case
+                  turb_vflux(1) = turb_vflux(2)
+                  turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
+                  ! end test conditions
+
                   do k=1,nVertLevels
                     tend_u_euler(k,iEdge) = tend_u_euler(k,iEdge) + rdzw(k)*(turb_vflux(k+1)-turb_vflux(k))
                   end do
@@ -1276,7 +1283,7 @@ module mpas_atm_dissipation_models
 
                   theta_turb_flux = edge_sign*(theta_m(k,cell2) - theta_m(k,cell1))*rho_edge(k,iEdge)
                   delsq_theta(k,iCell) = delsq_theta(k,iCell) + theta_turb_flux
-                  theta_turb_flux = theta_turb_flux*0.5*(eddy_visc_horz(k,cell1)+eddy_visc_vert(k,cell2)) * pr_scale
+                  theta_turb_flux = theta_turb_flux*0.5*(eddy_visc_horz(k,cell1)+eddy_visc_horz(k,cell2)) * pr_scale
                   tend_theta_euler(k,iCell) = tend_theta_euler(k,iCell) + theta_turb_flux
 
                end do
@@ -1351,7 +1358,8 @@ module mpas_atm_dissipation_models
 
          end if
 
-         if ( config_les_model == "3d_smagorinsky") then
+         ! test section
+         ! if ( config_les_model == "3d_smagorinsky") then
 
              do iCell = cellSolveStart,cellSolveEnd ! vertical mixing for each column
                 ! compute turbulent fluxes
@@ -1364,13 +1372,18 @@ module mpas_atm_dissipation_models
                   turb_vflux(k) = rho_k_at_w*zz_at_w*rdzu(k)*(theta_m(k,iCell)-theta_m(k-1,iCell))
                 end do
 
+                ! test boundary conditions for supercell case
+                turb_vflux(1) = turb_vflux(2)
+                turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
+
                 do k=1,nVertLevels
                   tend_theta_euler(k,iCell) = tend_theta_euler(k,iCell) &
                                               + rdzw(k)*(turb_vflux(k+1)-turb_vflux(k))
                 end do
              end do
 
-          end if
+          ! end if
+          ! end test section
 
       end subroutine theta_dissipation_3d
 
