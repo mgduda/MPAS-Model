@@ -745,7 +745,7 @@ module mpas_atm_dissipation_models
                      zz_cell1 = fzm(k)*zz(k,cell1)+fzp(k)*zz(k-1,cell1)
                      zz_cell2 = fzm(k)*zz(k,cell2)+fzp(k)*zz(k-1,cell2)
                      zz_at_w = 0.5*(zz_cell1+zz_cell2)
-                     turb_vflux(k) = rho_k_at_w*zz_at_w*rdzu(k)*(u(k,iEdge)-u(k-1,iEdge))
+                     turb_vflux(k) = - rho_k_at_w*zz_at_w*rdzu(k)*(u(k,iEdge)-u(k-1,iEdge))
                   end do
 
                   ! test conditions for supercell case
@@ -754,7 +754,7 @@ module mpas_atm_dissipation_models
                   ! end test conditions
 
                   do k=1,nVertLevels
-                    tend_u_euler(k,iEdge) = tend_u_euler(k,iEdge) + rdzw(k)*(turb_vflux(k+1)-turb_vflux(k))
+                    tend_u_euler(k,iEdge) = tend_u_euler(k,iEdge) - rdzw(k)*(turb_vflux(k+1)-turb_vflux(k))
                   end do
 
                end do
@@ -1028,12 +1028,12 @@ module mpas_atm_dissipation_models
              do iCell = cellSolveStart,cellSolveEnd ! vertical mixing for each column
                 ! compute turbulent fluxes
                 do k=1,nVertLevels
-                  turb_vflux(k) = rho_zz(k,iCell)*eddy_visc_vert(k,iCell)*zz(k,iCell)*zz(k,iCell)  &
-                                  *rdzu(k)*(w(k+1,iCell)-w(k,iCell))
+                  turb_vflux(k) = - rho_zz(k,iCell)*eddy_visc_vert(k,iCell)*zz(k,iCell)*zz(k,iCell)  &
+                                    *rdzu(k)*(w(k+1,iCell)-w(k,iCell))
                 end do
                 do k=2,nVertLevels
                   tend_w_euler(k,iCell) = tend_w_euler(k,iCell) &
-                                              + rdzw(k)*(turb_vflux(k+1)-turb_vflux(k))
+                                              - rdzw(k)*(turb_vflux(k+1)-turb_vflux(k))
                 end do
              end do
 
@@ -1372,7 +1372,7 @@ module mpas_atm_dissipation_models
                   rho_k_at_w =  fzm(k)*rho_zz(k  ,iCell)*zz(k  ,iCell)*eddy_visc_vert(k  ,iCell) &
                                +fzp(k)*rho_zz(k-1,iCell)*zz(k-1,iCell)*eddy_visc_vert(k-1,iCell)
                   zz_at_w = fzm(k)*zz(k,iCell)+fzp(k)*zz(k-1,iCell)
-                  turb_vflux(k) = rho_k_at_w*zz_at_w*rdzu(k)*(theta_m(k,iCell)-theta_m(k-1,iCell))
+                  turb_vflux(k) = - rho_k_at_w*zz_at_w*rdzu(k)*(theta_m(k,iCell)-theta_m(k-1,iCell))
                 end do
 
                 ! test boundary conditions for supercell case
@@ -1381,7 +1381,7 @@ module mpas_atm_dissipation_models
 
                 do k=1,nVertLevels
                   tend_theta_euler(k,iCell) = tend_theta_euler(k,iCell) &
-                                              + rdzw(k)*(turb_vflux(k+1)-turb_vflux(k))
+                                              - rdzw(k)*(turb_vflux(k+1)-turb_vflux(k))
                 end do
              end do
 
