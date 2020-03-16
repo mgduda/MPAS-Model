@@ -6237,6 +6237,7 @@ call mpas_log_write('Done with soil consistency check')
       integer :: iCell, iCell1, iCell2 , iEdge, vtx1, vtx2, ivtx, i, k, nz, nz1, itr, cell1, cell2
       integer, pointer :: nEdges, nVertices, maxEdges, nCellsSolve
       integer, pointer :: index_qv
+      integer, pointer :: index_tke
 
       real (kind=RKIND), dimension(nVertLevels + 1 ) :: znu, znw, znwc, znwv
       real (kind=RKIND), dimension(nVertLevels + 1 ) :: znuc, znuv
@@ -6370,6 +6371,7 @@ call mpas_log_write('Done with soil consistency check')
       call mpas_pool_get_array(state, 'scalars', scalars)
 
       call mpas_pool_get_dimension(state, 'index_qv', index_qv)
+      call mpas_pool_get_dimension(state, 'index_tke', index_tke)
 
       scalars(:,:,:) = 0.
 
@@ -6607,6 +6609,14 @@ call mpas_log_write('Done with soil consistency check')
           call random_number(randx)
           thi(k,i) = thi(k,i) + 0.1*(randx-0.5)
            t (k,i) = thi(k,i)*(1.+1.61*scalars(index_qv,k,i))
+        end do
+      end do
+!
+!  initial seed for tke
+!
+      do i=1,nCells
+        do k = 1,nz1  
+          scalars(index_tke,k,i) = 0.1
         end do
       end do
 

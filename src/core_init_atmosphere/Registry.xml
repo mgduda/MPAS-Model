@@ -1196,6 +1196,8 @@
                         <var name="nwfa" array_group="number" units="nb kg^{-1}"
                              description="Gocart water-friendly aerosol number concentration"
                              packages="mp_thompson_aers_in"/>
+                        <var name="tke" array_group="turbulence" units="m^2 s^{-2}"
+                             description="Turbulent kinetic energy for the prognostic tke LES scheme"/>
                 </var_array>
 
                 <!-- Climatology for ocean mixed-layer depth -->
