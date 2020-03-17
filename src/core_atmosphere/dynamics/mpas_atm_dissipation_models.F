@@ -89,22 +89,26 @@ module mpas_atm_dissipation_models
 
 !---------------------------------------
 
-      subroutine smagorinsky_3d( eddy_visc_horz, eddy_visc_vert, u, v, uCell, vCell,              &
+      subroutine smagorinsky_3d( eddy_visc_horz, eddy_visc_vert, u, v, uCell, vCell,                &
                                  w, c_s, bv_freq2, zgrid, config_len_disp,                          &
                                  deformation_coef_c2, deformation_coef_s2, deformation_coef_cs,     &
                                  deformation_coef_c, deformation_coef_s,                            &
                                  invDt, h_mom_eddy_visc4, config_visc4_2dsmag, h_theta_eddy_visc4,  &
+                                 scalars, tend_scalars, index_tke, rho_zz, meshScalingDel2,         &
                                  cellStart, cellEnd, nEdgesOnCell, edgesOnCell, cellsOnEdge,        &
-                                 nCells, nEdges, nVertLevels, maxEdges                             )
+                                 nCells, nEdges, nVertLevels, maxEdges, num_scalars                )
 
       implicit none
       
-      integer, intent(in) :: cellStart, cellEnd, nCells, nEdges, nVertLevels, maxEdges
+      integer, intent(in) :: cellStart, cellEnd, nCells, nEdges, nVertLevels, maxEdges, index_tke, num_scalars
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(in) :: u
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(in) :: v
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: uCell
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: vCell
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: bv_freq2
+      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: rho_zz
+      real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1), intent(in) :: scalars
+      real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1) :: tend_scalars
       real (kind=RKIND), dimension(nVertLevels+1,nCells+1), intent(in) :: w
       real (kind=RKIND), dimension(nVertLevels+1,nCells+1), intent(in) :: zgrid
       real (kind=RKIND), dimension(maxEdges,nCells+1), intent(in) :: deformation_coef_c2
@@ -112,6 +116,7 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(maxEdges,nCells+1), intent(in) :: deformation_coef_cs
       real (kind=RKIND), dimension(maxEdges,nCells+1), intent(in) :: deformation_coef_c
       real (kind=RKIND), dimension(maxEdges,nCells+1), intent(in) :: deformation_coef_s
+      real (kind=RKIND), dimension(nEdges+1), intent(in) :: meshScalingDel2
       real (kind=RKIND), intent(in) :: c_s, config_len_disp, invDt, config_visc4_2dsmag
       integer, dimension(nCells+1), intent(in) :: nEdgesOnCell
       integer, dimension(maxEdges,nCells+1), intent(in) :: edgesOnCell
@@ -128,6 +133,11 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(nVertLevels+1) :: dwdx, dwdy
       real (kind=RKIND), dimension(nVertLevels) :: dudz, dvdz, dwdz
       real (kind=RKIND) :: rdz, def2, pr_inv, wk
+      real (kind=RKIND) :: shear_production, buoyancy, dissipation, delta_z, delta_s, bv, tke_length, diss_length
+      real (kind=RKIND) :: l_horizontal, l_vertical, c_k, c_dissipation
+      real (kind=RKIND) :: prandtl_horizontal_inv, prandtl_vertical_inv
+
+      logical, parameter :: test_tke=.true.
 
       if(debug_dissipation)  call mpas_log_write(' begin smagorinsky_3d ')
 
@@ -210,6 +220,63 @@ module mpas_atm_dissipation_models
 
         end do
 
+!***************************************************
+
+        if (test_tke) then
+
+          do k=1,nVertLevels
+
+            shear_production = eddy_visc_horz(k,iCell)*(d_11(k)**2 + d_22(k)**2 + d_12(k)**2) &
+                              +eddy_visc_vert(k,iCell)*(d_33(k)**2 + d_13(k)**2 + d_13(k)**2)
+
+            buoyancy = -eddy_visc_vert(k,iCell)*bv_freq2(k,iCell)
+
+            ! dissipation                                                                                     
+
+            delta_z = zgrid(k+1,iCell)-zgrid(k,iCell)
+            delta_s = ((config_len_disp**2)*delta_z)**(1./3.)
+            bv = max( sqrt(abs(bv_freq2(k,iCell))), epsilon )
+            tke_length = 0.76*sqrt(scalars(index_tke,k,iCell))/bv
+
+            diss_length = min(delta_s,tke_length)
+            if(bv_freq2(k,iCell) <= 0) diss_length = delta_s
+
+            c_k = 0.25
+            c_dissipation = 1.9*c_k + max( 0.0, 0.93 - 1.9*c_k )*diss_length/delta_s
+
+            dissipation = -c_dissipation*(scalars(index_tke,k,iCell)**(1.5))/diss_length
+
+            ! computing eddy viscosities *********                                                            
+
+            ! non-isotropic mixing                                                                            
+
+            l_horizontal = config_len_disp
+            l_vertical = min(delta_z,tke_length)
+            if(bv_freq2(k,iCell) <= 0) diss_length = delta_z
+
+            ! isotropic mixing
+
+            l_horizontal = min(delta_s,tke_length)
+            if(bv_freq2(k,iCell) <= 0) diss_length = delta_s
+            l_vertical = l_horizontal
+
+            prandtl_horizontal_inv = 3.
+            prandtl_vertical_inv = 1.0+(2.0*l_vertical/delta_z) ! going to need to store this off somewhere   
+
+            ! eddy viscocities set here if we are running the 1.5 order prognostic tke scheme
+            ! eddy_visc_horz(k,iCell) = c_k*l_horizontal*sqrt(scalars(index_tke,k,iCell))
+            ! eddy_visc_vert(k,iCell) = c_k*l_vertical*sqrt(scalars(index_tke,k,iCell))
+
+            ! RHS term for the subgrid ke.                                                                    
+
+            tend_scalars(index_tke,k,iCell) = rho_zz(k,iCell)*( shear_production + buoyancy + dissipation )
+
+          end do
+
+        end if ! end of test_tke
+
+!***************************************************
+
       end do ! loop over all owned cells (columns)
 
       ! set up coefficients for 4th-order horizontal background filter
@@ -235,9 +302,10 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(nVertLevels+1,nCells+1), intent(in) :: zgrid
       real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1), intent(in) :: scalars
 ! local
-      real (kind=RKIND) :: dz, esw
+      real (kind=RKIND) :: dz, rdz, esw
       real (kind=RKIND), parameter :: qc_cr = 0.00001  ! in kg/kg
       real (kind=RKIND), dimension(nVertLevels) :: theta, qvsw, temp, coefa
+      logical :: dry_bv_frequency
 
          if(debug_dissipation)  call mpas_log_write(' begin BV frequency calculations ')
 
@@ -261,18 +329,37 @@ module mpas_atm_dissipation_models
 
                do k=2, nVertLevels-1
                   dz = 0.5 * (zgrid(k+2,iCell)+zgrid(k+1,iCell)) - 0.5 * (zgrid(k,iCell)+zgrid(k-1,iCell))
+                  rdz = 1.0/dz
 
-                  if ( scalars(index_qc,k,iCell) < qc_cr ) then
+                  ! if ( scalars(index_qc,k,iCell) < qc_cr ) then
+                  !   ! Dry Brunt-Vaisala frequency
+                  !   bn2(k,iCell) = gravity * ((theta(k+1) - theta(k-1) ) / theta(k)  / dz  &
+                  !                + rvord * (scalars(index_qv,k+1,iCell) - scalars(index_qv,k-1,iCell)) / dz &
+                  !               - ( qtot(k+1, iCell) - qtot(k-1, iCell) ) / dz )
+                  ! else
+                  !   ! Moist Brunt-Vaisala frequency according to Durran and Klemp (1982) Eq. 36
+                  !   bn2(k,iCell) = gravity * ( coefa(k) * ((theta(k+1) - theta(k-1) ) / theta(k) / dz & 
+                  !               + xlv / cp / temp(k) * ( qvsw(k+1) - qvsw(k-1)) / dz ) &
+                  !               - ( qtot(k+1, iCell) - qtot(k-1, iCell) ) / dz )
+                  ! endif
+
+                  dry_bv_frequency = .true.
+                  if(index_qc .gt. 0) then  ! if moist simulation, qc exists
+                    if ( scalars(index_qc,k,iCell) .ge. qc_cr ) dry_bv_frequency = .false.
+                  end if
+
+                  if (dry_bv_frequency) then
                      ! Dry Brunt-Vaisala frequency
-                     bn2(k,iCell) = gravity * ((theta(k+1) - theta(k-1) ) / theta(k)  / dz  &
-                                  + rvord * (scalars(index_qv,k+1,iCell) - scalars(index_qv,k-1,iCell)) / dz &
-                                 - ( qtot(k+1, iCell) - qtot(k-1, iCell) ) / dz )
+                     bn2(k,iCell) = gravity * ((theta(k+1) - theta(k-1) ) / theta(k)  * rdz  &
+                                  + rvord * (scalars(index_qv,k+1,iCell) - scalars(index_qv,k-1,iCell)) * rdz &
+                                 - ( qtot(k+1, iCell) - qtot(k-1, iCell) ) * rdz )
                   else
                      ! Moist Brunt-Vaisala frequency according to Durran and Klemp (1982) Eq. 36
-                     bn2(k,iCell) = gravity * ( coefa(k) * ((theta(k+1) - theta(k-1) ) / theta(k) / dz & 
-                                 + xlv / cp / temp(k) * ( qvsw(k+1) - qvsw(k-1)) / dz ) &
-                                 - ( qtot(k+1, iCell) - qtot(k-1, iCell) ) / dz )
+                     bn2(k,iCell) = gravity * ( coefa(k) * ((theta(k+1) - theta(k-1) ) / theta(k) * rdz & 
+                                 + xlv / cp / temp(k) * ( qvsw(k+1) - qvsw(k-1)) * rdz ) &
+                                 - ( qtot(k+1, iCell) - qtot(k-1, iCell) ) * rdz )
                   endif
+
                end do
                bn2(1,iCell) = bn2(2,iCell)
                bn2(nVertLevels,iCell) = bn2(nVertLevels-1,iCell)
