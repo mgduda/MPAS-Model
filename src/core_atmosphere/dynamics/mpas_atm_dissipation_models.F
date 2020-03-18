@@ -136,8 +136,10 @@ module mpas_atm_dissipation_models
       real (kind=RKIND) :: shear_production, buoyancy, dissipation, delta_z, delta_s, bv, tke_length, diss_length
       real (kind=RKIND) :: l_horizontal, l_vertical, c_k, c_dissipation
       real (kind=RKIND) :: prandtl_horizontal_inv, prandtl_vertical_inv
+      real (kind=RKIND) :: eddy_visc_h, eddy_visc_v
 
       logical, parameter :: test_tke=.true.
+      real (kind=RKIND), parameter :: epsilon_bv = 1.e-06
 
       if(debug_dissipation)  call mpas_log_write(' begin smagorinsky_3d ')
 
@@ -226,27 +228,12 @@ module mpas_atm_dissipation_models
 
           do k=1,nVertLevels
 
-            shear_production = eddy_visc_horz(k,iCell)*(d_11(k)**2 + d_22(k)**2 + d_12(k)**2) &
-                              +eddy_visc_vert(k,iCell)*(d_33(k)**2 + d_13(k)**2 + d_13(k)**2)
-
-            buoyancy = -eddy_visc_vert(k,iCell)*bv_freq2(k,iCell)
-
-            ! dissipation                                                                                     
-
             delta_z = zgrid(k+1,iCell)-zgrid(k,iCell)
             delta_s = ((config_len_disp**2)*delta_z)**(1./3.)
-            bv = max( sqrt(abs(bv_freq2(k,iCell))), epsilon )
+            bv = max( sqrt(abs(bv_freq2(k,iCell))), epsilon_bv )
             tke_length = 0.76*sqrt(scalars(index_tke,k,iCell))/bv
-
             diss_length = min(delta_s,tke_length)
             if(bv_freq2(k,iCell) <= 0) diss_length = delta_s
-
-            c_k = 0.25
-            c_dissipation = 1.9*c_k + max( 0.0, 0.93 - 1.9*c_k )*diss_length/delta_s
-
-            dissipation = -c_dissipation*(scalars(index_tke,k,iCell)**(1.5))/diss_length
-
-            ! computing eddy viscosities *********                                                            
 
             ! non-isotropic mixing                                                                            
 
@@ -256,9 +243,30 @@ module mpas_atm_dissipation_models
 
             ! isotropic mixing
 
-            l_horizontal = min(delta_s,tke_length)
-            if(bv_freq2(k,iCell) <= 0) diss_length = delta_s
-            l_vertical = l_horizontal
+            ! l_horizontal = min(delta_s,tke_length)
+            ! if(bv_freq2(k,iCell) <= 0) diss_length = delta_s
+            ! l_vertical = l_horizontal
+
+            ! eddy viscocities set here if we are running the 1.5 order prognostic tke scheme
+            eddy_visc_h = c_k*l_horizontal*sqrt(scalars(index_tke,k,iCell))
+            eddy_visc_v = c_k*l_vertical*sqrt(scalars(index_tke,k,iCell))
+
+            ! terms for the prognostic tke integration
+
+            shear_production = eddy_visc_h*(d_11(k)**2 + d_22(k)**2 + d_12(k)**2) &
+                              +eddy_visc_v*(d_33(k)**2 + d_13(k)**2 + d_13(k)**2)
+
+            buoyancy = -eddy_visc_v*bv_freq2(k,iCell)
+
+            ! dissipation                                                                                     
+
+            c_k = 0.25
+            c_dissipation = 1.9*c_k + max( 0.0, 0.93 - 1.9*c_k )*diss_length/delta_s
+            if( (k.eq. 1) .or. (k.eq.nVertLevels) ) c_dissipation = 3.9
+
+            dissipation = -c_dissipation*(scalars(index_tke,k,iCell)**(1.5))/diss_length
+
+            ! computing eddy viscosities *********                                                            
 
             prandtl_horizontal_inv = 3.
             prandtl_vertical_inv = 1.0+(2.0*l_vertical/delta_z) ! going to need to store this off somewhere   
