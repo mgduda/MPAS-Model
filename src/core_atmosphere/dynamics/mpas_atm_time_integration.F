@@ -5151,6 +5151,7 @@ module atm_time_integration
       real (kind=RKIND) :: config_len_disp
       real (kind=RKIND) :: config_h_mom_eddy_visc2, config_v_mom_eddy_visc2, config_h_theta_eddy_visc2, config_v_theta_eddy_visc2
       logical, parameter :: test_dissipation_3d=.true.
+      logical, parameter :: mix_scalars = .true.
 
       integer, intent(in) :: rk_step
       real (kind=RKIND), intent(in) :: dt
@@ -5821,19 +5822,36 @@ module atm_time_integration
 
 !          if(test_dissipation_3d) then
 
-            call theta_dissipation_3d( cellStart, cellEnd, cellSolveStart, cellSolveEnd,         &
-                                       nCells, nEdges,                                           &
-                                       nEdgesOnCell, edgesOnCell, cellsOnEdge, edgesOnCell_sign, &
-                                       invAreaCell, invDcEdge, dvEdge,                           &
-                                       meshScalingDel2, meshScalingDel4,                         &
-                                       config_mix_full, t_init, zgrid,                           &
-                                       rdzw, rdzu, fzm, fzp,                                              &
-                                       v_theta_eddy_visc2, h_theta_eddy_visc4, prandtl_inv,      &
-                                       delsq_theta,                                              &
-                                       theta_m, rho_edge, rho_zz, zz,                            &
-                                       eddy_visc_horz, eddy_visc_vert,                           &
-                                       config_les_model,                                         &
-                                       tend_theta_euler                                         )
+            !call theta_dissipation_3d( cellStart, cellEnd, cellSolveStart, cellSolveEnd,         &
+            !                           nCells, nEdges,                                           &
+            !                           nEdgesOnCell, edgesOnCell, cellsOnEdge, edgesOnCell_sign, &
+            !                           invAreaCell, invDcEdge, dvEdge,                           &
+            !                           meshScalingDel2, meshScalingDel4,                         &
+            !                           config_mix_full, t_init, zgrid,                           &
+            !                           rdzw, rdzu, fzm, fzp,                                     &
+            !                           v_theta_eddy_visc2, h_theta_eddy_visc4, prandtl_inv,      &
+            !                           delsq_theta,                                              &
+            !                           theta_m, rho_edge, rho_zz, zz,                            &
+            !                           eddy_visc_horz, eddy_visc_vert,                           &
+            !                           config_les_model,                                         &
+            !                           tend_theta_euler                                         )
+
+            call scalar_dissipation_3d_les( cellStart, cellEnd, cellSolveStart, cellSolveEnd,         &
+                                            nCells, nEdges,                                           &
+                                            nEdgesOnCell, edgesOnCell, cellsOnEdge, edgesOnCell_sign, &
+                                            invAreaCell, invDcEdge, dvEdge,                           &
+                                            meshScalingDel2, meshScalingDel4,                         &
+                                            config_mix_full, t_init, zgrid,                           &
+                                            rdzw, rdzu, fzm, fzp,                                     &
+                                            v_theta_eddy_visc2, h_theta_eddy_visc4, prandtl_inv,      &
+                                            delsq_theta,                                              &
+                                            theta_m, rho_edge, rho_zz, zz,                            &
+                                            eddy_visc_horz, eddy_visc_vert,                           &
+                                            bn2, config_len_disp, scalars, tend_scalars,              &
+                                            index_tke, index_qv, num_scalars, mix_scalars,            &
+                                            config_les_model,                                         &
+                                            tend_theta_euler                                         )
+
 
 !          else  ! this is the original MPAS dissipation code
 !

@@ -1541,4 +1541,324 @@ module mpas_atm_dissipation_models
 
       end subroutine theta_dissipation_3d
 
+!-----------------------------------------------------
+
+      subroutine scalar_dissipation_3d_les( cellStart, cellEnd, cellSolveStart, cellSolveEnd,         &
+                                            nCells, nEdges,                                           &
+                                            nEdgesOnCell, edgesOnCell, cellsOnEdge, edgesOnCell_sign, &
+                                            invAreaCell, invDcEdge, dvEdge,                           &
+                                            meshScalingDel2, meshScalingDel4,                         &
+                                            config_mix_full, t_init, zgrid,                           &
+                                            rdzw, rdzu, fzm, fzp,                                     &
+                                            v_theta_eddy_visc2, h_theta_eddy_visc4, prandtl_inv,      &
+                                            delsq_theta,                                              &
+                                            theta_m, rho_edge, rho_zz, zz,                            &
+                                            eddy_visc_horz, eddy_visc_vert,                           &
+                                            bv_freq2, config_len_disp, scalars, tend_scalars,         &
+                                            index_tke, index_qv, num_scalars_dummy, mix_scalars,      &
+                                            config_les_model,                                         &
+                                            tend_theta_euler                                         )
+
+
+      ! 3D theta_m dissipation using the 3D smagorinsky eddy viscosities.  
+      ! This routine also includes the simpler mixing models, and the 4th-order horizontal filter
+
+      use mpas_atm_dimensions  !  pull nVertLevels and maxEdges from here                                                                             
+      implicit none
+
+      integer, intent(in) :: cellStart, cellEnd
+      integer, intent(in) :: cellSolveStart, cellSolveEnd
+      integer, intent(in) :: nCells, nEdges
+      integer, intent(in) :: num_scalars_dummy
+      integer, intent(in) :: index_tke, index_qv
+
+      logical, intent(in) :: config_mix_full, mix_scalars
+
+      character (len=StrKIND) :: config_les_model
+
+      integer, dimension(nCells+1), intent(in) :: nEdgesOnCell
+      integer, dimension(maxEdges,nCells+1), intent(in) :: EdgesOnCell
+
+      integer, dimension(2,nEdges+1), intent(in) :: cellsOnEdge
+
+      real (kind=RKIND), intent(in) :: h_theta_eddy_visc4
+      real (kind=RKIND), intent(in) :: v_theta_eddy_visc2
+      real (kind=RKIND), intent(in) :: prandtl_inv
+      real (kind=RKIND), intent(in) :: config_len_disp
+
+      real (kind=RKIND), dimension(maxEdges,nCells+1), intent(in) :: edgesOnCell_sign
+      real (kind=RKIND), dimension(nCells+1), intent(in) :: invAreaCell
+      real (kind=RKIND), dimension(nEdges+1), intent(in) :: dvEdge
+      real (kind=RKIND), dimension(nEdges+1), intent(in) :: invDcEdge
+      real (kind=RKIND), dimension(nEdges+1), intent(in) :: meshScalingDel2
+      real (kind=RKIND), dimension(nEdges+1), intent(in) :: meshScalingDel4
+      real (kind=RKIND), dimension(nVertLevels), intent(in) :: rdzw
+      real (kind=RKIND), dimension(nVertLevels), intent(in) :: rdzu
+      real (kind=RKIND), dimension(nVertLevels), intent(in) :: fzm
+      real (kind=RKIND), dimension(nVertLevels), intent(in) :: fzp
+      real (kind=RKIND), dimension(nVertLevels+1, nCells+1), intent(in) :: zgrid
+      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: zz
+
+      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: t_init
+
+      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: bv_freq2
+      real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1), intent(in) :: scalars
+      real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1), intent(inout) :: tend_scalars
+      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: theta_m
+      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: eddy_visc_horz
+      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: eddy_visc_vert
+      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: rho_zz
+      real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(in) :: rho_edge
+
+      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(inout) :: tend_theta_euler
+
+      ! storage passed in from calling routine                                                                                                        
+      real (kind=RKIND), dimension(nVertLevels,nCells+1) :: delsq_theta
+
+      ! local variables                                                                                                                               
+      integer :: cell1, cell2, iEdge, iCell, i, k, iScalar
+      real (kind=RKIND) :: r_areaCell, edge_sign, theta_turb_flux, pr_scale
+      real (kind=RKIND) :: z1, z2, z3, z4, zm, z0, zp
+      real (kind=RKIND), dimension(nVertLevels+1) :: turb_vflux
+      real (kind=RKIND), dimension(num_scalars,nVertLevels+1) :: turb_vflux_scalars
+      real (kind=RKIND) :: rho_k_at_w, zz_at_w
+
+      logical, parameter :: vmix_scalars = .true.
+      logical, parameter :: hmix_scalars = .true.
+      logical, parameter :: hmix4_scalars = .false.
+
+        if(debug_dissipation) then
+            call mpas_log_write(' begin scalar_dissipation_3d ')
+            call mpas_log_write(' les model is '//trim(config_les_model))
+            call mpas_log_write(' 4th order hyperviscosity is $r ', realArgs=(/h_theta_eddy_visc4/))
+        end if
+
+         delsq_theta(1:nVertLevels,cellStart:cellEnd) = 0.0
+
+         do iCell=cellStart,cellEnd
+            tend_theta_euler(1:nVertLevels,iCell) = 0.0
+            r_areaCell = invAreaCell(iCell)
+            do i=1,nEdgesOnCell(iCell)
+               iEdge = edgesOnCell(i,iCell)
+               edge_sign = r_areaCell*edgesOnCell_sign(i,iCell) * dvEdge(iEdge) * invDcEdge(iEdge)
+               pr_scale = prandtl_inv * meshScalingDel2(iEdge)
+               cell1 = cellsOnEdge(1,iEdge)
+               cell2 = cellsOnEdge(2,iEdge)
+!DIR$ IVDEP
+               do k=1,nVertLevels
+
+!  we are computing the Smagorinsky filter at more points than needed here so as to pick up the delsq_theta for 4th order filter below.
+!  This is in conservative form.
+
+                  theta_turb_flux = edge_sign*(theta_m(k,cell2) - theta_m(k,cell1))*rho_edge(k,iEdge)
+                  delsq_theta(k,iCell) = delsq_theta(k,iCell) + theta_turb_flux
+                  theta_turb_flux = theta_turb_flux*0.5*(eddy_visc_horz(k,cell1)+eddy_visc_horz(k,cell2)) * pr_scale
+                  tend_theta_euler(k,iCell) = tend_theta_euler(k,iCell) + theta_turb_flux
+
+               end do
+            end do
+          end do
+
+!$OMP BARRIER
+            
+         if (h_theta_eddy_visc4 > 0.0) then  ! 4th order mixing is active
+
+            do iCell=cellSolveStart,cellSolveEnd    ! Technically updating fewer cells than before...
+               r_areaCell = h_theta_eddy_visc4 * prandtl_inv * invAreaCell(iCell)
+               do i=1,nEdgesOnCell(iCell)
+
+                  iEdge = edgesOnCell(i,iCell)
+                  edge_sign = meshScalingDel4(iEdge)*r_areaCell*dvEdge(iEdge)*edgesOnCell_sign(i,iCell)*invDcEdge(iEdge)
+
+                  cell1 = cellsOnEdge(1,iEdge)
+                  cell2 = cellsOnEdge(2,iEdge)
+
+                  do k=1,nVertLevels
+                     tend_theta_euler(k,iCell) = tend_theta_euler(k,iCell) - edge_sign*(delsq_theta(k,cell2) - delsq_theta(k,cell1))
+                  end do
+               end do
+            end do
+
+         end if ! 4th order mixing is active 
+
+       if(mix_scalars .and. hmix_scalars) then  ! dissipation for scalars, including 4th-order filter.  Likely needs optimization
+         
+         do iScalar=1,num_scalars
+         
+         delsq_theta(1:nVertLevels,cellStart:cellEnd) = 0.0
+
+         do iCell=cellStart,cellEnd
+            ! tend_theta_euler(1:nVertLevels,iCell) = 0.0
+            r_areaCell = invAreaCell(iCell)
+            do i=1,nEdgesOnCell(iCell)
+               iEdge = edgesOnCell(i,iCell)
+               edge_sign = r_areaCell*edgesOnCell_sign(i,iCell) * dvEdge(iEdge) * invDcEdge(iEdge)
+               pr_scale = prandtl_inv * meshScalingDel2(iEdge)
+               cell1 = cellsOnEdge(1,iEdge)
+               cell2 = cellsOnEdge(2,iEdge)
+!DIR$ IVDEP
+               do k=1,nVertLevels
+
+!  we are computing the Smagorinsky filter at more points than needed here so as to pick up the delsq_theta for 4th order filter below.
+!  This is in conservative form.
+
+                  theta_turb_flux = edge_sign*(scalars(iScalar,k,cell2) - scalars(iScalar,k,cell1))*rho_edge(k,iEdge)
+                  delsq_theta(k,iCell) = delsq_theta(k,iCell) + theta_turb_flux
+                  theta_turb_flux = theta_turb_flux*0.5*(eddy_visc_horz(k,cell1)+eddy_visc_horz(k,cell2)) * pr_scale
+                  tend_scalars(iScalar,k,iCell) = tend_scalars(iScalar,k,iCell) + theta_turb_flux
+
+               end do
+            end do
+          end do
+
+!$OMP BARRIER
+            
+         if ((h_theta_eddy_visc4 > 0.0).and. hmix4_scalars) then  ! 4th order mixing is active
+
+            do iCell=cellSolveStart,cellSolveEnd    ! Technically updating fewer cells than before...
+               r_areaCell = h_theta_eddy_visc4 * prandtl_inv * invAreaCell(iCell)
+               do i=1,nEdgesOnCell(iCell)
+
+                  iEdge = edgesOnCell(i,iCell)
+                  edge_sign = meshScalingDel4(iEdge)*r_areaCell*dvEdge(iEdge)*edgesOnCell_sign(i,iCell)*invDcEdge(iEdge)
+
+                  cell1 = cellsOnEdge(1,iEdge)
+                  cell2 = cellsOnEdge(2,iEdge)
+
+                  do k=1,nVertLevels
+                     tend_scalars(iScalar,k,iCell) = tend_scalars(iScalar,k,iCell) - edge_sign*(delsq_theta(k,cell2) - delsq_theta(k,cell1))
+                  end do
+               end do
+            end do
+
+         end if ! 4th order mixing is active 
+         
+        end do ! loop over scalars for horizontal mixing
+
+      end if ! horizontal scalar mixing
+
+
+         !  idealized case vertical mixing.  No scalar mixing here.
+
+         if ( v_theta_eddy_visc2 > 0.0 ) then  ! vertical mixing for theta_m
+
+            if (config_mix_full) then
+
+               do iCell = cellSolveStart,cellSolveEnd
+                  do k=2,nVertLevels-1
+                     z1 = zgrid(k-1,iCell)
+                     z2 = zgrid(k  ,iCell)
+                     z3 = zgrid(k+1,iCell)
+                     z4 = zgrid(k+2,iCell)
+
+                     zm = 0.5*(z1+z2)
+                     z0 = 0.5*(z2+z3)
+                     zp = 0.5*(z3+z4)
+
+                     tend_theta_euler(k,iCell) = tend_theta_euler(k,iCell) + v_theta_eddy_visc2*prandtl_inv*rho_zz(k,iCell)*(&
+                                              (theta_m(k+1,iCell)-theta_m(k  ,iCell))/(zp-z0)                 &
+                                             -(theta_m(k  ,iCell)-theta_m(k-1,iCell))/(z0-zm) )/(0.5*(zp-zm))
+                  end do
+               end do
+
+         else  ! idealized cases where we mix on the perturbation from the initial 1-D state
+
+               do iCell = cellSolveStart,cellSolveEnd
+                  do k=2,nVertLevels-1
+                     z1 = zgrid(k-1,iCell)
+                     z2 = zgrid(k  ,iCell)
+                     z3 = zgrid(k+1,iCell)
+                     z4 = zgrid(k+2,iCell)
+
+                     zm = 0.5*(z1+z2)
+                     z0 = 0.5*(z2+z3)
+                     zp = 0.5*(z3+z4)
+
+                     tend_theta_euler(k,iCell) = tend_theta_euler(k,iCell) + v_theta_eddy_visc2*prandtl_inv*rho_zz(k,iCell)*(&
+                                              ((theta_m(k+1,iCell)-t_init(k+1,iCell))-(theta_m(k  ,iCell)-t_init(k,iCell)))/(zp-z0)      &
+                                             -((theta_m(k  ,iCell)-t_init(k,iCell))-(theta_m(k-1,iCell)-t_init(k-1,iCell)))/(z0-zm) )/(0.5*(zp-zm))
+                  end do
+               end do
+
+            end if
+
+         end if
+
+         if ( config_les_model /= "none") then
+
+             do iCell = cellSolveStart,cellSolveEnd ! vertical mixing for each column
+                ! compute turbulent fluxes
+                turb_vflux(nVertlevels+1) = 0.  !  no turbulent flux out of the domain
+                turb_vflux(1) = 0.  !  lower bc flux handled where ???
+                do k=2,nVertLevels
+                  rho_k_at_w =  fzm(k)*rho_zz(k  ,iCell)*zz(k  ,iCell)*eddy_visc_vert(k  ,iCell) &
+                               +fzp(k)*rho_zz(k-1,iCell)*zz(k-1,iCell)*eddy_visc_vert(k-1,iCell)
+                  zz_at_w = fzm(k)*zz(k,iCell)+fzp(k)*zz(k-1,iCell)
+                  turb_vflux(k) = - rho_k_at_w*zz_at_w*rdzu(k)*(theta_m(k,iCell)-theta_m(k-1,iCell))
+                end do
+
+                ! test boundary conditions for supercell and les test cases
+
+                if( les_test ) then
+                  turb_vflux(1) = tke_heat_flux*rho_zz(1,iCell)  ! this is correct for DRY CASE ONLY
+                  turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
+                else
+                  turb_vflux(1) = turb_vflux(2)
+                  turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
+                end if
+
+
+                do k=1,nVertLevels
+                  tend_theta_euler(k,iCell) = tend_theta_euler(k,iCell) &
+                                              - rdzw(k)*(turb_vflux(k+1)-turb_vflux(k))
+                end do
+
+             end do
+
+             if (mix_scalars .and. vmix_scalars) then
+
+             do iCell = cellSolveStart,cellSolveEnd ! vertical mixing for each column
+                ! compute turbulent fluxes
+                turb_vflux_scalars(:,nVertlevels+1) = 0.  !  no turbulent flux out of the domain
+                turb_vflux_scalars(:,1) = 0.  !  lower bc flux handled where ???
+                do k=2,nVertLevels
+                  rho_k_at_w =  fzm(k)*rho_zz(k  ,iCell)*zz(k  ,iCell)*eddy_visc_vert(k  ,iCell) &
+                               +fzp(k)*rho_zz(k-1,iCell)*zz(k-1,iCell)*eddy_visc_vert(k-1,iCell)
+                  zz_at_w = fzm(k)*zz(k,iCell)+fzp(k)*zz(k-1,iCell)
+                  do iScalar=1,num_scalars
+                     turb_vflux_scalars(iScalar,k) = - rho_k_at_w*zz_at_w*rdzu(k)*  &
+                                                      (scalars(iScalar,k,iCell)-scalars(iScalar,k-1,iCell))
+                  end do
+                end do
+
+                ! test boundary conditions for supercell and les test cases
+
+            ! need lower bc for qv here...
+
+            !    if( les_test ) then
+            !      turb_vflux_scalars(1) = tke_heat_flux*rho_zz(1,iCell)  ! this is correct for DRY CASE ONLY
+            !      turb_vflux_scalars(nVertLevels+1) = turb_vflux_scalars(nVertLevels)
+            !    else
+            !      turb_vflux_scalars(1) = turb_vflux_scalars(2)
+            !      turb_vflux_scalars(nVertLevels+1) = turb_vflux_scalars(nVertLevels)
+            !    end if
+
+
+                do k=1,nVertLevels
+                  do iScalar=1,num_scalars
+                    tend_scalars(iScalar,k,iCell) = tend_scalars(iScalar,k,iCell) &
+                         - rdzw(k)*(turb_vflux_scalars(iScalar,k+1)-turb_vflux_scalars(iScalar,k))
+                  end do
+                end do
+
+             end do
+
+             end if ! mix scalars
+             
+         end if
+
+        if(debug_dissipation)  call mpas_log_write(' exiting scalar_dissipation_3d ')
+
+      end subroutine scalar_dissipation_3d_les
+
 end module mpas_atm_dissipation_models
