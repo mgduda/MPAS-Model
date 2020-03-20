@@ -5286,21 +5286,22 @@ module atm_time_integration
 
             end if
 
-         else if (config_les_model == "3d_smagorinsky") then
+         else if (config_les_model /= "none") then
 
                  ! call mpas_log_write(' BV call, index qv, qc, tke $i $i $i ', intArgs=(/index_qv, index_qc, index_tke/))
 
                  call calculate_n2( bn2, theta_m, exner, pressure_b, pp, zgrid, scalars, index_qv, index_qc, qtot, &
                                     cellStart, cellEnd, nCells)
 
-                 call smagorinsky_3d( eddy_visc_horz, eddy_visc_vert, u, v, ur_cell, vr_cell,            &
-                                      w, c_s, bn2, zgrid, config_len_disp,                               &
-                                      deformation_coef_c2, deformation_coef_s2, deformation_coef_cs,     &
-                                      deformation_coef_c, deformation_coef_s,                            &
-                                      invDt, h_mom_eddy_visc4, config_visc4_2dsmag, h_theta_eddy_visc4,  &
-                                      scalars, tend_scalars, index_tke, rho_zz, meshScalingDel2,         &
-                                      cellStart, cellEnd, nEdgesOnCell, edgesOnCell, cellsOnEdge,        &
-                                      nCells, nEdges, nVertLevels, maxEdges, num_scalars                )
+                 call les_models( config_les_model, eddy_visc_horz, eddy_visc_vert,                  &
+                                  u, v, ur_cell, vr_cell,                                            &
+                                  w, c_s, bn2, zgrid, config_len_disp,                               &
+                                  deformation_coef_c2, deformation_coef_s2, deformation_coef_cs,     &
+                                  deformation_coef_c, deformation_coef_s,                            &
+                                  invDt, h_mom_eddy_visc4, config_visc4_2dsmag, h_theta_eddy_visc4,  &
+                                  scalars, tend_scalars, index_tke, rho_zz, meshScalingDel2,         &
+                                  cellStart, cellEnd, nEdgesOnCell, edgesOnCell, cellsOnEdge,        &
+                                  nCells, nEdges, nVertLevels, maxEdges, num_scalars                )
 
          end if
 
@@ -5330,8 +5331,6 @@ module atm_time_integration
       end if
 
       ! tendency for density.
-      ! accumulate total water here for later use in w tendency calculation.
-
       ! accumulate horizontal mass-flux
 
       !$acc parallel default(present)
