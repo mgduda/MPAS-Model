@@ -16,10 +16,12 @@ module mpas_atm_dissipation_models
 
   logical, parameter :: debug_dissipation = .false.
   logical, parameter :: les_test = .true.
-  real (kind=RKIND), parameter :: tke_heat_flux = 0.24
-  real (kind=RKIND), parameter :: tke_drag_coefficient = 0.0013
+  !! real (kind=RKIND), parameter :: tke_heat_flux = 0.03  ! shear case from Moeng et al., first hour
+  real (kind=RKIND), parameter :: tke_heat_flux = 0.0
+  !! real (kind=RKIND), parameter :: tke_drag_coefficient = 0.0013 ! ocean roughness length
+  real (kind=RKIND), parameter :: tke_drag_coefficient = 0.00935
   real (kind=RKIND), parameter :: epsilon_bv = 1.e-06
-  real (kind=RKIND), parameter :: c_k = 0.25
+  real (kind=RKIND), parameter :: c_k = 0.1
 
 
     contains
@@ -588,7 +590,7 @@ module mpas_atm_dissipation_models
 
                   do k=1,nVertLevels
                      u_mix(k) = u(k,iEdge) - u_init(k) * cos( angleEdge(iEdge) ) &
-                                           - v_init(k) * sin( angleEdge(iEdge) )
+                                           + v_init(k) * sin( angleEdge(iEdge) )
                   end do
 
                   do k=2,nVertLevels-1
@@ -838,7 +840,7 @@ module mpas_atm_dissipation_models
 
                   do k=1,nVertLevels
                      u_mix(k) = u(k,iEdge) - u_init(k) * cos( angleEdge(iEdge) ) &
-                                           - v_init(k) * sin( angleEdge(iEdge) )
+                                           + v_init(k) * sin( angleEdge(iEdge) )
                   end do
 
                   do k=2,nVertLevels-1
@@ -1568,6 +1570,7 @@ module mpas_atm_dissipation_models
                                             bv_freq2, config_len_disp, scalars, tend_scalars,         &
                                             index_tke, index_qv, num_scalars_dummy, mix_scalars,      &
                                             config_les_model,                                         &
+                                            uReconstructZonal, uReconstructMeridional,                &
                                             tend_theta_euler                                         )
 
 
@@ -1609,6 +1612,7 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(nVertLevels), intent(in) :: fzp
       real (kind=RKIND), dimension(nVertLevels+1, nCells+1), intent(in) :: zgrid
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: zz
+      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: uReconstructZonal, uReconstructMeridional
 
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: t_init
 
@@ -1638,6 +1642,7 @@ module mpas_atm_dissipation_models
       logical, parameter :: vmix_scalars = .true.
       logical, parameter :: hmix_scalars = .true.
       logical, parameter :: hmix4_scalars = .false.
+      real (kind=RKIND) :: moisture_flux, heat_flux, theta_m_flux, c_h, c_q
 
         if(debug_dissipation) then
             call mpas_log_write(' begin scalar_dissipation_3d ')
@@ -1837,7 +1842,15 @@ module mpas_atm_dissipation_models
                 ! test boundary conditions for supercell and les test cases
 
                 if( les_test ) then
-                  turb_vflux(1) = tke_heat_flux*rho_zz(1,iCell)  ! this is correct for DRY CASE ONLY
+                  moisture_flux = 0.
+                  heat_flux = tke_heat_flux
+
+                  ! bulk formulation will go here.
+
+                  theta_m_flux = heat_flux*(1.0+(rv/rgas)*scalars(index_qv,1,iCell))  &
+                                    +(rv/rgas)*theta_m(1,iCell)*moisture_flux/rho_zz(k,iCell)
+                  ! turb_vflux(1) = tke_heat_flux*rho_zz(1,iCell)  ! this is correct for DRY CASE ONLY
+                  turb_vflux(1) = theta_m_flux*rho_zz(1,iCell)
                   turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
                 else
                   turb_vflux(1) = turb_vflux(2)
@@ -1865,18 +1878,7 @@ module mpas_atm_dissipation_models
                   end do
                 end do
 
-                ! test boundary conditions for supercell and les test cases
-
-            ! need lower bc for qv here...
-
-            !    if( les_test ) then
-            !      turb_vflux_scalars(1) = tke_heat_flux*rho_zz(1,iCell)  ! this is correct for DRY CASE ONLY
-            !      turb_vflux_scalars(nVertLevels+1) = turb_vflux_scalars(nVertLevels)
-            !    else
-            !      turb_vflux_scalars(1) = turb_vflux_scalars(2)
-            !      turb_vflux_scalars(nVertLevels+1) = turb_vflux_scalars(nVertLevels)
-            !    end if
-
+                if( les_test ) turb_vflux_scalars(index_qv,1) = moisture_flux ! lower b.c. for qv
 
                 do k=1,nVertLevels
                   do iScalar=1,num_scalars

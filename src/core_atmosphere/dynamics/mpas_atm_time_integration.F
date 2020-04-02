@@ -5198,6 +5198,10 @@ module atm_time_integration
       real (kind=RKIND) :: flux3, flux4
       real (kind=RKIND) :: q_im2, q_im1, q_i, q_ip1, ua, coef3
 
+      logical, parameter :: perturbation_coriolis = .true.
+      real (kind=RKIND), parameter :: coriolis_value = 1.e-04
+      real (kind=RKIND) :: reference_u
+
       flux4(q_im2, q_im1, q_i, q_ip1, ua) =                     &
                 ua*( 7.*(q_i + q_im1) - (q_ip1 + q_im2) )/12.0
 
@@ -5457,6 +5461,16 @@ module atm_time_integration
                q(k) = q(k) + weightsOnEdge(j,iEdge) * u(k,eoe) * workpv
             end do
          end do
+
+         if (perturbation_coriolis) then  !  this is correct only for constant f
+            do j = 1,nEdgesOnEdge(iEdge)
+               eoe = edgesOnEdge(j,iEdge)
+               do k=1,nVertLevels
+                  reference_u = u_init(k) * cos(angleEdge(eoe)) -  v_init(k) * sin(angleEdge(eoe))
+                  q(k) = q(k) - weightsOnEdge(j,iEdge) * reference_u * coriolis_value
+               end do
+            end do
+         end if
 
 !DIR$ IVDEP
          !$acc loop vector
@@ -5849,6 +5863,7 @@ module atm_time_integration
                                             bn2, config_len_disp, scalars, tend_scalars,              &
                                             index_tke, index_qv, num_scalars, mix_scalars,            &
                                             config_les_model,                                         &
+                                            ur_cell, vr_cell,                                         &
                                             tend_theta_euler                                         )
 
 
