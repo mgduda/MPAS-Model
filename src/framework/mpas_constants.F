@@ -53,7 +53,7 @@ module mpas_constants
    real (kind=RKIND), parameter :: cvpm    = -cv / cp                 !
 #endif
    real (kind=RKIND), parameter :: p0 = 1.0e5_RKIND                   !< Constant: 100000 Pa
-   real (kind=RKIND), parameter :: prandtl = 1.0_RKIND                !< Constant: Prandtl number
+   real (kind=RKIND), parameter :: prandtl = 1.0_RKIND/3.0_RKIND      !< Constant: Prandtl number
 
 
    contains
