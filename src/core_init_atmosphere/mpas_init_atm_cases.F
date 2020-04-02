@@ -6269,7 +6269,7 @@ call mpas_log_write('Done with soil consistency check')
       real (kind=RKIND), pointer :: config_ztop
 
       real (kind=RKIND), dimension(:,:), pointer :: t_init, w, rw, v, rho, theta
-      real (kind=RKIND), dimension(:), pointer :: u_init, qv_init, angleEdge, fEdge, fVertex
+      real (kind=RKIND), dimension(:), pointer :: u_init, v_init, qv_init, angleEdge, fEdge, fVertex
       real (kind=RKIND) :: u_vel, v_vel, randx
 
       call mpas_pool_get_array(mesh, 'xCell', xCell)
@@ -6338,6 +6338,7 @@ call mpas_log_write('Done with soil consistency check')
       call mpas_pool_get_array(mesh, 'dss', dss)
       call mpas_pool_get_array(mesh, 't_init', t_init)
       call mpas_pool_get_array(mesh, 'u_init', u_init)
+      call mpas_pool_get_array(mesh, 'v_init', v_init)
       call mpas_pool_get_array(mesh, 'qv_init', qv_init)
       call mpas_pool_get_array(mesh, 'angleEdge', angleEdge)
       call mpas_pool_get_array(mesh, 'fEdge', fEdge)
@@ -6512,7 +6513,10 @@ call mpas_log_write('Done with soil consistency check')
                   u_vel = atm_get_sounding('u',ztemp)
                   v_vel = atm_get_sounding('v',ztemp)
                   u(k,i) = cos(angleEdge(i))*u_vel - sin(angleEdge(i))*v_vel
-                  if(i == 1 ) u_init(k) = u(k,i)
+                  if(i == 1 ) then
+                    u_init(k) = u_vel
+                    v_init(k) = v_vel
+                  end if
                end do
             end if
          end do
@@ -6751,24 +6755,62 @@ call mpas_log_write('Done with soil consistency check')
      atm_get_sounding = -999.
 
      if(variable == 'u') then 
-        atm_get_sounding = 0.
+        atm_get_sounding = 15.0
      else if (variable == 'v') then
         atm_get_sounding = 0.
      else if (variable == 'qv') then
-        atm_get_sounding = 0.
+
+        atm_get_sounding = 0. ! dry sounding
+        ! atm_get_sounding = 0.010
+        ! if(height .gt. 500.) atm_get_sounding = 0.004
+
      else if (variable == 'theta') then
 
-        if(height .le. 1000.) then
+        if(height .le. 500.) then
           atm_get_sounding = 300.
-        else if(height .le. 1150.) then
-          atm_get_sounding = 300. + (height-1000.)*8./150.
+        else if(height .le. 600.) then
+          atm_get_sounding = 300. + (height-500.)*3./100.
         else
-          atm_get_sounding = 308. + (height-1150.)*3./1000.
+          atm_get_sounding = 303. + (height-600.)*3./1000.
         end if
+        ! atm_get_sounding = atm_get_sounding - 10.0  ! for water case
 
       end if 
 
    end function atm_get_sounding
+
+   real (kind=RKIND) function atm_get_sounding_1( variable, height )
+
+     implicit none
+     real (kind=RKIND), intent(in) :: height
+     character(len=*), intent(in) :: variable
+
+     atm_get_sounding_1 = -999.
+
+     if(variable == 'u') then 
+        atm_get_sounding_1 = 10.0
+     else if (variable == 'v') then
+        atm_get_sounding_1 = 0.
+     else if (variable == 'qv') then
+
+        ! atm_get_sounding_1 = 0. ! dry sounding_1
+        atm_get_sounding_1 = 0.010
+        if(height .gt. 1000.) atm_get_sounding_1 = 0.004
+
+     else if (variable == 'theta') then
+
+        if(height .le. 1000.) then
+          atm_get_sounding_1 = 300.
+        else if(height .le. 1150.) then
+          atm_get_sounding_1 = 300. + (height-1000.)*8./150.
+        else
+          atm_get_sounding_1 = 308. + (height-1150.)*3./1000.
+        end if
+        atm_get_sounding_1 = atm_get_sounding_1 - 10.0  ! for water case
+
+      end if 
+
+   end function atm_get_sounding_1
 
 !-----------
 
