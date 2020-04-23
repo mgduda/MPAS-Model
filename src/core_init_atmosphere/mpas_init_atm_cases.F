@@ -6250,7 +6250,7 @@ call mpas_log_write('Done with soil consistency check')
       real (kind=RKIND) ::  r, xnutr
       real (kind=RKIND) ::  ztemp, zd, zt, dz, str
 
-      real (kind=RKIND), dimension(nVertLevels ) :: qvb
+      real (kind=RKIND), dimension(nVertLevels ) :: qvb, qvp, zg
       real (kind=RKIND), dimension(nVertLevels ) :: t_init_1d
 
       real (kind=RKIND) :: d1, d2, d3, cof1, cof2
@@ -6582,6 +6582,8 @@ call mpas_log_write('Done with soil consistency check')
 !            qvb(k) = scalars(index_qv,k,1)
 !           QVB = 0 PRODUCES DRY REFERENCE STATE
             qvb(k) = 0.
+            qvp(k) = scalars(index_qv,k,1)*1000.
+            zg(k) = .5*(zgrid(k,1)+zgrid(k+1,1))
 !*********************************************************************
       end do
 
@@ -6598,10 +6600,10 @@ call mpas_log_write('Done with soil consistency check')
 
       end do !end of iteration loop
 
-      call mpas_log_write(' base state sounding ')
-      call mpas_log_write(' k,     pb,     rb,     tb,     rtb,     t,     rr,      p,    qvb')
+      call mpas_log_write(' sounding ')
+      call mpas_log_write(' k,     zg,     rb,     tb,     rtb,     t,     rr,      p,    qvp')
       do k=1,nVertLevels
-         call mpas_log_write('$i $r $r $r $r $r $r $r $r', intArgs=(/k/), realArgs=(/pb(k,1),rb(k,1),tb(k,1),rtb(k,1),t(k,1),rr(k,1),p(k,1),qvb(k)/))
+         call mpas_log_write('$i $r $r $r $r $r $r $r $r', intArgs=(/k/), realArgs=(/zg(k),rb(k,1),tb(k,1),rtb(k,1),t(k,1),rr(k,1),p(k,1),qvp(k)/))
       end do
 
 !
@@ -6753,31 +6755,38 @@ call mpas_log_write('Done with soil consistency check')
      character(len=*), intent(in) :: variable
 
      atm_get_sounding = -999.
+! SAS case sounding
 
      if(variable == 'u') then 
-        atm_get_sounding = 15.0
+        atm_get_sounding = 0.0
+
      else if (variable == 'v') then
         atm_get_sounding = 0.
-     else if (variable == 'qv') then
-
-        atm_get_sounding = 0. ! dry sounding
-        ! atm_get_sounding = 0.010
-        ! if(height .gt. 500.) atm_get_sounding = 0.004
 
      else if (variable == 'theta') then
 
-        if(height .le. 500.) then
-          atm_get_sounding = 300.
-        else if(height .le. 600.) then
-          atm_get_sounding = 300. + (height-500.)*3./100.
+        if(height .le. 352.5) then
+          atm_get_sounding = 296.6
+        else if(height .le. 442.5) then
+          atm_get_sounding = 296.6 + (height-352.5)*1.5/90.
         else
-          atm_get_sounding = 303. + (height-600.)*3./1000.
+          atm_get_sounding = 298.1 + (height-442.5)*0.003
         end if
-        ! atm_get_sounding = atm_get_sounding - 10.0  ! for water case
+
+     else if (variable == 'qv') then
+
+        if(height .le. 352.5) then
+          atm_get_sounding = 11.8/1000.
+        else if(height .le. 442.5) then
+          atm_get_sounding = 11.8/1000. - (height-352.5)*4.0/90./1000.
+        else
+          atm_get_sounding = max(7.8/1000. - (height-442.5)*0.004/1000.,0.0)
+        end if
 
       end if 
 
    end function atm_get_sounding
+
 
    real (kind=RKIND) function atm_get_sounding_1( variable, height )
 
@@ -6788,29 +6797,62 @@ call mpas_log_write('Done with soil consistency check')
      atm_get_sounding_1 = -999.
 
      if(variable == 'u') then 
-        atm_get_sounding_1 = 10.0
+        atm_get_sounding_1 = 15.0
      else if (variable == 'v') then
         atm_get_sounding_1 = 0.
      else if (variable == 'qv') then
 
-        ! atm_get_sounding_1 = 0. ! dry sounding_1
-        atm_get_sounding_1 = 0.010
-        if(height .gt. 1000.) atm_get_sounding_1 = 0.004
+        atm_get_sounding_1 = 0. ! dry sounding
+        ! atm_get_sounding_1 = 0.010
+        ! if(height .gt. 500.) atm_get_sounding_1 = 0.004
 
      else if (variable == 'theta') then
 
-        if(height .le. 1000.) then
+        if(height .le. 500.) then
           atm_get_sounding_1 = 300.
-        else if(height .le. 1150.) then
-          atm_get_sounding_1 = 300. + (height-1000.)*8./150.
+        else if(height .le. 600.) then
+          atm_get_sounding_1 = 300. + (height-500.)*3./100.
         else
-          atm_get_sounding_1 = 308. + (height-1150.)*3./1000.
+          atm_get_sounding_1 = 303. + (height-600.)*3./1000.
         end if
-        atm_get_sounding_1 = atm_get_sounding_1 - 10.0  ! for water case
+        ! atm_get_sounding_1 = atm_get_sounding_1 - 10.0  ! for water case
 
       end if 
 
    end function atm_get_sounding_1
+
+   real (kind=RKIND) function atm_get_sounding_2( variable, height )
+
+     implicit none
+     real (kind=RKIND), intent(in) :: height
+     character(len=*), intent(in) :: variable
+
+     atm_get_sounding_2 = -999.
+
+     if(variable == 'u') then 
+        atm_get_sounding_2 = 10.0
+     else if (variable == 'v') then
+        atm_get_sounding_2 = 0.
+     else if (variable == 'qv') then
+
+        ! atm_get_sounding_2 = 0. ! dry sounding_2
+        atm_get_sounding_2 = 0.010
+        if(height .gt. 1000.) atm_get_sounding_2 = 0.004
+
+     else if (variable == 'theta') then
+
+        if(height .le. 1000.) then
+          atm_get_sounding_2 = 300.
+        else if(height .le. 1150.) then
+          atm_get_sounding_2 = 300. + (height-1000.)*8./150.
+        else
+          atm_get_sounding_2 = 308. + (height-1150.)*3./1000.
+        end if
+        atm_get_sounding_2 = atm_get_sounding_2 - 10.0  ! for water case
+
+      end if 
+
+   end function atm_get_sounding_2
 
 !-----------
 
