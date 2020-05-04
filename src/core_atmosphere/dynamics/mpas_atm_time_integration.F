@@ -4816,6 +4816,8 @@ module atm_time_integration
       real (kind=RKIND), dimension(:,:), pointer :: defc_a, defc_b
       real (kind=RKIND), dimension(:,:), pointer :: deformation_coef_c2, deformation_coef_s2, deformation_coef_cs
       real (kind=RKIND), dimension(:,:), pointer :: deformation_coef_c, deformation_coef_s
+      real (kind=RKIND), dimension(:,:), pointer :: prandtl_3d_inv
+
 
       real(kind=RKIND), dimension(:,:), pointer :: tend_w_pgf, tend_w_buoy
 
@@ -4892,6 +4894,8 @@ module atm_time_integration
       call mpas_pool_get_array(diag, 'pressure_base', pressure_b)
       call mpas_pool_get_array(diag, 'h_divergence', h_divergence)
       call mpas_pool_get_array(diag, 'exner', exner)
+      call mpas_pool_get_array(diag, 'prandtl_3d_inv', prandtl_3d_inv)
+
 
       call mpas_pool_get_array(tend_physics, 'rthdynten', rthdynten)
 
@@ -4995,7 +4999,7 @@ module atm_time_integration
          rdzu, rdzw, fzm, fzp, qv_init, t_init, cf1, cf2, cf3, r_earth, ur_cell, vr_cell, defc_a, defc_b, &
          deformation_coef_c2,deformation_coef_s2,deformation_coef_cs,deformation_coef_c,deformation_coef_s, &
          tend_w_pgf, tend_w_buoy, coef_3rd_order, c_s, config_mix_full, config_horiz_mixing, config_les_model, &
-         config_del4u_div_factor, &
+         prandtl_3d_inv, config_del4u_div_factor, &
          config_h_mom_eddy_visc2, config_v_mom_eddy_visc2, config_h_theta_eddy_visc2, config_v_theta_eddy_visc2, &
          config_h_theta_eddy_visc4, config_h_mom_eddy_visc4, config_visc4_2dsmag, config_len_disp, rk_step, dt, &
          config_mpas_cam_coef, &
@@ -5023,7 +5027,7 @@ module atm_time_integration
       rdzu, rdzw, fzm, fzp, qv_init, t_init, cf1, cf2, cf3, r_earth, ur_cell, vr_cell, defc_a, defc_b, &
       deformation_coef_c2,deformation_coef_s2,deformation_coef_cs,deformation_coef_c,deformation_coef_s, &
       tend_w_pgf, tend_w_buoy, coef_3rd_order, c_s, config_mix_full, config_horiz_mixing, config_les_model, &
-      config_del4u_div_factor, &
+      prandtl_3d_inv, config_del4u_div_factor, &
       config_h_mom_eddy_visc2, config_v_mom_eddy_visc2, config_h_theta_eddy_visc2, config_v_theta_eddy_visc2, &
       config_h_theta_eddy_visc4, config_h_mom_eddy_visc4, config_visc4_2dsmag, config_len_disp, rk_step, dt, &
       config_mpas_cam_coef, &
@@ -5087,6 +5091,7 @@ module atm_time_integration
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: eddy_visc_horz
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: eddy_visc_vert
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: bn2
+      real (kind=RKIND), dimension(nVertLevels,nCells+1) :: prandtl_3d_inv
       real (kind=RKIND), dimension(maxEdges,nCells+1) :: edgesOnCell_sign
       real (kind=RKIND), dimension(vertexDegree,nVertices+1) :: edgesOnVertex_sign
       real (kind=RKIND), dimension(nVertLevels+1,nCells+1) :: rw_save
@@ -5312,7 +5317,7 @@ module atm_time_integration
                                   u, v, ur_cell, vr_cell,                                            &
                                   w, c_s, bn2, zgrid, config_len_disp,                               &
                                   deformation_coef_c2, deformation_coef_s2, deformation_coef_cs,     &
-                                  deformation_coef_c, deformation_coef_s,                            &
+                                  deformation_coef_c, deformation_coef_s, prandtl_3d_inv,            &
                                   invDt, h_mom_eddy_visc4, config_visc4_2dsmag, h_theta_eddy_visc4,  &
                                   scalars, tend_scalars, index_tke, rho_zz, meshScalingDel2,         &
                                   cellStart, cellEnd, nEdgesOnCell, edgesOnCell, cellsOnEdge,        &
@@ -5868,6 +5873,7 @@ module atm_time_integration
                                             config_mix_full, t_init, zgrid,                           &
                                             rdzw, rdzu, fzm, fzp,                                     &
                                             v_theta_eddy_visc2, h_theta_eddy_visc4, prandtl_inv,      &
+                                            prandtl_3d_inv,                                           &
                                             delsq_theta,                                              &
                                             theta_m, rho_edge, rho_zz, zz,                            &
                                             eddy_visc_horz, eddy_visc_vert,                           &

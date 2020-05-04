@@ -99,7 +99,7 @@ module mpas_atm_dissipation_models
                              u, v, uCell, vCell,                                                &
                              w, c_s, bv_freq2, zgrid, config_len_disp,                          &
                              deformation_coef_c2, deformation_coef_s2, deformation_coef_cs,     &
-                             deformation_coef_c, deformation_coef_s,                            &
+                             deformation_coef_c, deformation_coef_s, prandtl_3d_inv,            &
                              invDt, h_mom_eddy_visc4, config_visc4_2dsmag, h_theta_eddy_visc4,  &
                              scalars, tend_scalars, index_tke, rho_zz, meshScalingDel2,         &
                              cellStart, cellEnd, nEdgesOnCell, edgesOnCell, cellsOnEdge,        &
@@ -115,6 +115,7 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: uCell
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: vCell
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: bv_freq2
+      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(out) :: prandtl_3d_inv
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: rho_zz
       real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1), intent(inout) :: scalars
       real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1) :: tend_scalars
@@ -249,22 +250,24 @@ module mpas_atm_dissipation_models
             delta_s = ((config_len_disp**2)*delta_z)**(1./3.)
             bv = max( sqrt(abs(bv_freq2(k,iCell))), epsilon_bv )
             tke_length = delta_s
+            ! isentropic mixing formulation
             if(bv_freq2(k,iCell) .gt. 1.e-06) &
                 tke_length = 0.76*sqrt(scalars(index_tke,k,iCell))/bv
+                tke_length = min(tke_length, delta_z)
             diss_length = min(delta_s,max(tke_length,0.01*delta_s))
             if(bv_freq2(k,iCell) <= 0) diss_length = delta_s
 
             ! non-isotropic mixing                                                                            
 
-            l_horizontal = config_len_disp
-            l_vertical = min(delta_z,tke_length)
-            if(bv_freq2(k,iCell) <= 0) diss_length = delta_z
+            ! l_horizontal = config_len_disp
+            ! l_vertical = min(delta_z,tke_length)
+            ! if(bv_freq2(k,iCell) <= 0) diss_length = delta_z
 
             ! isotropic mixing
 
-            ! l_horizontal = min(delta_s,tke_length)
-            ! if(bv_freq2(k,iCell) <= 0) diss_length = delta_s
-            ! l_vertical = l_horizontal
+            l_horizontal = min(delta_s,tke_length)
+            if(bv_freq2(k,iCell) <= 0) diss_length = delta_s
+            l_vertical = l_horizontal
 
             ! eddy viscocities set here if we are running the 1.5 order prognostic tke scheme
             eddy_visc_h = c_k*l_horizontal*sqrt(scalars(index_tke,k,iCell))
@@ -291,7 +294,8 @@ module mpas_atm_dissipation_models
             ! computing eddy viscosities *********                                                            
 
             prandtl_horizontal_inv = 3.
-            prandtl_vertical_inv = 1.0+(2.0*l_vertical/delta_z) ! going to need to store this off somewhere   
+            prandtl_3d_inv(k,iCell) = 1.0+(2.0*l_vertical/delta_z) 
+            
 
             ! RHS term for the subgrid ke.                                                                    
 
@@ -1566,6 +1570,7 @@ module mpas_atm_dissipation_models
                                             config_mix_full, t_init, zgrid,                           &
                                             rdzw, rdzu, fzm, fzp,                                     &
                                             v_theta_eddy_visc2, h_theta_eddy_visc4, prandtl_inv,      &
+                                            prandtl_3d_inv,                                           &
                                             delsq_theta,                                              &
                                             theta_m, rho_edge, rho_zz, zz,                            &
                                             eddy_visc_horz, eddy_visc_vert,                           &
@@ -1621,6 +1626,7 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: t_init
 
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: bv_freq2
+      real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: prandtl_3d_inv
       real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1), intent(in) :: scalars
       real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1), intent(inout) :: tend_scalars
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: theta_m
@@ -1819,16 +1825,20 @@ module mpas_atm_dissipation_models
                   do k=2,nVertLevels
                     prandtl_inverse(k) = prandtl_inv
                   end do
-                else   ! prognostic_1.5_order
-                  do k=2,nVertLevels
-                    delta_z = 0.5*(zgrid(k+1,iCell)-zgrid(k-1,iCell))
-                    delta_s = ((config_len_disp**2)*delta_z)**(1./3.)
-                    bv_frequency2 = 0.5*(bv_freq2(k,iCell)+bv_freq2(k-1,iCell))
-                    tke_length = delta_s
-                    if(bv_frequency2 .gt. 1.e-06) &
-                        tke_length = 0.76*sqrt(scalars(index_tke,k,iCell))/sqrt(bv_frequency2)
-                    prandtl_inverse(k) = 1. + 2.*tke_length/delta_z
-                  end do
+                else   ! prognostic_1.5_order, isentropic mixing length
+                  ! do k=2,nVertLevels
+                  !   delta_z = 0.5*(zgrid(k+1,iCell)-zgrid(k-1,iCell))
+                  !   delta_s = ((config_len_disp**2)*delta_z)**(1./3.)
+                  !   bv_frequency2 = 0.5*(bv_freq2(k,iCell)+bv_freq2(k-1,iCell))
+                  !   tke_length = delta_s
+                  !   if(bv_frequency2 .gt. 1.e-06) &
+                  !       tke_length = 0.76*sqrt(scalars(index_tke,k,iCell))/sqrt(bv_frequency2)
+                  !       tke_length = min(delta_z,tke_length)
+                  !   prandtl_inverse(k) = 1. + 2.*tke_length/delta_z
+                  ! end do
+
+                  prandtl_inverse(k) = 0.5*(prandtl_3d_inv(k,iCell)+prandtl_3d_inv(k-1,iCell))
+
                 end if
 
                 do k=2,nVertLevels
@@ -1940,7 +1950,7 @@ module mpas_atm_dissipation_models
       rel_time_q_flux = max(0.,(time_of_day_seconds - t_start_q_flux)/(t_end_q_flux - t_start_q_flux))
 
       heat_flux = max(0., 0.1*sin(pii*rel_time_t_flux))
-      moisture_flux = max(0., 0.15*sin(pii*rel_time_q_flux))
+      moisture_flux = max(0., 0.15*sin(pii*rel_time_q_flux))/1000.
 
       end subroutine flux_les_sas
 
