@@ -6610,20 +6610,35 @@ call mpas_log_write('Done with soil consistency check')
 !     potential temperature perturbation
 !
 
-      do i=1,nCells
-        do k = 1,4  ! same as in WRF
-          call random_number(randx)
-          thi(k,i) = thi(k,i) + 0.1*(randx-0.5)
-           t (k,i) = thi(k,i)*(1.+1.61*scalars(index_qv,k,i))
-        end do
+!      do i=1,nCells
+!        do k = 1,nz1  ! same as in WRF
+!          call random_number(randx)
+!          thi(k,i) = thi(k,i) + 0.1*(randx-0.5)
+!           t (k,i) = thi(k,i)*(1.+1.61*scalars(index_qv,k,i))
+!        end do
+!      end do
+
+      do k = 1,nz1  ! same as in WRF
+        if(zg(k) .le. 397.0) then  ! the SAS initial PBL height
+          do i=1,nCells
+            call random_number(randx)
+            thi(k,i) = thi(k,i) + 1.0*(randx-0.5)
+             t (k,i) = thi(k,i)*(1.+1.61*scalars(index_qv,k,i))
+          end do
+        end if
       end do
 !
 !  initial seed for tke
 !
-      do i=1,nCells
-        do k = 1,nz1  
-          scalars(index_tke,k,i) = 0.1
-        end do
+      scalars(index_tke,:,:) = 0.
+
+      do k = 1,nz1  
+        if( zg(k) .le. 255.) then
+          do i=1,nCells
+            !! scalars(index_tke,k,i) = 0.1
+               scalars(index_tke,k,i) = 0.4*((1.-(zg(k)/255.))**3)
+          end do
+        end if
       end do
 
       do itr=1,30
@@ -6710,11 +6725,13 @@ call mpas_log_write('Done with soil consistency check')
       ! Generate rotated Coriolis field - same settings as in WRF
       !
       do iEdge=1,nEdges
-         fEdge(iEdge) = 1.e-04
+         ! fEdge(iEdge) = 1.e-04
+         fEdge(iEdge) = 7.2921e-05
       end do
 
       do iVtx=1,nVertices
-         fVertex(iVtx) = 1.e-04
+         ! fVertex(iVtx) = 1.e-04
+         fVertex(iVtx) = 7.2921e-05
       end do
 
       !
@@ -6758,7 +6775,7 @@ call mpas_log_write('Done with soil consistency check')
 ! SAS case sounding
 
      if(variable == 'u') then 
-        atm_get_sounding = 0.0
+        atm_get_sounding = 2.0  ! SAS value
 
      else if (variable == 'v') then
         atm_get_sounding = 0.
