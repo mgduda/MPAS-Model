@@ -1971,6 +1971,9 @@
                 <var name="eddy_visc_horz" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^{-1}"
                      description="horizontal eddy viscosity for les models"/>
 
+                <var name="prandtl_3d_inv" type="real" dimensions="nVertLevels nCells Time" units="unitless"
+                     description="Inverse prandtl number used for vertical mixing in prognostic LES formulation"/>
+
                 <var name="bn2" type="real" dimensions="nVertLevels nCells Time" units="s^{-2}"
                      description="Square of Brunt-Vaisala frequency"/>
 
