@@ -122,12 +122,16 @@ module mpas_field_routines
 !
 !-----------------------------------------------------------------------
    subroutine mpas_allocate_scratch_field1d_integer(f, single_block_in, init_array_in)!{{{
+
+       implicit none
+
        type (field1dInteger), pointer :: f !< Input: Field to allocate
        logical, intent(in), optional :: single_block_in !< Input: Logical flag that determines if a single block should be allocated or all blocks.
        logical, intent(in), optional :: init_array_in !< Input: Logical flag that determines if allocated arrays are initialized
        logical :: single_block, init_array
        type (field1dInteger), pointer :: f_cursor
        integer :: threadNum
+       integer :: i
 
        if(f % isPersistent) then
           return
@@ -210,12 +214,16 @@ module mpas_field_routines
 !
 !-----------------------------------------------------------------------
    subroutine mpas_allocate_scratch_field2d_integer(f, single_block_in, init_array_in)!{{{
+
+       implicit none
+
        type (field2dInteger), pointer :: f !< Input: Field to allocate
        logical, intent(in), optional :: single_block_in !< Input: Logical flag that determines if a single block should be allocated, or all blocks.
        logical, intent(in), optional :: init_array_in !< Input: Logical flag that determines if allocated arrays are initialized
        logical :: single_block, init_array
        type (field2dInteger), pointer :: f_cursor
        integer :: threadNum
+       integer :: i, j
 
        if(f % isPersistent) then
           return
@@ -302,12 +310,16 @@ module mpas_field_routines
 !
 !-----------------------------------------------------------------------
    subroutine mpas_allocate_scratch_field3d_integer(f, single_block_in, init_array_in)!{{{
+
+       implicit none
+
        type (field3dInteger), pointer :: f !< Input: Field to allocate
        logical, intent(in), optional :: single_block_in !< Input: Logical flag that determines if a single block should be allocated, or all blocks.
        logical, intent(in), optional :: init_array_in !< Input: Logical flag that determines if allocated arrays are initialized
        logical :: single_block, init_array
        type (field3dInteger), pointer :: f_cursor
        integer :: threadNum
+       integer :: i, j, k
 
        if(f % isPersistent) then
           return
@@ -394,12 +406,16 @@ module mpas_field_routines
 !
 !-----------------------------------------------------------------------
    subroutine mpas_allocate_scratch_field1d_real(f, single_block_in, init_array_in)!{{{
+
+       implicit none
+
        type (field1dReal), pointer :: f !< Input: Field to allocate
        logical, intent(in), optional :: single_block_in !< Input: Logical flag that determines if a single block should be allocated, or all blocks.
        logical, intent(in), optional :: init_array_in !< Input: Logical flag that determines if allocated arrays are initialized
        logical :: single_block, init_array
        type (field1dReal), pointer :: f_cursor
        integer :: threadNum
+       integer :: i
 
        if(f % isPersistent) then
           return
@@ -482,12 +498,16 @@ module mpas_field_routines
 !
 !-----------------------------------------------------------------------
    subroutine mpas_allocate_scratch_field2d_real(f, single_block_in, init_array_in)!{{{
+
+       implicit none
+
        type (field2dReal), pointer :: f !< Input: Field to allocate
        logical, intent(in), optional :: single_block_in !< Input: Logical flag that determines if a single block should be allocated, or all blocks.
        logical, intent(in), optional :: init_array_in !< Input: Logical flag that determines if allocated arrays are initialized
        logical :: single_block, init_array
        type (field2dReal), pointer :: f_cursor
        integer :: threadNum
+       integer :: i, j
 
        if(f % isPersistent) then
           return
@@ -572,12 +592,16 @@ module mpas_field_routines
 !
 !-----------------------------------------------------------------------
    subroutine mpas_allocate_scratch_field3d_real(f, single_block_in, init_array_in)!{{{
+
+       implicit none
+
        type (field3dReal), pointer :: f !< Input: Field to allocate
        logical, intent(in), optional :: single_block_in !< Input: Logical flag that determines if a single block should be allocated, or all blocks.
        logical, intent(in), optional :: init_array_in !< Input: Logical flag that determines if allocated arrays are initialized
        logical :: single_block, init_array
        type (field3dReal), pointer :: f_cursor
        integer :: threadNum
+       integer :: i, j, k
 
        if(f % isPersistent) then
           return
@@ -664,12 +688,16 @@ module mpas_field_routines
 !
 !-----------------------------------------------------------------------
    subroutine mpas_allocate_scratch_field4d_real(f, single_block_in, init_array_in)!{{{
+
+       implicit none
+
        type (field4dReal), pointer :: f !< Input: Field to allocate
        logical, intent(in), optional :: single_block_in !< Input: Logical flag that determines if a single block should be allocated, or all blocks.
        logical, intent(in), optional :: init_array_in !< Input: Logical flag that determines if allocated arrays are initialized
        logical :: single_block, init_array
        type (field4dReal), pointer :: f_cursor
        integer :: threadNum
+       integer :: i, j, k, l
 
        if(f % isPersistent) then
           return
@@ -760,12 +788,16 @@ module mpas_field_routines
 !
 !-----------------------------------------------------------------------
    subroutine mpas_allocate_scratch_field5d_real(f, single_block_in, init_array_in)!{{{
+
+       implicit none
+
        type (field5dReal), pointer :: f !< Input: Field to allocate
        logical, intent(in), optional :: single_block_in !< Input: Logical flag that determines if a single block should be allocated, or all blocks.
        logical, intent(in), optional :: init_array_in !< Input: Logical flag that determines if allocated arrays are initialized
        logical :: single_block, init_array
        type (field5dReal), pointer :: f_cursor
        integer :: threadNum
+       integer :: i, j, k, l, m
 
        if(f % isPersistent) then
           return
@@ -860,18 +892,22 @@ module mpas_field_routines
 !
 !-----------------------------------------------------------------------
    subroutine mpas_allocate_scratch_field1d_char(f, single_block_in, init_array_in)!{{{
+
+       implicit none
+
        type (field1dChar), pointer :: f !< Input: Field to allocate
        logical, intent(in), optional :: single_block_in !< Input: Logical flag that determines if a single block should be allocated, or all blocks.
        logical, intent(in), optional :: init_array_in !< Input: Logical flag that determines if allocated arrays are initialized
        logical :: single_block, init_array
        type (field1dChar), pointer :: f_cursor
        integer :: threadNum
+       integer :: i
 
-       if(f % isPersistent) then
+       if (f % isPersistent) then
           return
        end if
 
-       if(present(single_block_in)) then
+       if (present(single_block_in)) then
           single_block = single_block_in
        else
           single_block = .false.
@@ -885,7 +921,7 @@ module mpas_field_routines
 
        threadNum = mpas_threading_get_thread_num()
 
-       if(.not. single_block) then
+       if (.not. single_block) then
 
          ! thread 0 first allocates everything
          f_cursor => f
@@ -916,7 +952,7 @@ module mpas_field_routines
 
          ! thread 0 allocates
          if ( threadNum == 0 ) then
-           if(.not.associated(f % array)) then
+           if (.not.associated(f % array)) then
              allocate(f % array(f % dimSizes(1)))
            end if
          end if
@@ -954,7 +990,7 @@ module mpas_field_routines
        type (field1dInteger), pointer :: f_cursor
        integer :: threadNum
 
-       if(f % isPersistent) then
+       if (f % isPersistent) then
           return
        end if
 

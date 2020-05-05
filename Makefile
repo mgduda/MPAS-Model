@@ -219,7 +219,7 @@ gfortran:
 	"CC_SERIAL = gcc" \
 	"CXX_SERIAL = g++" \
 	"FFLAGS_PROMOTION = -fdefault-real-8 -fdefault-double-8" \
-	"FFLAGS_OPT = -O3 -ffree-line-length-none -fconvert=big-endian -ffree-form" \
+	"FFLAGS_OPT = -std=f2008 -O3 -ffree-line-length-none -fconvert=big-endian -ffree-form" \
 	"CFLAGS_OPT = -O3" \
 	"CXXFLAGS_OPT = -O3" \
 	"LDFLAGS_OPT = -O3" \
