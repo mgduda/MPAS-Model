@@ -1149,6 +1149,14 @@ module atm_time_integration
             end if  
 
             call mpas_timer_start('atm_compute_dyn_tend')
+            block => domain % blocklist
+            do while (associated(block))
+               call mpas_pool_get_subpool(block % structs, 'state', state)
+               call mpas_pool_get_subpool(block % structs, 'diag', diag)
+               call mpas_pool_get_subpool(block % structs, 'mesh', mesh)
+               call mpas_pool_get_subpool(block % structs, 'tend', tend)
+               call mpas_pool_get_subpool(block % structs, 'diag_physics', diag_physics)
+               call mpas_pool_get_subpool(block % structs, 'tend_physics', tend_physics)
    
             allocate(delsq_theta(nVertLevels,nCells+1))
             allocate(delsq_w(nVertLevels,nCells+1))
@@ -1172,15 +1180,16 @@ module atm_time_integration
             !$acc end parallel
 
 !$OMP PARALLEL DO
-            do thread=1,nThreads
-               call atm_compute_dyn_tend( tend, tend_physics, state, diag, mesh, block % configs, nVertLevels, rk_step, dt, & 
-                                          cellThreadStart(thread), cellThreadEnd(thread), &
-                                          vertexThreadStart(thread), vertexThreadEnd(thread), &
-                                          edgeThreadStart(thread), edgeThreadEnd(thread), &
-                                          cellSolveThreadStart(thread), cellSolveThreadEnd(thread), &
-                                          vertexSolveThreadStart(thread), vertexSolveThreadEnd(thread), &
-                                          edgeSolveThreadStart(thread), edgeSolveThreadEnd(thread))
-            end do
+               do thread=1,nThreads
+                  call atm_compute_dyn_tend( tend, tend_physics, state, diag, mesh, diag_physics, &
+                                             block % configs, nVertLevels, rk_step, dt, & 
+                                             cellThreadStart(thread), cellThreadEnd(thread), &
+                                             vertexThreadStart(thread), vertexThreadEnd(thread), &
+                                             edgeThreadStart(thread), edgeThreadEnd(thread), &
+                                             cellSolveThreadStart(thread), cellSolveThreadEnd(thread), &
+                                             vertexSolveThreadStart(thread), vertexSolveThreadEnd(thread), &
+                                             edgeSolveThreadStart(thread), edgeSolveThreadEnd(thread))
+               end do
 !$OMP END PARALLEL DO
 
             deallocate(delsq_theta)
@@ -4736,7 +4745,7 @@ module atm_time_integration
    end subroutine atm_advance_scalars_mono_work
 
 
-   subroutine atm_compute_dyn_tend(tend, tend_physics, state, diag, mesh, configs, nVertLevels, rk_step, dt, &
+   subroutine atm_compute_dyn_tend(tend, tend_physics, state, diag, mesh, diag_physics, configs, nVertLevels, rk_step, dt, &
                                    cellStart, cellEnd, vertexStart, vertexEnd, edgeStart, edgeEnd, &
                                    cellSolveStart, cellSolveEnd, vertexSolveStart, vertexSolveEnd, edgeSolveStart, edgeSolveEnd)
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
@@ -4762,6 +4771,7 @@ module atm_time_integration
       type (mpas_pool_type), intent(in) :: state
       type (mpas_pool_type), intent(in) :: diag
       type (mpas_pool_type), intent(in) :: mesh
+      type (mpas_pool_type), intent(in) :: diag_physics
       type (mpas_pool_type), intent(in) :: configs
       integer, intent(in) :: nVertLevels              ! for allocating stack variables
       integer, intent(in) :: rk_step
@@ -4899,6 +4909,8 @@ module atm_time_integration
 
       call mpas_pool_get_array(tend_physics, 'rthdynten', rthdynten)
 
+      call mpas_pool_get_array(diag_physics,'ustm'  ,ustm  )
+
       call mpas_pool_get_array(mesh, 'weightsOnEdge', weightsOnEdge)
       call mpas_pool_get_array(mesh, 'cellsOnEdge', cellsOnEdge)
       call mpas_pool_get_array(mesh, 'cellsOnCell', cellsOnCell)
@@ -5005,7 +5017,7 @@ module atm_time_integration
          config_mpas_cam_coef, &
          config_rayleigh_damp_u, config_rayleigh_damp_u_timescale_days, & 
          config_number_rayleigh_damp_u_levels, config_number_cam_damping_levels, &
-         rthdynten, &
+         tend_rtheta_adv, rthdynten, ustm, &
          cellStart, cellEnd, vertexStart, vertexEnd, edgeStart, edgeEnd, &
          cellSolveStart, cellSolveEnd, vertexSolveStart, vertexSolveEnd, edgeSolveStart, edgeSolveEnd)
 
@@ -5033,7 +5045,7 @@ module atm_time_integration
       config_mpas_cam_coef, &
       config_rayleigh_damp_u, config_rayleigh_damp_u_timescale_days, &
       config_number_rayleigh_damp_u_levels, config_number_cam_damping_levels, &
-      rthdynten, &
+      tend_rtheta_adv, rthdynten, ustm, &
       cellStart, cellEnd, vertexStart, vertexEnd, edgeStart, edgeEnd, &
       cellSolveStart, cellSolveEnd, vertexSolveStart, vertexSolveEnd, edgeSolveStart, edgeSolveEnd)
 
@@ -5091,6 +5103,7 @@ module atm_time_integration
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: eddy_visc_horz
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: eddy_visc_vert
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: bn2
+      real (kind=RKIND), dimension(nCells+1) :: ustm
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: prandtl_3d_inv
       real (kind=RKIND), dimension(maxEdges,nCells+1) :: edgesOnCell_sign
       real (kind=RKIND), dimension(vertexDegree,nVertices+1) :: edgesOnVertex_sign
@@ -5533,7 +5546,7 @@ module atm_time_integration
                                     eddy_visc_horz, eddy_visc_vert, zz, rdzu, rdzw,                              &
                                     fzm, fzp, config_les_model,                                                  &
                                     delsq_u, delsq_vorticity, delsq_divergence,                                  &
-                                    u, v, divergence, vorticity, rho_edge, rho_zz, u_init, v_init, tend_u_euler )
+                                    u, v, divergence, vorticity, rho_edge, rho_zz, u_init, v_init, ustm, tend_u_euler )
 
 !          else  ! this is the original MPAS dissipation code
 !

@@ -633,7 +633,7 @@ module mpas_atm_dissipation_models
                                    eddy_visc_horz, eddy_visc_vert, zz, rdzu, rdzw,                              &
                                    fzm, fzp, config_les_model,                                                  &
                                    delsq_u, delsq_vorticity, delsq_divergence,                                  &
-                                   u, v, divergence, vorticity, rho_edge, rho_zz, u_init, v_init, tend_u_euler )
+                                   u, v, divergence, vorticity, rho_edge, rho_zz, u_init, v_init, ustm, tend_u_euler )
 
       use mpas_atm_dimensions  !  pull nVertLevels and maxEdges from here                                                                             
 
@@ -691,6 +691,7 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: delsq_divergence
 
       real (kind=RKIND), dimension(nVertLevels), intent(in) :: u_init, v_init
+      real (kind=RKIND), dimension(nCells+1), intent(in) :: ustm
 
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(out) :: tend_u_euler
 
