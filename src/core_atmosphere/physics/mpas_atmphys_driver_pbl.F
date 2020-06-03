@@ -775,6 +775,7 @@
                    bl_mynn_tkeadvect
 
  character(len=StrKIND),pointer:: pbl_scheme
+ character(len=StrKIND),pointer:: config_les_model
 
  integer,pointer:: bl_mynn_cloudpdf,    &
                    bl_mynn_mixlength,   &
@@ -813,6 +814,7 @@
  call mpas_pool_get_config(configs,'config_do_DAcycling',config_do_DAcycling)
  call mpas_pool_get_config(configs,'config_do_restart'  ,config_do_restart  )
  call mpas_pool_get_config(configs,'config_pbl_scheme'  ,pbl_scheme         )
+ call mpas_pool_get_config(configs, 'config_les_model', config_les_model)
 
 !copy MPAS arrays to local arrays:
  call pbl_from_MPAS(configs,mesh,sfc_input,diag_physics,tend_physics,its,ite)
@@ -820,6 +822,7 @@
  initflag = 1
  if(config_do_restart .or. itimestep > 1) initflag = 0
 
+ if(config_les_model == "none") then
  pbl_select: select case (trim(pbl_scheme))
 
     case("bl_ysu")
@@ -964,6 +967,8 @@
     case default
 
  end select pbl_select
+ 
+ endif ! les skip pbl
 
 !copy local arrays to MPAS grid:
  call pbl_to_MPAS(configs,diag_physics,tend_physics,its,ite)
