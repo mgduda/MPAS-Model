@@ -8,7 +8,11 @@
 !=================================================================================================================
  module mpas_atmphys_driver_sfclayer
  use mpas_kind_types
+ use mpas_derived_types
  use mpas_pool_routines
+! use mpas_timekeeping, only: MPAS_Time_type, MPAS_TimeInterval_type, mpas_get_clock_time, &
+!                               mpas_set_time, mpas_set_timeInterval, mpas_get_time, operator(+), add_t_ti
+ use mpas_timekeeping, only: MPAS_Time_type, mpas_get_clock_time, mpas_get_time
  use mpas_timer, only : mpas_timer_start, mpas_timer_stop
 
  use mpas_atmphys_constants
@@ -32,6 +36,7 @@
  integer,parameter,private:: iz0tlnd  = 0        !=0,(Carlson-Boland).
  integer,parameter,private:: scm_force_flux = 0  !SCM surface forcing by surface fluxes.
                                                  !0=no 1=yes (WRF single column model option only).
+ type (MPAS_Clock_type), pointer, private :: clock
 
 !MPAS driver for parameterization of the surface layer.
 !Laura D. Fowler (send comments to laura@ucar.edu).
@@ -854,6 +859,7 @@
  logical,pointer:: config_do_restart,config_frac_seaice
  character(len=StrKIND),pointer:: sfclayer_scheme
  real(kind=RKIND),dimension(:),pointer:: areaCell
+ real(kind=RKIND),pointer:: config_dt
 
 !local variables:
  integer:: initflag
@@ -862,6 +868,11 @@
 !CCPP-compliant flags:
  character(len=StrKIND):: errmsg
  integer:: errflg
+
+ type (MPAS_Time_Type) :: currTime
+ integer :: H, M, S, S_n, S_d
+ integer :: ierr
+ real(kind=RKIND) :: time_of_day_seconds
 
 !-----------------------------------------------------------------------------------------------------------------
 !call mpas_log_write('')
@@ -874,6 +885,7 @@
  call mpas_pool_get_config(configs,'config_do_restart'     ,config_do_restart )
  call mpas_pool_get_config(configs,'config_frac_seaice'    ,config_frac_seaice)
  call mpas_pool_get_config(configs,'config_sfclayer_scheme',sfclayer_scheme   )
+ call mpas_pool_get_config(configs,'config_dt',config_dt)
 
  call mpas_pool_get_array(mesh,'areaCell',areaCell)
 
@@ -889,6 +901,12 @@
 
     case("sf_monin_obukhov")
        call mpas_timer_start('sf_monin_obukhov')
+
+       currTime = mpas_get_clock_time(clock, MPAS_NOW, ierr)
+       call mpas_get_time(curr_time=currTime, H=H, M=M, S=S, S_n=S_n, S_d=S_d)
+       time_of_day_seconds = real(H)*3600. + real(M)*60. + real(S) + real(S_n)/real(S_d) + 0.5*config_dt
+       call mpas_log_write(' sfclay, time of day in seconds, $r ', realArgs=(/time_of_day_seconds/))
+
        call sfclay( &
                    p3d      = pres_hyd_p , psfc     = psfc_p     , t3d      = t_p        , &
                    u3d      = u_p        , v3d      = v_p        , qv3d     = qv_p       , &
@@ -1086,6 +1104,30 @@
 !call mpas_log_write('--- end subroutine driver_sfclayer.')
 
  end subroutine driver_sfclayer
+
+      subroutine flux_les_sas(heat_flux, moisture_flux, time_of_day_seconds)
+
+      implicit none
+
+      real (kind=RKIND), intent(in) :: time_of_day_seconds
+      real (kind=RKIND), intent(out) :: heat_flux, moisture_flux
+
+      real (kind=RKIND), parameter:: t_start_t_flux = 3600.*6.0
+      real (kind=RKIND), parameter:: t_end_t_flux = 3600.*19.50
+      real (kind=RKIND), parameter:: t_start_q_flux = 3600.*7.0
+      real (kind=RKIND), parameter:: t_end_q_flux = 3600.*19.50
+      real (kind=RKIND) :: rel_time_t_flux, rel_time_q_flux
+
+      rel_time_t_flux = max(0.,(time_of_day_seconds - t_start_t_flux)/(t_end_t_flux - t_start_t_flux))
+      rel_time_q_flux = max(0.,(time_of_day_seconds - t_start_q_flux)/(t_end_q_flux - t_start_q_flux))
+
+      heat_flux = max(0., 0.1*sin(pii*rel_time_t_flux))
+      moisture_flux = max(0., 0.15*sin(pii*rel_time_q_flux))/1000.
+
+      end subroutine flux_les_sas
+
+
+
 
 !=================================================================================================================
  end module mpas_atmphys_driver_sfclayer
