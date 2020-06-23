@@ -873,6 +873,7 @@
  integer :: H, M, S, S_n, S_d
  integer :: ierr
  real(kind=RKIND) :: time_of_day_seconds
+ real(kind=RKIND) :: heat_flux, moisture_flux
 
 !-----------------------------------------------------------------------------------------------------------------
 !call mpas_log_write('')
@@ -906,6 +907,7 @@
        call mpas_get_time(curr_time=currTime, H=H, M=M, S=S, S_n=S_n, S_d=S_d)
        time_of_day_seconds = real(H)*3600. + real(M)*60. + real(S) + real(S_n)/real(S_d) + 0.5*config_dt
        call mpas_log_write(' sfclay, time of day in seconds, $r ', realArgs=(/time_of_day_seconds/))
+       call flux_les_sas( heat_flux, moisture_flux, time_of_day_seconds )
 
        call sfclay( &
                    p3d      = pres_hyd_p , psfc     = psfc_p     , t3d      = t_p        , &
