@@ -874,6 +874,7 @@
  integer :: ierr
  real(kind=RKIND) :: time_of_day_seconds
  real(kind=RKIND) :: heat_flux, moisture_flux
+ logical :: specified_flux
 
 !-----------------------------------------------------------------------------------------------------------------
 !call mpas_log_write('')
@@ -908,6 +909,7 @@
        time_of_day_seconds = real(H)*3600. + real(M)*60. + real(S) + real(S_n)/real(S_d) + 0.5*config_dt
        call mpas_log_write(' sfclay, time of day in seconds, $r ', realArgs=(/time_of_day_seconds/))
        call flux_les_sas( heat_flux, moisture_flux, time_of_day_seconds )
+       specified_flux = .true.
 
        call sfclay( &
                    p3d      = pres_hyd_p , psfc     = psfc_p     , t3d      = t_p        , &
@@ -932,6 +934,8 @@
                    ustm     = ustm_p     , ck       = ck_p       , cka      = cka_p      , &
                    cd       = cd_p       , cda      = cda_p      , isftcflx = isftcflx   , &
                    iz0tlnd  = iz0tlnd    , scm_force_flux = scm_force_flux               , &
+                   heat_flux = heat_flux , moisture_flux = moisture_flux                 , &
+                   specified_flux = specified_flux                                       , &
                    ids = ids , ide = ide , jds = jds , jde = jde , kds = kds , kde = kde , &
                    ims = ims , ime = ime , jms = jms , jme = jme , kms = kms , kme = kme , &
                    its = its , ite = ite , jts = jts , jte = jte , kts = kts , kte = kte   &
@@ -961,6 +965,8 @@
                       ustm     = ustm_sea   , ck       = ck_sea     , cka      = cka_sea    , &
                       cd       = cd_sea     , cda      = cda_sea    , isftcflx = isftcflx   , &
                       iz0tlnd  = iz0tlnd    , scm_force_flux = scm_force_flux               , &
+                      heat_flux = heat_flux , moisture_flux = moisture_flux                 , &
+                      specified_flux = specified_flux                                       , &
                       ids = ids , ide = ide , jds = jds , jde = jde , kds = kds , kde = kde , &
                       ims = ims , ime = ime , jms = jms , jme = jme , kms = kms , kme = kme , &
                       its = its , ite = ite , jts = jts , jte = jte , kts = kts , kte = kte   &

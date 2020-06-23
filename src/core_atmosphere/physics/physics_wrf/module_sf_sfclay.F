@@ -25,7 +25,8 @@ CONTAINS
                      ims,ime, jms,jme, kms,kme,                    &
                      its,ite, jts,jte, kts,kte,                    &
                      ustm,ck,cka,cd,cda,                           &
-                     isftcflx,iz0tlnd,scm_force_flux)
+                     isftcflx,iz0tlnd,scm_force_flux,              &
+                     heat_flux, moisture_flux, specified_flux      )
 !-------------------------------------------------------------------
       IMPLICIT NONE
 !-------------------------------------------------------------------
@@ -184,6 +185,8 @@ CONTAINS
 
       INTEGER,  OPTIONAL,  INTENT(IN )   ::     ISFTCFLX, IZ0TLND
       INTEGER,  OPTIONAL,  INTENT(IN )   ::     SCM_FORCE_FLUX
+      REAL,     INTENT(IN   )            ::     heat_flux, moisture_flux
+      LOGICAL,  INTENT(IN   )            ::     specified_flux
 
       REAL,     DIMENSION( ims:ime, jms:jme )                    , &
                 INTENT(INOUT  )             ::               QSFC
