@@ -398,6 +398,7 @@ CONTAINS
       REAL    ::  FLUXC,VSGD,Z0Q,VISC,RESTAR,CZIL,GZ0OZQ,GZ0OZT
       REAL    ::  ZW, ZN1, ZN2
       REAL    ::  Z0T, CZC
+      REAL    ::  USTI
 !-------------------------------------------------------------------
       KL=kte
 
@@ -544,6 +545,15 @@ CONTAINS
 
   260 CONTINUE                                                                   
 
+      IF(specified_flux)THEN
+!     Need to recalculate MOL and BR when HFX is given and TSK is not used
+        DO I=ITS,ITE
+!       MOL is THETA*
+          USTI = MAX(UST(I),0.01)
+          MOL(I) = HFX(I)/(RHOX(I)*CP*USTI)
+          BR(I) = KARMAN*GOVRTH(I)*ZA(I)*MOL(I)/(USTI*USTI)/GZ1OZ0(I)
+        ENDDO
+      ENDIF
 !                                                                                
 !-----DIAGNOSE BASIC PARAMETERS FOR THE APPROPRIATED STABILITY CLASS:            
 !                                                                                
