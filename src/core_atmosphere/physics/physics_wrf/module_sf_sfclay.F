@@ -246,6 +246,7 @@ CONTAINS
                 GZ1OZ0(ims,j),WSPD(ims,j),BR(ims,j),ISFFLX,DX2D,   &
                 SVP1,SVP2,SVP3,SVPT0,EP1,EP2,KARMAN,EOMEG,STBOLT,  &
                 P1000mb,                                           &
+                heat_flux, moisture_flux, specified_flux,          &
                 ids,ide, jds,jde, kds,kde,                         &
                 ims,ime, jms,jme, kms,kme,                         &
                 its,ite, jts,jte, kts,kte                          &
@@ -271,6 +272,7 @@ CONTAINS
                      SVP1,SVP2,SVP3,SVPT0,EP1,EP2,                 &
                      KARMAN,EOMEG,STBOLT,                          &
                      P1000mb,                                      &
+                     heat_flux, moisture_flux, specified_flux,     &
                      ids,ide, jds,jde, kds,kde,                    &
                      ims,ime, jms,jme, kms,kme,                    &
                      its,ite, jts,jte, kts,kte,                    &
@@ -292,6 +294,8 @@ CONTAINS
       REAL,     INTENT(IN )   ::        EP1,EP2,KARMAN,EOMEG,STBOLT
       REAL,     INTENT(IN )   ::        P1000mb
 
+      REAL,     INTENT(IN   ) ::        heat_flux, moisture_flux
+      LOGICAL,  INTENT(IN   ) ::        specified_flux
 !
       REAL,     DIMENSION( ims:ime )                             , &
                 INTENT(IN   )               ::             MAVAIL, &
