@@ -705,6 +705,7 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(nVertLevels+1) :: turb_vflux
       real (kind=RKIND) :: rho_k_cell1, rho_k_cell2, rho_k_at_w
       real (kind=RKIND) :: zz_cell1, zz_cell2, zz_at_w
+      real (kind=RKIND) :: ust_edge
 
       real (kind=RKIND) :: velocity_magnitude
 
@@ -894,6 +895,11 @@ module mpas_atm_dissipation_models
                 if( les_test ) then
                   velocity_magnitude = sqrt(u(1,iEdge)**2 + v(1,iEdge)**2)
                   turb_vflux(1) = -rho_edge(1,iEdge)*tke_drag_coefficient*u(1,iEdge)*velocity_magnitude
+                  turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
+                else if (les_sas_test) then
+                  ust_edge = 0.5*(ustm(cell1) + ustm(cell2))
+                  velocity_magnitude = max(sqrt(u(1,iEdge)**2 + v(1,iEdge)**2),0.1)
+                  turb_vflux(1) = -rho_edge(1,iEdge)*ust_edge*ust_edge*(u(1,iEdge)/velocity_magnitude)
                   turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
                   ! end test conditions
                 else
