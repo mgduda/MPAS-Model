@@ -844,6 +844,8 @@ CONTAINS
   330 CONTINUE                                                                   
 !                                                                                
   335 CONTINUE                                                                   
+     
+      IF(specified_flux) GOTO 410
                                                                                   
 !-----COMPUTE THE SURFACE SENSIBLE AND LATENT HEAT FLUXES:                       
       IF ( PRESENT(SCM_FORCE_FLUX) ) THEN
