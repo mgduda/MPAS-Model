@@ -1585,6 +1585,7 @@ module mpas_atm_dissipation_models
                                             index_tke, index_qv, num_scalars_dummy, mix_scalars,      &
                                             config_les_model, time_of_day_seconds,                    &
                                             uReconstructZonal, uReconstructMeridional,                &
+                                            hfx, qfx,                                                 &
                                             tend_theta_euler                                         )
 
 
@@ -1641,6 +1642,7 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: eddy_visc_vert
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: rho_zz
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(in) :: rho_edge
+      real (kind=RKIND), dimension(nCells+1), intent(in) :: hfx, qfx
 
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(inout) :: tend_theta_euler
 
@@ -1883,7 +1885,9 @@ module mpas_atm_dissipation_models
                   theta_m_cell = theta_m(1,iCell)
                   theta_cell = theta_m_cell/(1.0+(rv/rgas)*qv_cell)
 
-                  call flux_les_sas( heat_flux, moisture_flux, time_of_day_seconds )
+!                 call flux_les_sas( heat_flux, moisture_flux, time_of_day_seconds )
+                  heat_flux = hfx(iCell)/rho_zz(1,iCell)/cp
+                  moisture_flux = qfx(iCell)
                   if(iCell == 1) call mpas_log_write(' SAS t and qv fluxes, $r, $r ', realArgs=(/heat_flux, moisture_flux/))
 
                   theta_m_flux = heat_flux*(1.0+(rv/rgas)*qv_cell)+(rv/rgas)*theta_cell*moisture_flux
