@@ -410,10 +410,16 @@ CONTAINS
 !----CONVERT GROUND TEMPERATURE TO POTENTIAL TEMPERATURE:  
 !                                                            
       DO 5 I=its,ite                                   
-        TGDSA(I)=TSK(I)                                    
+        IF(.not.specified_flux)THEN
+          TGDSA(I)=TSK(I)                                    
 ! PSFC cb
-!        THGB(I)=TSK(I)*(100./PSFC(I))**ROVCP                
-        THGB(I)=TSK(I)*(P1000mb/PSFCPA(I))**ROVCP   
+!          THGB(I)=TSK(I)*(100./PSFC(I))**ROVCP                
+          THGB(I)=TSK(I)*(P1000mb/PSFCPA(I))**ROVCP   
+        ELSE
+! with specified_flux TSK value is not input and given value will not affect USTM
+          TGDSA(I)=300.
+          THGB(I)=300.*(P1000mb/PSFCPA(I))**ROVCP   
+        ENDIF
     5 CONTINUE                                               
 !                                                            
 !-----DECOUPLE FLUX-FORM VARIABLES TO GIVE U,V,T,THETA,THETA-VIR.,
@@ -819,6 +825,8 @@ CONTAINS
         WSPDI(I)=SQRT(UX(I)*UX(I)+VX(I)*VX(I))
         IF ( PRESENT(USTM) ) THEN
         USTM(I)=0.5*USTM(I)+0.5*KARMAN*WSPDI(I)/PSIX
+! For specified_flux VCONV effect not added to UST that will be used for ZOL
+        IF(specified_flux)UST(I)=USTM(I)
         ENDIF
         U10(I)=UX(I)*PSIX10/PSIX                                    
         V10(I)=VX(I)*PSIX10/PSIX                                   
