@@ -1944,25 +1944,25 @@ module mpas_atm_dissipation_models
 
 !-----------
 
-      subroutine flux_les_sas(heat_flux, moisture_flux, time_of_day_seconds)
+!     subroutine flux_les_sas(heat_flux, moisture_flux, time_of_day_seconds)
 
-      implicit none
+!     implicit none
 
-      real (kind=RKIND), intent(in) :: time_of_day_seconds
-      real (kind=RKIND), intent(out) :: heat_flux, moisture_flux
+!     real (kind=RKIND), intent(in) :: time_of_day_seconds
+!     real (kind=RKIND), intent(out) :: heat_flux, moisture_flux
 
-      real (kind=RKIND), parameter:: t_start_t_flux = 3600.*6.0
-      real (kind=RKIND), parameter:: t_end_t_flux = 3600.*19.50
-      real (kind=RKIND), parameter:: t_start_q_flux = 3600.*7.0
-      real (kind=RKIND), parameter:: t_end_q_flux = 3600.*19.50
-      real (kind=RKIND) :: rel_time_t_flux, rel_time_q_flux
+!     real (kind=RKIND), parameter:: t_start_t_flux = 3600.*6.0
+!     real (kind=RKIND), parameter:: t_end_t_flux = 3600.*19.50
+!     real (kind=RKIND), parameter:: t_start_q_flux = 3600.*7.0
+!     real (kind=RKIND), parameter:: t_end_q_flux = 3600.*19.50
+!     real (kind=RKIND) :: rel_time_t_flux, rel_time_q_flux
 
-      rel_time_t_flux = max(0.,(time_of_day_seconds - t_start_t_flux)/(t_end_t_flux - t_start_t_flux))
-      rel_time_q_flux = max(0.,(time_of_day_seconds - t_start_q_flux)/(t_end_q_flux - t_start_q_flux))
+!     rel_time_t_flux = max(0.,(time_of_day_seconds - t_start_t_flux)/(t_end_t_flux - t_start_t_flux))
+!     rel_time_q_flux = max(0.,(time_of_day_seconds - t_start_q_flux)/(t_end_q_flux - t_start_q_flux))
 
-      heat_flux = max(0., 0.1*sin(pii*rel_time_t_flux))
-      moisture_flux = max(0., 0.15*sin(pii*rel_time_q_flux))/1000.
+!     heat_flux = max(0., 0.1*sin(pii*rel_time_t_flux))
+!     moisture_flux = max(0., 0.15*sin(pii*rel_time_q_flux))/1000.
 
-      end subroutine flux_les_sas
+!     end subroutine flux_les_sas
 
 end module mpas_atm_dissipation_models
