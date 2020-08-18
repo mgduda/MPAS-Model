@@ -556,7 +556,7 @@ CONTAINS
         DO I=ITS,ITE
 !       MOL is THETA*
           USTI = MAX(UST(I),0.01)
-          MOL(I) = HFX(I)/(RHOX(I)*CP*USTI)
+          MOL(I) = - HFX(I)/(RHOX(I)*CP*USTI)
           BR(I) = KARMAN*GOVRTH(I)*ZA(I)*MOL(I)/(USTI*USTI)/GZ1OZ0(I)
         ENDDO
       ENDIF
