@@ -1846,7 +1846,9 @@ module mpas_atm_dissipation_models
                   !   prandtl_inverse(k) = 1. + 2.*tke_length/delta_z
                   ! end do
 
-                  prandtl_inverse(k) = 0.5*(prandtl_3d_inv(k,iCell)+prandtl_3d_inv(k-1,iCell))
+                  do k=2,nVertLevels
+                    prandtl_inverse(k) = 0.5*(prandtl_3d_inv(k,iCell)+prandtl_3d_inv(k-1,iCell))
+                  end do
 
                 end if
 
