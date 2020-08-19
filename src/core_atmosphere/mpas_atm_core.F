@@ -1015,7 +1015,7 @@ module atm_core
       !proceed with physics if moist_physics is set to true:
       if(moist_physics) then
          call physics_timetracker(domain,dt,clock,itimestep,xtime_s)
-         call physics_driver(domain,itimestep,xtime_s)
+         call physics_driver(domain,clock,itimestep,xtime_s)
       endif
 #endif
 

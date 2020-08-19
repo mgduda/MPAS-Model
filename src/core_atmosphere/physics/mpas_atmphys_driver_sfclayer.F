@@ -841,10 +841,12 @@
  end subroutine init_sfclayer
 
 !=================================================================================================================
- subroutine driver_sfclayer(itimestep,configs,mesh,diag_physics,sfc_input,its,ite)
+ subroutine driver_sfclayer(clock,itimestep,configs,mesh,diag_physics,sfc_input,its,ite)
 !=================================================================================================================
 
 !input and inout arguments:
+ type(MPAS_Clock_type),intent(in):: clock
+
  type(mpas_pool_type),intent(in):: mesh
  type(mpas_pool_type),intent(in):: configs
  type(mpas_pool_type),intent(in):: sfc_input

@@ -108,12 +108,13 @@
 
 
 !=================================================================================================================
- subroutine physics_driver(domain,itimestep,xtime_s)
+ subroutine physics_driver(domain,clock,itimestep,xtime_s)
 !=================================================================================================================
 
 !input arguments:
  integer,intent(in):: itimestep
  real(kind=RKIND),intent(in):: xtime_s
+ type(MPAS_Clock_type),intent(in):: clock
 
 !inout arguments:
  type(domain_type),intent(inout):: domain
@@ -269,8 +270,8 @@
        call allocate_sfclayer(block%configs)
 !$OMP PARALLEL DO
        do thread=1,nThreads
-          call driver_sfclayer(itimestep,block%configs,mesh,diag_physics,sfc_input, &
-                               cellSolveThreadStart(thread),cellSolveThreadEnd(thread))
+          call driver_sfclayer(clock,itimestep,block%configs,mesh,diag_physics,sfc_input, &
+                               cellSolveThreadStart(thread), cellSolveThreadEnd(thread))
        end do
 !$OMP END PARALLEL DO
        call deallocate_sfclayer(block%configs)
