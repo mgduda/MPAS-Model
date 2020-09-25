@@ -1191,6 +1191,7 @@ module mpas_atm_dissipation_models
                   turb_vflux(k) = - rho_zz(k,iCell)*eddy_visc_vert(k,iCell)*zz(k,iCell)*zz(k,iCell)  &
                                     *rdzu(k)*(w(k+1,iCell)-w(k,iCell))
                 end do
+                turb_vflux(nVertLevels+1) = 0.
                 do k=2,nVertLevels
                   tend_w_euler(k,iCell) = tend_w_euler(k,iCell) &
                                               - rdzw(k)*(turb_vflux(k+1)-turb_vflux(k))
@@ -1653,7 +1654,7 @@ module mpas_atm_dissipation_models
       integer :: cell1, cell2, iEdge, iCell, i, k, iScalar
       real (kind=RKIND) :: r_areaCell, edge_sign, theta_turb_flux, pr_scale
       real (kind=RKIND) :: z1, z2, z3, z4, zm, z0, zp
-      real (kind=RKIND), dimension(nVertLevels+1) :: turb_vflux, prandtl_inverse
+      real (kind=RKIND), dimension(nVertLevels+1) :: turb_vflux, prandtl_1d_inverse
       real (kind=RKIND), dimension(num_scalars,nVertLevels+1) :: turb_vflux_scalars
       real (kind=RKIND) :: rho_k_at_w, zz_at_w
       real (kind=RKIND) :: delta_z, delta_s, tke_length, bv_frequency2
@@ -1832,7 +1833,7 @@ module mpas_atm_dissipation_models
 
                 if ( config_les_model == "3d_smagorinsky") then
                   do k=2,nVertLevels
-                    prandtl_inverse(k) = prandtl_inv
+                    prandtl_1d_inverse(k) = prandtl_inv
                   end do
                 else   ! prognostic_1.5_order, isentropic mixing length
                   ! do k=2,nVertLevels
@@ -1847,7 +1848,7 @@ module mpas_atm_dissipation_models
                   ! end do
 
                   do k=2,nVertLevels
-                    prandtl_inverse(k) = 0.5*(prandtl_3d_inv(k,iCell)+prandtl_3d_inv(k-1,iCell))
+                    prandtl_1d_inverse(k) = 0.5*(prandtl_3d_inv(k,iCell)+prandtl_3d_inv(k-1,iCell))
                   end do
 
                 end if
@@ -1862,7 +1863,7 @@ module mpas_atm_dissipation_models
                   rho_k_at_w =  fzm(k)*rho_zz(k  ,iCell)*zz(k  ,iCell)*eddy_visc_vert(k  ,iCell) &
                                +fzp(k)*rho_zz(k-1,iCell)*zz(k-1,iCell)*eddy_visc_vert(k-1,iCell)
                   zz_at_w = fzm(k)*zz(k,iCell)+fzp(k)*zz(k-1,iCell)
-                  turb_vflux(k) = - prandtl_inverse(k)*rho_k_at_w*zz_at_w*rdzu(k)*(theta_m(k,iCell)-theta_m(k-1,iCell))
+                  turb_vflux(k) = - prandtl_1d_inverse(k)*rho_k_at_w*zz_at_w*rdzu(k)*(theta_m(k,iCell)-theta_m(k-1,iCell))
                 end do
 
                 ! test boundary conditions for supercell and les test cases
@@ -1920,7 +1921,7 @@ module mpas_atm_dissipation_models
                                +fzp(k)*rho_zz(k-1,iCell)*zz(k-1,iCell)*eddy_visc_vert(k-1,iCell)
                   zz_at_w = fzm(k)*zz(k,iCell)+fzp(k)*zz(k-1,iCell)
                   do iScalar=1,num_scalars
-                     turb_vflux_scalars(iScalar,k) = - prandtl_inverse(k)*rho_k_at_w*zz_at_w*rdzu(k)*  &
+                     turb_vflux_scalars(iScalar,k) = - prandtl_1d_inverse(k)*rho_k_at_w*zz_at_w*rdzu(k)*  &
                                                       (scalars(iScalar,k,iCell)-scalars(iScalar,k-1,iCell))
                   end do
                 end do
