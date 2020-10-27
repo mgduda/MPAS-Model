@@ -211,6 +211,7 @@ CONTAINS
       REAL,     DIMENSION( its:ite ) ::                      DX2D
 
       INTEGER ::  I,J
+      REAL ::  RHO
 
       DO J=jts,jte
 
@@ -232,7 +233,8 @@ CONTAINS
 
         IF(specified_flux)THEN
            DO i=its,ite
-              HFX(i,j)=heat_flux
+              RHO = P1D(i)/R/(T1D(i)*(1.+EP1*QV1D(i)))
+              HFX(i,j)=heat_flux*RHO*CP
               QFX(i,j)=moisture_flux
            ENDDO
         ENDIF
