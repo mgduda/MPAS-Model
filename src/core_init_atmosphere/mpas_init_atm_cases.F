@@ -403,11 +403,12 @@ module init_atm_cases
             call mpas_pool_get_dimension(block_ptr % dimensions, 'nVertLevels', nVertLevels)
 
             call mpas_pool_get_subpool(block_ptr % structs, 'mesh', mesh)
+            call mpas_pool_get_subpool(block_ptr % structs, 'fg', fg)
             call mpas_pool_get_subpool(block_ptr % structs, 'state', state)
             call mpas_pool_get_subpool(block_ptr % structs, 'diag', diag)
 
             call mpas_log_write(' calling test case setup ')
-            call init_atm_case_les(domain % dminfo, mesh, nCells, nVertLevels, state, diag, config_init_case, block_ptr % configs)
+            call init_atm_case_les(domain % dminfo, mesh, fg, nCells, nVertLevels, state, diag, config_init_case, block_ptr % configs)
             call decouple_variables(mesh, nCells, nVertLevels, state, diag)
             call mpas_log_write(' returned from test case setup ')
             block_ptr => block_ptr % next
@@ -6205,7 +6206,7 @@ call mpas_log_write('Done with soil consistency check')
 
 !---------------------
 
-   subroutine init_atm_case_les(dminfo, mesh, nCells, nVertLevels, state, diag, test_case, configs)
+   subroutine init_atm_case_les(dminfo, mesh, fg, nCells, nVertLevels, state, diag, test_case, configs)
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    ! Large Eddy Simulation (les) test case setup
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -6214,6 +6215,7 @@ call mpas_log_write('Done with soil consistency check')
 
       type (dm_info), intent(in) :: dminfo
       type (mpas_pool_type), intent(inout) :: mesh
+      type (mpas_pool_type), intent(inout) :: fg
       integer, intent(in) :: nCells
       integer, intent(in) :: nVertLevels
       type (mpas_pool_type), intent(inout) :: state
@@ -6227,6 +6229,9 @@ call mpas_log_write('Done with soil consistency check')
       real (kind=RKIND), dimension(:,:), pointer :: ppb, pb, rho_zz, rb, rr, tb, rtb, p, pp, dss, t, rt, u, ru
       real (kind=RKIND), dimension(:,:,:), pointer :: scalars
       real (kind=RKIND), dimension(:,:,:), pointer :: zb, zb3
+
+      real (kind=RKIND), dimension(:), pointer :: xland
+      integer, dimension(:), pointer :: landmask, lu_index
 
       !This is temporary variable here. It just need when calculate tangential velocity v.
       integer :: eoe, j
@@ -6374,6 +6379,10 @@ call mpas_log_write('Done with soil consistency check')
       call mpas_pool_get_dimension(state, 'index_qv', index_qv)
       call mpas_pool_get_dimension(state, 'index_tke', index_tke)
 
+      call mpas_pool_get_array(fg, 'xland', xland)
+      call mpas_pool_get_array(mesh, 'landmask', landmask)
+      call mpas_pool_get_array(mesh, 'lu_index', lu_index)
+ 
       scalars(:,:,:) = 0.
 
       call atm_initialize_advection_rk(mesh, nCells, nEdges, maxEdges, on_a_sphere, sphere_radius )
@@ -6545,7 +6554,7 @@ call mpas_log_write('Done with soil consistency check')
       call mpas_dmpar_bcast_real(dminfo, pibtop)
 
       ptopb = p0*pibtop**(1./rcp)
-      call mpas_log_write('ptopb = $r', realArgs=(/0.01_RKIND*ptopb/))
+!     call mpas_log_write('ptopb = $r', realArgs=(/0.01_RKIND*ptopb/))
 
       do i=1, nCells
          pb(nz1,i) = pibtop+.5*dzw(nz1)*gravity*(1.+qvb(nz1))/(cp*tb(nz1,i)*zz(nz1,i))
@@ -6650,7 +6659,7 @@ call mpas_log_write('Done with soil consistency check')
         end do
         pitop = pitop - .5*dzw(nz1)*gravity*(1.+scalars(index_qv,nz1,1))/(cp*t(nz1,1)*zz(nz1,1))
         ptop = p0*pitop**(1./rcp)
-        call mpas_log_write('ptop  = $r $r', realArgs=(/0.01_RKIND*ptop, 0.01_RKIND*ptopb/))
+!       call mpas_log_write('ptop  = $r $r', realArgs=(/0.01_RKIND*ptop, 0.01_RKIND*ptopb/))
 
         call mpas_dmpar_bcast_real(dminfo, ptop)
 
@@ -6668,11 +6677,11 @@ call mpas_log_write('Done with soil consistency check')
                            +fzp(k+1)*(rb(k  ,i)*(scalars(index_qv,k  ,i)-qvb(k))      &
                                      +rr(k  ,i)*(1.+scalars(index_qv,k  ,i))))
           end do
-          if (itr==1.and.i==1) then
-             do k=1,nz1
-                call mpas_log_write('pp-check $r', realArgs=(/pp(k,i)/))
-             end do
-          end if
+!         if (itr==1.and.i==1) then
+!            do k=1,nz1
+!               call mpas_log_write('pp-check $r', realArgs=(/pp(k,i)/))
+!            end do
+!         end if
           do k=1,nz1
              rt(k,i) = (pp(k,i)/(rgas*zz(k,i))                   &
                      -rtb(k,i)*(p(k,i)-pb(k,i)))/p(k,i)       
@@ -6760,6 +6769,14 @@ call mpas_log_write('Done with soil consistency check')
             rho(k,iCell) = rho_zz(k,iCell) * zz(k,iCell)
             theta(k,iCell) = t(k,iCell) / (1.0 + 1.61 * scalars(index_qv,k,iCell))
          end do
+      end do
+
+      do iCell = 1, nCells
+         !land category
+         landmask(iCell) = 1
+         lu_index(iCell) = 1
+         xland(iCell) = 1.0
+         if (iCell == 1) call mpas_log_write(' landmask, lu_index, xland $i $i $r', intArgs=(/landmask(iCell),lu_index(iCell)/), realArgs=(/xland(iCell)/))
       end do
 
    end subroutine init_atm_case_les
