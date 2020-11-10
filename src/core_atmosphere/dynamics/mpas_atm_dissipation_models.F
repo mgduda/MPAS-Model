@@ -898,6 +898,7 @@ module mpas_atm_dissipation_models
                   turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
                 else if (les_sas_test) then
                   ust_edge = 0.5*(ustm(cell1) + ustm(cell2))
+                  if(iEdge == 1) call mpas_log_write(' SAS ust_edge, $r ', realArgs=(/ust_edge/))
                   velocity_magnitude = max(sqrt(u(1,iEdge)**2 + v(1,iEdge)**2),0.1)
                   turb_vflux(1) = -rho_edge(1,iEdge)*ust_edge*ust_edge*(u(1,iEdge)/velocity_magnitude)
                   turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
