@@ -210,14 +210,31 @@ module atm_core_interface
 
       use mpas_derived_types, only : MPAS_Clock_type, mpas_pool_type
       use atm_core, only : atm_simulation_clock_init
+      use mpas_pool_routines, only : mpas_pool_get_config
 
       implicit none
 
       type (MPAS_Clock_type), intent(inout) :: core_clock
       type (mpas_pool_type), intent(inout) :: configs
+      character (len=StrKIND), pointer :: config_start_time
+      character (len=StrKIND), pointer :: config_run_duration
+      integer :: i
       integer :: ierr
 
       ierr = 0
+
+      !
+      ! Change '.' characters in config_start_time and config_run_duration to ':'
+      !
+      call mpas_pool_get_config(configs, 'config_start_time', config_start_time)
+      do i = 1, len_trim(config_start_time)
+         if (config_start_time(i:i) == '.') config_start_time(i:i) = ':'
+      end do
+
+      call mpas_pool_get_config(configs, 'config_run_duration', config_run_duration)
+      do i = 1, len_trim(config_run_duration)
+         if (config_run_duration(i:i) == '.') config_run_duration(i:i) = ':'
+      end do
 
       call atm_simulation_clock_init(core_clock, configs, ierr)
 
