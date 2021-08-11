@@ -139,10 +139,7 @@ module atm_core
       startTime = mpas_get_clock_time(clock, MPAS_START_TIME, ierr)
       call mpas_get_time(startTime, dateTimeString=startTimeStamp) 
 
-
-      call mpas_pool_get_subpool(domain % blocklist % structs, 'state', state)
-      call mpas_pool_get_field(state, 'u', u_field, 1)
-      call mpas_dmpar_exch_halo_field(u_field)
+      call mpas_dmpar_field_halo_exch(domain, 'u', timeLevel=1)
 
 
       !
@@ -175,15 +172,9 @@ module atm_core
          block => block % next
       end do
 
-      call mpas_pool_get_subpool(domain % blocklist % structs, 'diag', diag)
-      call mpas_pool_get_field(diag, 'pv_edge', pv_edge_field)
-      call mpas_dmpar_exch_halo_field(pv_edge_field)
-
-      call mpas_pool_get_field(diag, 'ru', ru_field)
-      call mpas_dmpar_exch_halo_field(ru_field)
-
-      call mpas_pool_get_field(diag, 'rw', rw_field)
-      call mpas_dmpar_exch_halo_field(rw_field)
+      call mpas_dmpar_field_halo_exch(domain, 'pv_edge')
+      call mpas_dmpar_field_halo_exch(domain, 'ru')
+      call mpas_dmpar_field_halo_exch(domain, 'rw')
 
       call mpas_atm_diag_setup(domain % streamManager, domain % blocklist % configs, &
                                domain % blocklist % structs, domain % clock, domain % dminfo)
