@@ -78,6 +78,8 @@ module mpas_bootstrapping
    !-----------------------------------------------------------------------
    subroutine mpas_bootstrap_framework_phase1(domain, mesh_filename, mesh_iotype) !{{{
 
+      use mpas_timer, only : mpas_timer_start, mpas_timer_stop
+
       implicit none
 
       type (domain_type), pointer :: domain
@@ -147,6 +149,7 @@ module mpas_bootstrapping
       nHalos = config_num_halos
 
 
+      call mpas_timer_start('read_mesh_fields')
       inputHandle = MPAS_io_open(trim(mesh_filename), MPAS_IO_READ, mesh_iotype, domain % ioContext, ierr=ierr)
       if (ierr /= MPAS_IO_NOERR) then
          call mpas_log_write('Could not open input file '''//trim(mesh_filename)//''' to read mesh fields', MPAS_LOG_CRIT)
@@ -197,6 +200,8 @@ module mpas_bootstrapping
       call mpas_io_setup_vertex_block_fields(inputHandle, nReadVertices, readVertexStart, readingBlock, vertexDegree, &
                                              indexToVertexIDField, xVertexField, yVertexField, zVertexField, cellsOnVertexField, &
                                              nHalos)
+      call mpas_timer_stop('read_mesh_fields')
+
       !
       ! Set up a graph derived data type describing the connectivity for the cells
       !   that were read by this process
@@ -224,36 +229,47 @@ module mpas_bootstrapping
       ! Determine which cells are owned by this process. Currently, this routine just reads a graph.info.part.*
       !    file, but in principle it could call some online, distributed mesh partitioning library.
       !
+      call mpas_timer_start('block_decomp')
       call mpas_block_decomp_cells_for_proc(domain % dminfo, partial_global_graph_info, local_cell_list, block_id, block_start, &
                                             block_count, config_number_of_blocks, config_explicit_proc_decomp, &
                                             config_block_decomp_file_prefix, config_proc_decomp_file_prefix)
+      call mpas_timer_stop('block_decomp')
 
       deallocate(partial_global_graph_info % vertexID)
       deallocate(partial_global_graph_info % nAdjacent)
       deallocate(partial_global_graph_info % adjacencyList)
 
+      call mpas_timer_start('build_halos')
       !
       ! Transfer owned cells from local_cell_list into the indexToCellID_Block field (which may contain multiple blocks)
       !
+      call mpas_timer_start('halos_1')
       call mpas_block_creator_setup_blocks_and_0halo_cells(nHalos, domain, indexToCellID_Block, local_cell_list, block_id, &
                                                            block_start, block_count)
+      call mpas_timer_stop('halos_1')
 
       !
       ! The *Field arguments contain fields read by mpas_io_setup_*_block_fields on the simple, contiguous decompositions
       !    that were set up by mpas_dmpar_get_index_range. These next calls communicate the *Field mesh fields from these
       !    simple decompositions to the native MPAS decomposition in the *_Block fields.
       !
+      call mpas_timer_start('halos_2')
       call mpas_block_creator_build_0halo_cell_fields(nHalos, indexToCellIDField, nEdgesOnCellField, cellsOnCellField, &
                                                       verticesOnCellField, edgesOnCellField, indexToCellID_Block, &
                                                       nEdgesOnCell_Block, cellsOnCell_Block, verticesOnCell_Block, &
                                                       edgesOnCell_Block)
+      call mpas_timer_stop('halos_2')
 
+      call mpas_timer_start('halos_3')
       call mpas_block_creator_build_0_and_1halo_edge_fields(nHalos, indexToEdgeIDField, cellsOnEdgeField, indexToCellID_Block, &
                                                             nEdgesOnCell_Block, edgesOnCell_Block, indexToEdgeID_Block, &
                                                             cellsOnEdge_Block, nEdgesSolveField)
+      call mpas_timer_stop('halos_3')
+      call mpas_timer_start('halos_4')
       call mpas_block_creator_build_0_and_1halo_edge_fields(nHalos, indexToVertexIDField, cellsOnVertexField, indexToCellID_Block, &
                                                             nEdgesOnCell_Block, verticesOnCell_Block, indexToVertexID_Block, &
                                                             cellsOnVertex_Block, nVerticesSolveField)
+      call mpas_timer_stop('halos_4')
 
       !
       ! The following three calls are responsible for taking the *_Block fields that upon entry
@@ -261,14 +277,21 @@ module mpas_bootstrapping
       !    upon exit they contain all owned and halo elements. A side effect of this is that the exchange
       !    lists for these fields are valid (and can be used, e.g., by mpas_block_creator_finalize_block_phase1).
       !
+      call mpas_timer_start('halos_5')
       call mpas_block_creator_build_cell_halos(nHalos, indexToCellID_Block, nEdgesOnCell_Block, cellsOnCell_Block, &
                                                verticesOnCell_Block, edgesOnCell_Block, nCellsSolveField)
+      call mpas_timer_stop('halos_5')
 
+      call mpas_timer_start('halos_6')
       call mpas_block_creator_build_edge_halos(nHalos, indexToCellID_Block, nEdgesOnCell_Block, nCellsSolveField, &
                                                edgesOnCell_Block, indexToEdgeID_Block, cellsOnEdge_Block, nEdgesSolveField)
+      call mpas_timer_stop('halos_6')
+      call mpas_timer_start('halos_7')
       call mpas_block_creator_build_edge_halos(nHalos, indexToCellID_Block, nEdgesOnCell_Block, nCellsSolveField, &
                                                verticesOnCell_Block, indexToVertexID_Block, cellsOnVertex_Block, &
                                                nVerticesSolveField)
+      call mpas_timer_stop('halos_7')
+      call mpas_timer_stop('build_halos')
 
       !
       ! Before we can allocate blocks, we need the attributes on_a_sphere and sphere_radius so
@@ -441,6 +464,7 @@ module mpas_bootstrapping
 
       use mpas_stream_manager
       use mpas_stream_list
+      use mpas_timer, only : mpas_timer_start, mpas_timer_stop
 
       implicit none
 
@@ -577,7 +601,9 @@ module mpas_bootstrapping
       call mpas_pool_set_error_level(err_level)
 
       ! Allocate blocks, and copy indexTo arrays into blocks
+      call mpas_timer_start('finalize_block')
       call mpas_block_creator_finalize_block_phase2(domain % streamManager, domain % blocklist, readableDimensions)
+      call mpas_timer_stop('finalize_block')
       call mpas_link_fields(domain)
 
       call mpas_pool_destroy_pool(readableDimensions)
