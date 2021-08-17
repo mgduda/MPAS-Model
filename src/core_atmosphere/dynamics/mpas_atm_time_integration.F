@@ -831,8 +831,12 @@ module atm_time_integration
 !-------------------------------------------------------------------
             
             ! u
-            !CR: SMALLER STENCIL?: call mpas_dmpar_exch_halo_field(block % state % time_levs(2) % state % u, (/ 3 /))
-            call mpas_dmpar_field_halo_exch(domain, 'u', timeLevel=2, haloLayers=(/3/))
+            if (config_apply_lbcs) then
+               call mpas_dmpar_field_halo_exch(domain, 'u', timeLevel=2, haloLayers=(/1,2,3/))
+            else
+               !CR: SMALLER STENCIL?: call mpas_dmpar_exch_halo_field(block % state % time_levs(2) % state % u, (/ 3 /))
+               call mpas_dmpar_field_halo_exch(domain, 'u', timeLevel=2, haloLayers=(/3/))
+            end if
 
             ! scalar advection: RK3 scheme of Skamarock and Gassmann (2011). 
             ! PD or monotonicity constraints applied only on the final Runge-Kutta substep.
