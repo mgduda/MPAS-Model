@@ -53,7 +53,7 @@ contains
 
 #ifdef _MPI
 #ifndef NOMPIMOD
-        use mpi, only : MPI_COMM_WORLD, MPI_Comm_rank, MPI_comm_size, MPI_Comm_split
+        use mpi, only : MPI_COMM_WORLD, MPI_THREAD_MULTIPLE, MPI_Comm_rank, MPI_comm_size, MPI_Comm_split
 #endif
 #endif
 
@@ -66,6 +66,7 @@ contains
         integer :: comm_size
         integer :: comm_rank
         integer :: intercomm
+        integer :: threadLevel
         integer :: ierr
 
 #ifdef _MPI
@@ -79,7 +80,7 @@ contains
         else
             intercomm = MPI_COMM_WORLD
             cpl % initialized_mpi = .true.
-            call MPI_Init(ierr)
+            call MPI_Init_thread(MPI_THREAD_MULTIPLE, threadLevel, ierr)
         end if
 
         call MPI_Comm_rank(intercomm, comm_rank, ierr)
