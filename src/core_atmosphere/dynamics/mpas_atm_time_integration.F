@@ -134,6 +134,37 @@ module atm_time_integration
       call mpas_dmpar_exch_group_add_field(domain, 'group5', 'pressure_p', timeLevel=1, haloLayers=(/1,2/))
       call mpas_dmpar_exch_group_add_field(domain, 'group5', 'rtheta_p', timeLevel=1, haloLayers=(/1,2/))
 
+
+      call mpas_dmpar_exch_group_create(domain, 'exner')
+      call mpas_dmpar_exch_group_add_field(domain, 'exner', 'exner', timeLevel=1, haloLayers=(/1,2/))
+
+      call mpas_dmpar_exch_group_create(domain, 'tend_u')
+      call mpas_dmpar_exch_group_add_field(domain, 'tend_u', 'tend_u', timeLevel=1, haloLayers=(/1/))
+
+      call mpas_dmpar_exch_group_create(domain, 'rho_pp')
+      call mpas_dmpar_exch_group_add_field(domain, 'rho_pp', 'rho_pp', timeLevel=1, haloLayers=(/1/))
+
+      call mpas_dmpar_exch_group_create(domain, 'rtheta_pp')
+      call mpas_dmpar_exch_group_add_field(domain, 'rtheta_pp', 'rtheta_pp', timeLevel=1, haloLayers=(/1/))
+
+      call mpas_dmpar_exch_group_create(domain, 'u_123')
+      call mpas_dmpar_exch_group_add_field(domain, 'u_123', 'u', timeLevel=2, haloLayers=(/1,2,3/))
+
+      call mpas_dmpar_exch_group_create(domain, 'u_3')
+      call mpas_dmpar_exch_group_add_field(domain, 'u_3', 'u', timeLevel=2, haloLayers=(/3/))
+
+      call mpas_dmpar_exch_group_create(domain, 'scalars')
+      call mpas_dmpar_exch_group_add_field(domain, 'scalars', 'scalars', timeLevel=2, haloLayers=(/1,2/))
+
+      call mpas_dmpar_exch_group_create(domain, 'scalars_old')
+      call mpas_dmpar_exch_group_add_field(domain, 'scalars_old', 'scalars', timeLevel=1, haloLayers=(/1,2/))
+
+      call mpas_dmpar_exch_group_create(domain, 'w')
+      call mpas_dmpar_exch_group_add_field(domain, 'w', 'w', timeLevel=2, haloLayers=(/1,2/))
+
+      call mpas_dmpar_exch_group_create(domain, 'scale')
+      call mpas_dmpar_exch_group_add_field(domain, 'scale', 'scale', timeLevel=1, haloLayers=(/1,2/))
+
    end subroutine mpas_atm_dynamics_init
 
 
@@ -164,6 +195,17 @@ module atm_time_integration
       call mpas_dmpar_exch_group_destroy(domain, 'group4a')
       call mpas_dmpar_exch_group_destroy(domain, 'group4b')
       call mpas_dmpar_exch_group_destroy(domain, 'group5')
+
+      call mpas_dmpar_exch_group_destroy(domain, 'exner')
+      call mpas_dmpar_exch_group_destroy(domain, 'tend_u')
+      call mpas_dmpar_exch_group_destroy(domain, 'rho_pp')
+      call mpas_dmpar_exch_group_destroy(domain, 'rtheta_pp')
+      call mpas_dmpar_exch_group_destroy(domain, 'u_123')
+      call mpas_dmpar_exch_group_destroy(domain, 'u_3')
+      call mpas_dmpar_exch_group_destroy(domain, 'scalars')
+      call mpas_dmpar_exch_group_destroy(domain, 'scalars_old')
+      call mpas_dmpar_exch_group_destroy(domain, 'w')
+      call mpas_dmpar_exch_group_destroy(domain, 'scale')
 
    end subroutine mpas_atm_dynamics_finalize
 
@@ -583,7 +625,7 @@ module atm_time_integration
          end do
          call mpas_timer_stop('atm_compute_vert_imp_coefs')
 
-         call mpas_dmpar_field_halo_exch(domain, 'exner')
+         call mpas_dmpar_exch_group_full_halo_exch(domain, 'exner')
 
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
@@ -712,7 +754,7 @@ module atm_time_integration
             !***********************************
 
 ! tend_u
-            call mpas_dmpar_field_halo_exch(domain, 'tend_u', haloLayers=(/1/))
+            call mpas_dmpar_exch_group_full_halo_exch(domain, 'tend_u')
    
             call mpas_timer_start('small_step_prep')
 
@@ -860,7 +902,7 @@ module atm_time_integration
 
             do small_step = 1, number_sub_steps(rk_step)
 
-               call mpas_dmpar_field_halo_exch(domain, 'rho_pp', haloLayers=(/1/))
+               call mpas_dmpar_exch_group_full_halo_exch(domain, 'rho_pp')
 
                call mpas_timer_start('atm_advance_acoustic_step')
                block => domain % blocklist
@@ -911,7 +953,7 @@ module atm_time_integration
 ! rtheta_pp
 ! This is the only communications needed during the acoustic steps because we solve for u on all edges of owned cells
 
-               call mpas_dmpar_field_halo_exch(domain, 'rtheta_pp', haloLayers=(/1/))
+               call mpas_dmpar_exch_group_full_halo_exch(domain, 'rtheta_pp')
 
 !  complete update of horizontal momentum by including 3d divergence damping at the end of the acoustic step
 
@@ -1041,10 +1083,10 @@ module atm_time_integration
             
             ! u
             if (config_apply_lbcs) then
-               call mpas_dmpar_field_halo_exch(domain, 'u', timeLevel=2, haloLayers=(/1,2,3/))
+               call mpas_dmpar_exch_group_full_halo_exch(domain, 'u_123')
             else
                !CR: SMALLER STENCIL?: call mpas_dmpar_exch_halo_field(block % state % time_levs(2) % state % u, (/ 3 /))
-               call mpas_dmpar_field_halo_exch(domain, 'u', timeLevel=2, haloLayers=(/3/))
+               call mpas_dmpar_exch_group_full_halo_exch(domain, 'u_3')
             end if
 
             ! scalar advection: RK3 scheme of Skamarock and Gassmann (2011). 
@@ -1057,7 +1099,7 @@ module atm_time_integration
 
                if (config_apply_lbcs) then  ! adjust boundary tendencies for regional_MPAS scalar transport
 
-                  call mpas_dmpar_field_halo_exch(domain, 'scalars', timeLevel=2)
+                  call mpas_dmpar_exch_group_full_halo_exch(domain, 'scalars')
 
                   block => domain % blocklist
                   do while (associated(block))
@@ -1210,7 +1252,7 @@ module atm_time_integration
               end do
 
               ! w halo values needs resetting after regional boundary update
-              call mpas_dmpar_field_halo_exch(domain, 'w', timeLevel=2)
+              call mpas_dmpar_exch_group_full_halo_exch(domain, 'w')
 
             end if ! end of regional_MPAS addition 
 
@@ -1305,7 +1347,7 @@ module atm_time_integration
             if (config_apply_lbcs) then  ! adjust boundary tendencies for regional_MPAS scalar transport
 
                ! need to fill halo for horizontal filter
-               call mpas_dmpar_field_halo_exch(domain, 'scalars', timeLevel=2)
+               call mpas_dmpar_exch_group_full_halo_exch(domain, 'scalars')
 
                block => domain % blocklist
                do while (associated(block))
@@ -1381,7 +1423,7 @@ module atm_time_integration
 !------------------------------------------------------------------------------------------------------------------------
 
             if (rk_step < 3) then
-               call mpas_dmpar_field_halo_exch(domain, 'scalars', timeLevel=2)
+               call mpas_dmpar_exch_group_full_halo_exch(domain, 'scalars')
             end if
 
          end do RK3_SPLIT_TRANSPORT
@@ -1529,7 +1571,7 @@ module atm_time_integration
 
       if (config_apply_lbcs) then  ! adjust boundary values for regional_MPAS scalar transport
 
-         call mpas_dmpar_field_halo_exch(domain, 'scalars', timeLevel=2)
+         call mpas_dmpar_exch_group_full_halo_exch(domain, 'scalars')
 
          block => domain % blocklist
          do while (associated(block))
@@ -3742,7 +3784,7 @@ module atm_time_integration
 
 !$OMP BARRIER
 !$OMP MASTER
-      call mpas_dmpar_field_halo_exch(block % domain, 'scalars', timeLevel=1)
+      call mpas_dmpar_exch_group_full_halo_exch(block % domain, 'scalars_old')
 !$OMP END MASTER
 !$OMP BARRIER
 
@@ -4066,7 +4108,7 @@ module atm_time_integration
          !
 !$OMP BARRIER
 !$OMP MASTER
-         call mpas_dmpar_field_halo_exch(block % domain, 'scale')
+         call mpas_dmpar_exch_group_full_halo_exch(block % domain, 'scale')
 !$OMP END MASTER
 !$OMP BARRIER
 
