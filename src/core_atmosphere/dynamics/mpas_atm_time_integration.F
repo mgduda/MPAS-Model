@@ -79,6 +79,12 @@ module atm_time_integration
    real (kind=RKIND), parameter, private :: seconds_per_day = 86400.0_RKIND
 
 
+   integer, parameter, private :: MPAS_DMPAR_ROUTINES = 1, &
+                                  MPAS_HALO_ROUTINES = 2
+
+   integer, private :: halo_exch_method
+
+
    contains
 
 
@@ -102,6 +108,27 @@ module atm_time_integration
       implicit none
 
       type (domain_type), intent(inout) :: domain
+
+      character(len=StrKIND), pointer :: config_halo_exch_method
+
+
+      !
+      ! Determine from the namelist option config_halo_exch_method which halo exchange
+      ! method to employ throughout the dynamics
+      !
+      call mpas_pool_get_config(domain % blocklist % configs, 'config_halo_exch_method', config_halo_exch_method)
+
+      if (trim(config_halo_exch_method) == 'mpas_halo') then
+         halo_exch_method = MPAS_HALO_ROUTINES
+         call mpas_log_write('')
+         call mpas_log_write('*** Using new ''mpas_halo'' routines for exchanging halos')
+         call mpas_log_write('')
+      else
+         halo_exch_method = MPAS_DMPAR_ROUTINES
+         call mpas_log_write('')
+         call mpas_log_write('*** Using ''mpas_dmpar'' routines for exchanging halos')
+         call mpas_log_write('')
+      end if
 
 
       call mpas_dmpar_exch_group_create(domain, 'group1')
