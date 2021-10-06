@@ -750,33 +750,30 @@ pio_test:
 	@# See whether either of the test programs can be compiled
 	@#
 	@echo "Checking for a usable PIO library..."
-	@($(FC) pio1.f90 $(FCINCLUDES) $(FFLAGS) $(LDFLAGS) $(LIBS) -o pio1.out &> /dev/null && echo "=> PIO 1 detected") || \
-	 ($(FC) pio2.f90 $(FCINCLUDES) $(FFLAGS) $(LDFLAGS) $(LIBS) -o pio2.out &> /dev/null && echo "=> PIO 2 detected") || \
-	 (echo "************ ERROR ************"; \
-	  echo "Failed to compile a PIO test program"; \
-	  echo "Please ensure the PIO environment variable is set to the PIO installation directory"; \
-	  echo "************ ERROR ************"; \
-	  rm -rf pio[12].f90 pio[12].out; exit 1)
-
-	@rm -rf pio[12].out
+	($(FC) pio1.f90 $(FCINCLUDES) $(FFLAGS) $(LDFLAGS) $(LIBS) -o pio1.out &> /dev/null && echo "=> PIO 1 detected") || \
+	($(FC) pio2.f90 $(FCINCLUDES) $(FFLAGS) $(LDFLAGS) $(LIBS) -o pio2.out &> /dev/null && echo "=> PIO 2 detected") || \
+	(echo "************ ERROR ************"; \
+	 echo "Failed to compile a PIO test program"; \
+	 echo "Please ensure the PIO environment variable is set to the PIO installation directory"; \
+	 echo "************ ERROR ************"; \
+	 exit 1)
 
 	@#
 	@# Check that what the user has specified agrees with the PIO library version that was detected
 	@#
 ifeq "$(USE_PIO2)" "true"
-	@($(FC) pio2.f90 $(FCINCLUDES) $(FFLAGS) $(LDFLAGS) $(LIBS) -o pio2.out &> /dev/null) || \
+	($(FC) pio2.f90 $(FCINCLUDES) $(FFLAGS) $(LDFLAGS) $(LIBS) -o pio2.out &> /dev/null) || \
 	(echo "************ ERROR ************"; \
 	 echo "PIO 1 was detected, but USE_PIO2=true was specified in the make command"; \
 	 echo "************ ERROR ************"; \
-	 rm -rf pio[12].f90 pio[12].out; exit 1)
+	 exit 1)
 else
-	@($(FC) pio1.f90 $(FCINCLUDES) $(FFLAGS) $(LDFLAGS) $(LIBS) -o pio1.out &> /dev/null) || \
+	($(FC) pio1.f90 $(FCINCLUDES) $(FFLAGS) $(LDFLAGS) $(LIBS) -o pio1.out &> /dev/null) || \
 	(echo "************ ERROR ************"; \
 	 echo "PIO 2 was detected. Please specify USE_PIO2=true in the make command"; \
 	 echo "************ ERROR ************"; \
-	 rm -rf pio[12].f90 pio[12].out; exit 1)
+	 exit 1)
 endif
-	@rm -rf pio[12].f90 pio[12].out
 
 
 mpas_main: openmp_test pio_test
