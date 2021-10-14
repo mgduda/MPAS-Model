@@ -280,6 +280,14 @@
                      possible_values="Positive integer values"/>
         </nml_record>
 
+        <nml_record name="tracers" in_defaults="true">
+                <nml_option name="config_num_passive_tracers" type="integer" default_value="0" in_defaults="true"
+                     units="-"
+                     description="The number of passive tracers to add"
+                     possible_values="Integers in the range 0--33"/>
+
+        </nml_record>
+
         <nml_record name="limited_area" in_defaults="true">
                 <nml_option name="config_apply_lbcs" type="logical" default_value="false"
                      units="-"
@@ -390,6 +398,39 @@
                 <package name="iau" description="Incremental Analysis Update"/>
                 <package name="limited_area" description="Limited-area simulations, which have lateral boundaries"/>
                 <package name="jedi_da" description="Data Assimilation in JEDI framework"/>
+                <package name="tracer1" description="Passive tracer 1"/>
+                <package name="tracer2" description="Passive tracer 2"/>
+                <package name="tracer3" description="Passive tracer 3"/>
+                <package name="tracer4" description="Passive tracer 4"/>
+                <package name="tracer5" description="Passive tracer 5"/>
+                <package name="tracer6" description="Passive tracer 6"/>
+                <package name="tracer7" description="Passive tracer 7"/>
+                <package name="tracer8" description="Passive tracer 8"/>
+                <package name="tracer9" description="Passive tracer 9"/>
+                <package name="tracer10" description="Passive tracer 10"/>
+                <package name="tracer11" description="Passive tracer 11"/>
+                <package name="tracer12" description="Passive tracer 12"/>
+                <package name="tracer13" description="Passive tracer 13"/>
+                <package name="tracer14" description="Passive tracer 14"/>
+                <package name="tracer15" description="Passive tracer 15"/>
+                <package name="tracer16" description="Passive tracer 16"/>
+                <package name="tracer17" description="Passive tracer 17"/>
+                <package name="tracer18" description="Passive tracer 18"/>
+                <package name="tracer19" description="Passive tracer 19"/>
+                <package name="tracer20" description="Passive tracer 20"/>
+                <package name="tracer21" description="Passive tracer 21"/>
+                <package name="tracer22" description="Passive tracer 22"/>
+                <package name="tracer23" description="Passive tracer 23"/>
+                <package name="tracer24" description="Passive tracer 24"/>
+                <package name="tracer25" description="Passive tracer 25"/>
+                <package name="tracer26" description="Passive tracer 26"/>
+                <package name="tracer27" description="Passive tracer 27"/>
+                <package name="tracer28" description="Passive tracer 28"/>
+                <package name="tracer29" description="Passive tracer 29"/>
+                <package name="tracer30" description="Passive tracer 30"/>
+                <package name="tracer31" description="Passive tracer 31"/>
+                <package name="tracer32" description="Passive tracer 32"/>
+                <package name="tracer33" description="Passive tracer 33"/>
         </packages>
 
 
@@ -1506,6 +1547,138 @@
                         <var name="nr" array_group="number" units="nb kg^{-1}"
                              description="Rain number concentration"
                              packages="mp_thompson_in"/>
+                        
+                        <var name="tracer1" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 1"
+                             packages="tracer1"/>
+           
+                        <var name="tracer2" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 2"
+                             packages="tracer2"/>
+    
+                        <var name="tracer3" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 3"
+                             packages="tracer3"/>
+
+                        <var name="tracer4" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 4"
+                             packages="tracer4"/>
+
+                        <var name="tracer5" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 5"
+                             packages="tracer5"/>
+
+                        <var name="tracer6" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 6"
+                             packages="tracer6"/>
+
+                        <var name="tracer7" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 7"
+                             packages="tracer7"/>
+
+                        <var name="tracer8" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 8"
+                             packages="tracer8"/>
+
+                        <var name="tracer9" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 9"
+                             packages="tracer9"/>
+
+                        <var name="tracer10" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 10"
+                             packages="tracer10"/>
+
+                        <var name="tracer11" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 11"
+                             packages="tracer11"/>
+
+                        <var name="tracer12" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 12"
+                             packages="tracer12"/>
+
+                        <var name="tracer13" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 13"
+                             packages="tracer13"/>
+
+                        <var name="tracer14" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 14"
+                             packages="tracer14"/>
+
+                        <var name="tracer15" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 15"
+                             packages="tracer15"/>
+
+                        <var name="tracer16" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 16"
+                             packages="tracer16"/>
+
+                        <var name="tracer17" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 17"
+                             packages="tracer17"/>
+
+                        <var name="tracer18" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 18"
+                             packages="tracer18"/>
+
+                        <var name="tracer19" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 19"
+                             packages="tracer19"/>
+
+                        <var name="tracer20" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 20"
+                             packages="tracer20"/>
+
+                        <var name="tracer21" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 21"
+                             packages="tracer21"/>
+
+                        <var name="tracer22" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 22"
+                             packages="tracer22"/>
+
+                        <var name="tracer23" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 23"
+                             packages="tracer23"/>
+
+                        <var name="tracer24" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 24"
+                             packages="tracer24"/>
+
+                        <var name="tracer25" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 25"
+                             packages="tracer25"/>
+
+                        <var name="tracer26" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 26"
+                             packages="tracer26"/>
+
+                        <var name="tracer27" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 27"
+                             packages="tracer27"/>
+
+                        <var name="tracer28" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 28"
+                             packages="tracer28"/>
+
+                        <var name="tracer29" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 29"
+                             packages="tracer29"/>
+
+                        <var name="tracer30" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 30"
+                             packages="tracer30"/>
+
+                        <var name="tracer31" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 31"
+                             packages="tracer31"/>
+
+                        <var name="tracer32" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 32"
+                             packages="tracer32"/>
+
+                        <var name="tracer33" array_group="passive" units="kg kg^{-1}"
+                             description="Passive tracer 33"
+                             packages="tracer33"/>
                 </var_array>
 #endif
 
@@ -1828,6 +2001,139 @@
                         <var name="tend_nr" name_in_code="nr" array_group="number" units="nb m^{-3} s^{-1}" 
                              description="Tendency of rain number concentration multiplied by dry air density divided by d(zeta)/dz"
                              packages="mp_thompson_in"/>
+
+                        <var name="tend_tracer1" name_in_code="tracer1" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 1 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer1"/>
+
+                        <var name="tend_tracer2" name_in_code="tracer2" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 2 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer2"/>
+
+                        <var name="tend_tracer3" name_in_code="tracer3" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 3 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer3"/>
+
+                        <var name="tend_tracer4" name_in_code="tracer4" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 4 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer4"/>
+
+                        <var name="tend_tracer5" name_in_code="tracer5" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 5 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer5"/>
+
+                        <var name="tend_tracer6" name_in_code="tracer6" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 6 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer6"/>
+
+                        <var name="tend_tracer7" name_in_code="tracer7" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 7 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer7"/>
+
+                        <var name="tend_tracer8" name_in_code="tracer8" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 8 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer8"/>
+
+                        <var name="tend_tracer9" name_in_code="tracer9" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 9 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer9"/>
+
+                        <var name="tend_tracer10" name_in_code="tracer10" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 10 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer10"/>
+
+                        <var name="tend_tracer11" name_in_code="tracer11" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 11 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer11"/>
+
+                        <var name="tend_tracer12" name_in_code="tracer12" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 12 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer12"/>
+
+                        <var name="tend_tracer13" name_in_code="tracer13" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 13 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer13"/>
+
+                        <var name="tend_tracer14" name_in_code="tracer14" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 14 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer14"/>
+
+                        <var name="tend_tracer15" name_in_code="tracer15" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 15 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer15"/>
+        
+                        <var name="tend_tracer16" name_in_code="tracer16" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 16 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer16"/>
+
+                        <var name="tend_tracer17" name_in_code="tracer17" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 17 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer17"/>
+
+                        <var name="tend_tracer18" name_in_code="tracer18" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 18 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer18"/>
+
+                        <var name="tend_tracer19" name_in_code="tracer19" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 19 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer19"/>
+
+                        <var name="tend_tracer20" name_in_code="tracer20" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 20 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer20"/>
+
+                        <var name="tend_tracer21" name_in_code="tracer21" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 21 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer21"/>
+
+                        <var name="tend_tracer22" name_in_code="tracer22" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 22 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer22"/>
+
+                        <var name="tend_tracer23" name_in_code="tracer23" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 23 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer23"/>
+
+                        <var name="tend_tracer24" name_in_code="tracer24" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 24 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer24"/>
+
+                        <var name="tend_tracer25" name_in_code="tracer25" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 25 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer25"/>
+        
+                        <var name="tend_tracer26" name_in_code="tracer26" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 26 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer26"/>
+
+                        <var name="tend_tracer27" name_in_code="tracer27" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 27 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer27"/>
+
+                        <var name="tend_tracer28" name_in_code="tracer28" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 28 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer28"/>
+
+                        <var name="tend_tracer29" name_in_code="tracer29" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 29 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer29"/>
+
+                        <var name="tend_tracer30" name_in_code="tracer30" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 30 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer30"/>
+
+                        <var name="tend_tracer31" name_in_code="tracer31" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 31 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer31"/>
+
+                        <var name="tend_tracer32" name_in_code="tracer32" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 32 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer32"/>
+
+                        <var name="tend_tracer33" name_in_code="tracer33" array_group="passive" units="kg m^{-3} s^{-1}" 
+                             description="Tendency of passive tracer 33 multiplied by dry air density divided by d(zeta)/dz"
+                             packages="tracer33"/>
+
                 </var_array>
 #endif
         </var_struct>

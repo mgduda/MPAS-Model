@@ -391,6 +391,42 @@ module atm_core_interface
       logical, pointer :: config_jedi_da, jedi_daActive
       integer :: local_ierr
 
+      integer, pointer :: config_num_passive_tracers
+
+      logical, pointer :: tracer1Active
+      logical, pointer :: tracer2Active
+      logical, pointer :: tracer3Active
+      logical, pointer :: tracer4Active
+      logical, pointer :: tracer5Active
+      logical, pointer :: tracer6Active
+      logical, pointer :: tracer7Active
+      logical, pointer :: tracer8Active
+      logical, pointer :: tracer9Active
+      logical, pointer :: tracer10Active
+      logical, pointer :: tracer11Active
+      logical, pointer :: tracer12Active
+      logical, pointer :: tracer13Active
+      logical, pointer :: tracer14Active
+      logical, pointer :: tracer15Active
+      logical, pointer :: tracer16Active
+      logical, pointer :: tracer17Active
+      logical, pointer :: tracer18Active
+      logical, pointer :: tracer19Active
+      logical, pointer :: tracer20Active
+      logical, pointer :: tracer21Active
+      logical, pointer :: tracer22Active
+      logical, pointer :: tracer23Active
+      logical, pointer :: tracer24Active
+      logical, pointer :: tracer25Active
+      logical, pointer :: tracer26Active
+      logical, pointer :: tracer27Active
+      logical, pointer :: tracer28Active
+      logical, pointer :: tracer29Active
+      logical, pointer :: tracer30Active
+      logical, pointer :: tracer31Active
+      logical, pointer :: tracer32Active
+      logical, pointer :: tracer33Active      
+
       ierr = 0
 
       !
@@ -407,6 +443,248 @@ module atm_core_interface
       else
          iauActive = .false.
       end if
+
+            !
+      ! Set up packages for passive tracers
+      !
+      nullify(config_num_passive_tracers)
+      call mpas_pool_get_config(configs, 'config_num_passive_tracers', config_num_passive_tracers)
+
+      nullify(tracer1Active)
+      nullify(tracer2Active)
+      nullify(tracer3Active)
+      nullify(tracer4Active)
+      nullify(tracer5Active)
+      nullify(tracer6Active)
+      nullify(tracer7Active)
+      nullify(tracer8Active)
+      nullify(tracer9Active)
+      nullify(tracer10Active)
+      nullify(tracer11Active)
+      nullify(tracer12Active)
+      nullify(tracer13Active)
+      nullify(tracer14Active)
+      nullify(tracer15Active)
+      nullify(tracer16Active)
+      nullify(tracer17Active)
+      nullify(tracer18Active)
+      nullify(tracer19Active)
+      nullify(tracer20Active)
+      nullify(tracer21Active)
+      nullify(tracer22Active)
+      nullify(tracer23Active)
+      nullify(tracer24Active)
+      nullify(tracer25Active)
+      nullify(tracer26Active)
+      nullify(tracer27Active)
+      nullify(tracer28Active)
+      nullify(tracer29Active)
+      nullify(tracer30Active)
+      nullify(tracer31Active)
+      nullify(tracer32Active)
+      nullify(tracer33Active)          
+
+      call mpas_pool_get_package(packages, 'tracer1Active',  tracer1Active)
+      call mpas_pool_get_package(packages, 'tracer2Active',  tracer2Active)
+      call mpas_pool_get_package(packages, 'tracer3Active',  tracer3Active)
+      call mpas_pool_get_package(packages, 'tracer4Active',  tracer4Active)
+      call mpas_pool_get_package(packages, 'tracer5Active',  tracer5Active)
+      call mpas_pool_get_package(packages, 'tracer6Active',  tracer6Active)
+      call mpas_pool_get_package(packages, 'tracer7Active',  tracer7Active)
+      call mpas_pool_get_package(packages, 'tracer8Active',  tracer8Active)
+      call mpas_pool_get_package(packages, 'tracer9Active',  tracer9Active)
+      call mpas_pool_get_package(packages, 'tracer10Active', tracer10Active)
+      call mpas_pool_get_package(packages, 'tracer11Active',  tracer11Active)
+      call mpas_pool_get_package(packages, 'tracer12Active',  tracer12Active)
+      call mpas_pool_get_package(packages, 'tracer13Active',  tracer13Active)
+      call mpas_pool_get_package(packages, 'tracer14Active',  tracer14Active)
+      call mpas_pool_get_package(packages, 'tracer15Active',  tracer15Active)
+      call mpas_pool_get_package(packages, 'tracer16Active',  tracer16Active)
+      call mpas_pool_get_package(packages, 'tracer17Active',  tracer17Active)
+      call mpas_pool_get_package(packages, 'tracer18Active',  tracer18Active)
+      call mpas_pool_get_package(packages, 'tracer19Active',  tracer19Active)
+      call mpas_pool_get_package(packages, 'tracer20Active', tracer20Active)
+      call mpas_pool_get_package(packages, 'tracer21Active',  tracer21Active)
+      call mpas_pool_get_package(packages, 'tracer22Active',  tracer22Active)
+      call mpas_pool_get_package(packages, 'tracer23Active',  tracer23Active)
+      call mpas_pool_get_package(packages, 'tracer24Active',  tracer24Active)
+      call mpas_pool_get_package(packages, 'tracer25Active',  tracer25Active)
+      call mpas_pool_get_package(packages, 'tracer26Active',  tracer26Active)
+      call mpas_pool_get_package(packages, 'tracer27Active',  tracer27Active)
+      call mpas_pool_get_package(packages, 'tracer28Active',  tracer28Active)
+      call mpas_pool_get_package(packages, 'tracer29Active',  tracer29Active)
+      call mpas_pool_get_package(packages, 'tracer30Active', tracer30Active)
+      call mpas_pool_get_package(packages, 'tracer31Active',  tracer31Active)
+      call mpas_pool_get_package(packages, 'tracer32Active',  tracer32Active)
+      call mpas_pool_get_package(packages, 'tracer33Active',  tracer33Active)
+
+      tracer1Active  = .false.
+      tracer2Active  = .false.
+      tracer3Active  = .false.
+      tracer4Active  = .false.
+      tracer5Active  = .false.
+      tracer6Active  = .false.
+      tracer7Active  = .false.
+      tracer8Active  = .false.
+      tracer9Active  = .false.
+      tracer10Active = .false.
+      tracer11Active  = .false.
+      tracer12Active  = .false.
+      tracer13Active  = .false.
+      tracer14Active  = .false.
+      tracer15Active  = .false.
+      tracer16Active  = .false.
+      tracer17Active  = .false.
+      tracer18Active  = .false.
+      tracer19Active  = .false.
+      tracer20Active = .false.
+      tracer21Active  = .false.
+      tracer22Active  = .false.
+      tracer23Active  = .false.
+      tracer24Active  = .false.
+      tracer25Active  = .false.
+      tracer26Active  = .false.
+      tracer27Active  = .false.
+      tracer28Active  = .false.
+      tracer29Active  = .false.
+      tracer30Active = .false.
+      tracer31Active  = .false.
+      tracer32Active  = .false.
+      tracer33Active  = .false.
+
+      if (config_num_passive_tracers >= 1) then
+         call mpas_log_write('----- Setting up packages for passive tracers -----')
+         call mpas_log_write('Activating tracer 1')
+         tracer1Active = .true.
+      if (config_num_passive_tracers >= 2) then
+         call mpas_log_write('Activating tracer 2')
+         tracer2Active = .true.
+      if (config_num_passive_tracers >= 3) then
+         call mpas_log_write('Activating tracer 3')
+         tracer3Active = .true.
+      if (config_num_passive_tracers >= 4) then
+         call mpas_log_write('Activating tracer 4')
+         tracer4Active = .true.
+      if (config_num_passive_tracers >= 5) then
+         call mpas_log_write('Activating tracer 5')
+         tracer5Active = .true.
+      if (config_num_passive_tracers >= 6) then
+         call mpas_log_write('Activating tracer 6')
+         tracer6Active = .true.
+      if (config_num_passive_tracers >= 7) then
+         call mpas_log_write('Activating tracer 7')
+         tracer7Active = .true.
+      if (config_num_passive_tracers >= 8) then
+         call mpas_log_write('Activating tracer 8')
+         tracer8Active = .true.
+      if (config_num_passive_tracers >= 9) then
+         call mpas_log_write('Activating tracer 9')
+         tracer9Active = .true.
+      if (config_num_passive_tracers >= 10) then
+         call mpas_log_write('Activating tracer 10')
+         tracer10Active = .true.
+      if (config_num_passive_tracers >= 11) then
+         call mpas_log_write('Activating tracer 11')
+         tracer11Active = .true.
+      if (config_num_passive_tracers >= 12) then
+         call mpas_log_write('Activating tracer 12')
+         tracer12Active = .true.
+      if (config_num_passive_tracers >= 13) then
+         call mpas_log_write('Activating tracer 13')
+         tracer13Active = .true.
+      if (config_num_passive_tracers >= 14) then
+         call mpas_log_write('Activating tracer 14')
+         tracer14Active = .true.
+      if (config_num_passive_tracers >= 15) then
+         call mpas_log_write('Activating tracer 15')
+         tracer15Active = .true.
+      if (config_num_passive_tracers >= 16) then
+         call mpas_log_write('Activating tracer 16')
+         tracer16Active = .true.
+      if (config_num_passive_tracers >= 17) then
+         call mpas_log_write('Activating tracer 17')
+         tracer17Active = .true.
+      if (config_num_passive_tracers >= 18) then
+         call mpas_log_write('Activating tracer 18')
+         tracer18Active = .true.
+      if (config_num_passive_tracers >= 19) then
+         call mpas_log_write('Activating tracer 19')
+         tracer19Active = .true.
+      if (config_num_passive_tracers >= 20) then
+         call mpas_log_write('Activating tracer 20')
+         tracer20Active = .true.
+      if (config_num_passive_tracers >= 21) then
+         call mpas_log_write('Activating tracer 21')
+         tracer21Active = .true.
+      if (config_num_passive_tracers >= 22) then
+         call mpas_log_write('Activating tracer 22')
+         tracer22Active = .true.
+      if (config_num_passive_tracers >= 23) then
+         call mpas_log_write('Activating tracer 23')
+         tracer23Active = .true.
+      if (config_num_passive_tracers >= 24) then
+         call mpas_log_write('Activating tracer 24')
+         tracer24Active = .true.
+      if (config_num_passive_tracers >= 25) then
+         call mpas_log_write('Activating tracer 25')
+         tracer25Active = .true.
+      if (config_num_passive_tracers >= 26) then
+         call mpas_log_write('Activating tracer 26')
+         tracer26Active = .true.
+      if (config_num_passive_tracers >= 27) then
+         call mpas_log_write('Activating tracer 27')
+         tracer27Active = .true.
+      if (config_num_passive_tracers >= 28) then
+         call mpas_log_write('Activating tracer 28')
+         tracer28Active = .true.
+      if (config_num_passive_tracers >= 29) then
+         call mpas_log_write('Activating tracer 29')
+         tracer29Active = .true.
+      if (config_num_passive_tracers >= 30) then
+         call mpas_log_write('Activating tracer 30')
+         tracer30Active = .true.
+      if (config_num_passive_tracers >= 31) then
+         call mpas_log_write('Activating tracer 31')
+         tracer31Active = .true.
+      if (config_num_passive_tracers >= 32) then
+         call mpas_log_write('Activating tracer 32')
+         tracer32Active = .true.
+      if (config_num_passive_tracers >= 33) then
+         call mpas_log_write('Activating tracer 33')
+         tracer33Active = .true.
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if 
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if
+      end if      
 
       !
       ! Limited-area
