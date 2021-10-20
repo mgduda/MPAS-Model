@@ -892,7 +892,7 @@ module mpas_init_atm_gwd
       nw = 0
       nt = 0
 
-      do j=ny/4,3*ny/4
+      do j=max(ny/4,1),max((3*ny)/4,1)
          do i=1,nx
             if (box(i,j) > hc) nw = nw + 1
             nt = nt + 1
@@ -926,7 +926,7 @@ module mpas_init_atm_gwd
       nt = 0
 
       do j=1,ny
-         do i=nx/4,3*nx/4
+         do i=max(nx/4,1),max((3*nx)/4,1)
             if (box(i,j) > hc) nw = nw + 1
             nt = nt + 1
          end do
