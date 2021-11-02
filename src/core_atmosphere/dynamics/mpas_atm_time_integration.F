@@ -5221,7 +5221,7 @@ module atm_time_integration
       real (kind=RKIND) :: q_im2, q_im1, q_i, q_ip1, ua, coef3
 
       logical, parameter :: perturbation_coriolis = .true.
-      real (kind=RKIND), parameter :: coriolis_value = 1.e-04
+      real (kind=RKIND), parameter :: coriolis_value = 7.2921e-05
       real (kind=RKIND) :: reference_u
 
       type (MPAS_Time_Type) :: currTime
