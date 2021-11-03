@@ -5498,7 +5498,7 @@ module atm_time_integration
                eoe = edgesOnEdge(j,iEdge)
                do k=1,nVertLevels
                   reference_u = u_init(k) * cos(angleEdge(eoe)) -  v_init(k) * sin(angleEdge(eoe))
-                  q(k) = q(k) - weightsOnEdge(j,iEdge) * reference_u * fEdge(iEdge)
+                  q(k) = q(k) - weightsOnEdge(j,iEdge) * reference_u * 0.729210E-04
                end do
             end do
          end if
