@@ -5221,7 +5221,6 @@ module atm_time_integration
       real (kind=RKIND) :: q_im2, q_im1, q_i, q_ip1, ua, coef3
 
       logical, parameter :: perturbation_coriolis = .true.
-      real (kind=RKIND), parameter :: coriolis_value = 7.2921e-05
       real (kind=RKIND) :: reference_u
 
       type (MPAS_Time_Type) :: currTime
@@ -5499,7 +5498,7 @@ module atm_time_integration
                eoe = edgesOnEdge(j,iEdge)
                do k=1,nVertLevels
                   reference_u = u_init(k) * cos(angleEdge(eoe)) -  v_init(k) * sin(angleEdge(eoe))
-                  q(k) = q(k) - weightsOnEdge(j,iEdge) * reference_u * coriolis_value
+                  q(k) = q(k) - weightsOnEdge(j,iEdge) * reference_u * fEdge(iEdge)
                end do
             end do
          end if

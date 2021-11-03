@@ -1190,12 +1190,12 @@ module mpas_atm_dissipation_models
                 ! compute turbulent fluxes
                 do k=1,nVertLevels
                   turb_vflux(k) = - rho_zz(k,iCell)*eddy_visc_vert(k,iCell)*zz(k,iCell)*zz(k,iCell)  &
-                                    *rdzu(k)*(w(k+1,iCell)-w(k,iCell))
+                                    *rdzw(k)*(w(k+1,iCell)-w(k,iCell))
                 end do
                 turb_vflux(nVertLevels+1) = 0.
                 do k=2,nVertLevels
                   tend_w_euler(k,iCell) = tend_w_euler(k,iCell) &
-                                              - rdzw(k)*(turb_vflux(k+1)-turb_vflux(k))
+                                              - rdzu(k)*(turb_vflux(k)-turb_vflux(k-1))
                 end do
              end do
 
