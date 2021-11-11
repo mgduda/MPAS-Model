@@ -559,7 +559,7 @@ nag:   # BUILDTARGET NAG Fortran compiler and GNU C/C++ compilers
 	"OPENMP = $(OPENMP)" \
 	"CPPFLAGS = $(MODEL_FORMULATION) -D_MPI -DUNDERSCORE -DNAG_COMPILER" )
 
-cray:   # BUILDTARGET Cray Programming Environment (untested)
+cray:   # BUILDTARGET (untested) Cray Programming Environment
 	( $(MAKE) all \
 	"FC_PARALLEL = ftn" \
 	"CC_PARALLEL = cc" \
@@ -830,11 +830,11 @@ else # else ifdef $(TIMER_LIB)
 endif # endif ifdef $(TIMER_LIB)
 
 ifeq "$(TAU)" "true"
-	LINKER=tau_f90.sh
+	LD=tau_f90.sh
 	CPPINCLUDES += -DMPAS_TAU -DMPAS_TAU_TIMERS
 	TAU_MESSAGE="TAU Hooks are on."
 else
-	LINKER=$(FC)
+	LD=$(FC)
 	TAU_MESSAGE="TAU Hooks are off."
 endif
 
@@ -1014,7 +1014,7 @@ endif
                  CXX="$(CXX)" \
                  SFC="$(SFC)" \
                  SCC="$(SCC)" \
-                 LINKER="$(LINKER)" \
+                 LD="$(LD)" \
                  CFLAGS="$(CFLAGS)" \
                  CXXFLAGS="$(CXXFLAGS)" \
                  FFLAGS="$(FFLAGS)" \
