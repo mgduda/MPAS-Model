@@ -984,6 +984,22 @@ mpas_main: openmp_test pio_test
 ifeq "$(AUTOCLEAN)" "true"
 	$(RM) .mpas_core_*
 endif
+	@echo $(PRECISION_MESSAGE) > src/framework/build_opts.txt
+	@echo $(DEBUG_MESSAGE) >> src/framework/build_opts.txt
+	@echo $(PARALLEL_MESSAGE) >> src/framework/build_opts.txt
+	@echo $(PAPI_MESSAGE) >> src/framework/build_opts.txt
+	@echo $(TAU_MESSAGE) >> src/framework/build_opts.txt
+	@echo $(OPENMP_MESSAGE) >> src/framework/build_opts.txt
+	@echo $(OPENMP_OFFLOAD_MESSAGE) >> src/framework/build_opts.txt
+	@echo $(OPENACC_MESSAGE) >> src/framework/build_opts.txt
+	@echo $(SHAREDLIB_MESSAGE) >> src/framework/build_opts.txt
+ifeq "$(AUTOCLEAN)" "true"
+	@echo $(AUTOCLEAN_MESSAGE) >> src/framework/build_opts.txt
+endif
+	@echo $(GEN_F90_MESSAGE) >> src/framework/build_opts.txt
+	@echo $(TIMER_MESSAGE) >> src/framework/build_opts.txt
+	@echo $(PIO_MESSAGE) >> src/framework/build_opts.txt
+
 	cd src; $(MAKE) FC="$(FC)" \
                  CC="$(CC)" \
                  CXX="$(CXX)" \

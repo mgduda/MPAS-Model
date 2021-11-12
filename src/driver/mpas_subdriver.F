@@ -10,6 +10,7 @@ module mpas_subdriver
    use mpas_framework
    use mpas_kind_types
    use mpas_abort, only : mpas_dmpar_global_abort
+   use mpas_build_opts, only : mpas_get_build_opts
 
    use mpas_derived_types, only: dm_info, domain_type
 
@@ -200,6 +201,8 @@ module mpas_subdriver
       if ( ierr /= 0 ) then
          call mpas_dmpar_global_abort('ERROR: Log setup failed for core ' // trim(domain_ptr % core % coreName))
       end if
+
+      call mpas_log_write(mpas_get_build_opts())
 
       if ( readNamelistArg ) then
          domain_ptr % namelist_filename = namelistFile

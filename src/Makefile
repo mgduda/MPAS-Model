@@ -27,7 +27,7 @@ endif
 build_tools: externals
 	(cd tools; $(MAKE) CPPFLAGS="$(CPPFLAGS)" CC="$(SCC)" CFLAGS="$(CFLAGS)")
 
-frame: $(AUTOCLEAN_DEPS) externals
+frame: $(AUTOCLEAN_DEPS) build_tools externals
 	( cd framework; $(MAKE) CPPFLAGS="$(CPPFLAGS)" CPPINCLUDES="$(CPPINCLUDES)" all ) 
 	ln -sf framework/libframework.a libframework.a
 

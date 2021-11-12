@@ -34,7 +34,9 @@ OBJS = mpas_kind_types.o \
        xml_stream_parser.o \
        regex_matching.o \
        mpas_field_accessor.o \
-       mpas_log.o
+       mpas_log.o \
+       mpas_build_opts.o \
+       get_build_opts.o
 
 all: framework $(DEPS)
 
@@ -109,8 +111,14 @@ xml_stream_parser.o: xml_stream_parser.c
 
 mpas_field_accessor.o: mpas_derived_types.o mpas_kind_types.o mpas_pool_routines.o mpas_log.o
 
+get_build_opts.o: build_opts.string
+
+build_opts.string:
+	../tools/string_consts/gen_string_consts build_opts.txt build_opts.string
+
 clean:
 	$(RM) *.o *.mod *.f90 libframework.a
+	$(RM) build_opts.string build_opts.txt
 	@# Certain systems with intel compilers generate *.i files
 	@# This removes them during the clean process
 	$(RM) *.i
