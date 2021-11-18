@@ -155,6 +155,8 @@ module atm_time_integration
 
       if (halo_exch_method == MPAS_HALO_ROUTINES) then
 
+         call mpas_halo_exch_group_init(domain)
+
          call mpas_halo_exch_group_create(domain, 'group1')
          call mpas_halo_exch_group_add_field(domain, 'group1', 'theta_m', timeLevel=1, haloLayers=(/1,2/))
          call mpas_halo_exch_group_add_field(domain, 'group1', 'scalars', timeLevel=1, haloLayers=(/1,2/))
@@ -355,6 +357,8 @@ module atm_time_integration
          call mpas_halo_exch_group_destroy(domain, 'scalars_old')
          call mpas_halo_exch_group_destroy(domain, 'w')
          call mpas_halo_exch_group_destroy(domain, 'scale')
+
+         call mpas_halo_exch_group_finalize(domain)
 
       else
 

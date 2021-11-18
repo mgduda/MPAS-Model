@@ -21,7 +21,9 @@ module mpas_halo
 
     private
 
-    public :: mpas_halo_exch_group_create, &
+    public :: mpas_halo_exch_group_init, &
+              mpas_halo_exch_group_finalize, &
+              mpas_halo_exch_group_create, &
               mpas_halo_exch_group_complete, &
               mpas_halo_exch_group_destroy, &
               mpas_halo_exch_group_add_field, &
@@ -29,6 +31,64 @@ module mpas_halo
 
 
     contains
+
+
+    !-----------------------------------------------------------------------
+    !  routine mpas_halo_exch_group_init
+    !
+    !> \brief Initialize group halo exchanges
+    !> \author Michael Duda
+    !> \date   17 November 2021
+    !> \details
+    !>  This routine initializes group halo exchanges, and must be called
+    !>  before any other routine for building or exchanging halos.
+    !
+    !-----------------------------------------------------------------------
+    subroutine mpas_halo_exch_group_init(domain, iErr)
+
+        use mpas_derived_types, only : domain_type
+        use mpas_pool_routines, only : mpas_pool_create_pool
+
+        type (domain_type), intent(inout) :: domain
+        integer, optional, intent(out) :: iErr
+
+
+        if (present(iErr)) then
+           iErr = 0
+        end if
+
+        call mpas_pool_create_pool(domain % haloGroups)
+
+    end subroutine mpas_halo_exch_group_init
+
+
+    !-----------------------------------------------------------------------
+    !  routine mpas_halo_exch_group_finalize
+    !
+    !> \brief Finalize group halo exchanges
+    !> \author Michael Duda
+    !> \date   17 November 2021
+    !> \details
+    !>  This routine finalize group halo exchanges, and must be called
+    !>  after all other calls for building or exchanging halos.
+    !
+    !-----------------------------------------------------------------------
+    subroutine mpas_halo_exch_group_finalize(domain, iErr)
+
+        use mpas_derived_types, only : domain_type
+        use mpas_pool_routines, only : mpas_pool_destroy_pool
+
+        type (domain_type), intent(inout) :: domain
+        integer, optional, intent(out) :: iErr
+
+
+        if (present(iErr)) then
+           iErr = 0
+        end if
+
+        call mpas_pool_destroy_pool(domain % haloGroups)
+
+    end subroutine mpas_halo_exch_group_finalize
 
 
     !-----------------------------------------------------------------------
