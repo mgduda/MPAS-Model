@@ -16,7 +16,8 @@
       type (mpas_exchange_group), pointer :: exchangeGroups => null()
 
       ! Storage for halo exchange groups
-      type (mpas_pool_type), pointer :: haloGroups => null()
+      type (mpas_pool_type), pointer :: haloGroupPool => null()
+      type (mpas_halo_group), pointer :: haloGroups => null()
 
       ! Domain specific constants
       logical :: on_a_sphere = .true.

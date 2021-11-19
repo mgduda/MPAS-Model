@@ -57,7 +57,7 @@ module mpas_halo
            iErr = 0
         end if
 
-        call mpas_pool_create_pool(domain % haloGroups)
+        call mpas_pool_create_pool(domain % haloGroupPool)
 
     end subroutine mpas_halo_exch_group_init
 
@@ -86,7 +86,7 @@ module mpas_halo
            iErr = 0
         end if
 
-        call mpas_pool_destroy_pool(domain % haloGroups)
+        call mpas_pool_destroy_pool(domain % haloGroupPool)
 
     end subroutine mpas_halo_exch_group_finalize
 
@@ -105,13 +105,23 @@ module mpas_halo
     subroutine mpas_halo_exch_group_create(domain, groupName, iErr)
 
         use mpas_dmpar, only : mpas_dmpar_exch_group_create
-        use mpas_derived_types, only : domain_type
+        use mpas_derived_types, only : domain_type, mpas_pool_type
+        use mpas_pool_routines, only : mpas_pool_create_pool, mpas_pool_add_subpool
 
         type (domain_type), intent(inout) :: domain
         character (len=*), intent(in) :: groupName
         integer, optional, intent(out) :: iErr
 
+        ! Local variables
+        type (mpas_pool_type), pointer :: newGroup
 
+
+        call mpas_pool_create_pool(newGroup)
+	call mpas_pool_add_subpool(domain % haloGroupPool, groupName, newGroup)
+
+        !
+        ! TEMPORARY: pass through call to existing dmpar routine
+        !
         call mpas_dmpar_exch_group_create(domain, groupName, iErr)
 
     end subroutine mpas_halo_exch_group_create
@@ -133,12 +143,68 @@ module mpas_halo
     !-----------------------------------------------------------------------
     subroutine mpas_halo_exch_group_complete(domain, groupName, iErr)
 
-        use mpas_derived_types, only : domain_type
+        use mpas_derived_types, only : domain_type, mpas_pool_type, mpas_pool_iterator_type, MPAS_POOL_CONFIG, &
+                                       mpas_halo_group
+        use mpas_pool_routines, only : mpas_pool_get_subpool, mpas_pool_remove_subpool, mpas_pool_destroy_pool, &
+                                       mpas_pool_begin_iteration, mpas_pool_get_next_member, mpas_pool_get_dimension, &
+                                       mpas_pool_remove_field
+        use mpas_log, only : mpas_log_write
 
         type (domain_type), intent(inout) :: domain
         character (len=*), intent(in) :: groupName
         integer, optional, intent(out) :: iErr
 
+        ! Local variables
+        type (mpas_pool_type), pointer :: completedGroup
+        type (mpas_pool_iterator_type) :: itr
+        integer, dimension(:), pointer :: fieldHaloInfo
+        type (mpas_halo_group), pointer :: newGroup
+
+        call mpas_pool_get_subpool(domain % haloGroupPool, groupName, completedGroup)
+
+        call mpas_log_write('--- Creating halo exchange group '//trim(groupName)//' ---')
+
+        !
+        ! Add new mpas_halo_group to list of haloGroups in domain
+        !
+        allocate(newGroup)
+        newGroup % groupName = groupName
+        newGroup % next => domain % haloGroups
+        domain % haloGroups => newGroup
+
+        !
+        ! Figure out how many fields are in this group
+        !
+        newGroup % nFields = 0
+        call mpas_pool_begin_iteration(completedGroup)
+        do while (mpas_pool_get_next_member(completedGroup, itr))
+            if (itr % memberType == MPAS_POOL_CONFIG) then
+                newGroup % nFields = newGroup % nFields + 1
+            end if
+        end do
+
+        allocate(newGroup % fields(newGroup % nFields))
+
+        !
+        ! Fill in field entries for this group
+        !
+        call mpas_pool_begin_iteration(completedGroup)
+        do while (mpas_pool_get_next_member(completedGroup, itr))
+            if (itr % memberType == MPAS_POOL_CONFIG) then
+                call mpas_log_write('    '//trim(itr % memberName))
+                call mpas_pool_get_dimension(completedGroup, trim(itr % memberName)//'.info', fieldHaloInfo)
+                call mpas_log_write('     - fieldType = $i',   intArgs=[fieldHaloInfo(1)])
+                call mpas_log_write('     - nDims = $i',       intArgs=[fieldHaloInfo(2)])
+                call mpas_log_write('     - nTimeLevels = $i', intArgs=[fieldHaloInfo(3)])
+                call mpas_log_write('     - nHaloLayers = $i', intArgs=[fieldHaloInfo(4)])
+                call mpas_pool_remove_field(completedGroup, trim(itr % memberName)//'.field')
+            end if
+        end do
+
+        call mpas_log_write('')
+
+        call mpas_pool_destroy_pool(completedGroup)
+        call mpas_pool_remove_subpool(domain % haloGroupPool, groupName)
 
     end subroutine mpas_halo_exch_group_complete
 
@@ -157,13 +223,56 @@ module mpas_halo
     subroutine mpas_halo_exch_group_destroy(domain, groupName, iErr)
 
         use mpas_dmpar, only : mpas_dmpar_exch_group_destroy
-        use mpas_derived_types, only : domain_type
+        use mpas_derived_types, only : domain_type, mpas_halo_group, MPAS_LOG_CRIT
+        use mpas_log, only : mpas_log_write
 
         type (domain_type), intent(inout) :: domain
         character (len=*), intent(in) :: groupName
         integer, optional, intent(out) :: iErr
 
+        ! Local variables
+        type (mpas_halo_group), pointer :: cursor, prev
 
+
+        !
+        ! Find this halo exhange group in the list of groups
+        !
+        nullify(prev)
+        cursor => domain % haloGroups
+        do while (associated(cursor))
+            if (trim(cursor % groupName) == trim(groupName)) then
+                exit
+            end if
+           
+            prev => cursor
+            cursor => cursor % next
+        end do
+
+        if (.not. associated(cursor)) then
+            call mpas_log_write('Halo exchange group '//trim(groupName)//' not found in destroy routine.', &
+                                messageType=MPAS_LOG_CRIT)
+        end if
+
+        !
+        ! Unlink this exchange group
+        !
+        if (.not. associated(prev)) then
+            domain % haloGroups => cursor % next
+        else
+            prev % next => cursor % next
+        end if
+
+        call mpas_log_write('--- Destroying halo exchange group '//trim(groupName)//' ---')
+
+        !
+        ! Deallocate this exchange group
+        !
+        deallocate(cursor % fields)
+
+
+        !
+        ! TEMPORARY: pass through call to existing dmpar routine
+        !
         call mpas_dmpar_exch_group_destroy(domain, groupName, iErr)
 
     end subroutine mpas_halo_exch_group_destroy
@@ -189,7 +298,11 @@ module mpas_halo
     subroutine mpas_halo_exch_group_add_field(domain, groupName, fieldName, timeLevel, haloLayers, iErr)
 
         use mpas_dmpar, only : mpas_dmpar_exch_group_add_field
-        use mpas_derived_types, only : domain_type
+        use mpas_derived_types, only : domain_type, mpas_pool_type, mpas_pool_field_info_type, MPAS_POOL_REAL, &
+                                       field2DReal, field3DReal, MPAS_LOG_CRIT
+        use mpas_pool_routines, only : mpas_pool_get_subpool, mpas_pool_add_config, mpas_pool_get_field_info, &
+                                       mpas_pool_add_dimension, mpas_pool_get_field, mpas_pool_add_field
+        use mpas_log, only : mpas_log_write
 
         type (domain_type), intent(inout) :: domain
         character (len=*), intent(in) :: groupName
@@ -198,7 +311,73 @@ module mpas_halo
         integer, dimension(:), optional, intent(in) :: haloLayers
         integer, optional, intent(out) :: iErr
 
+        ! Local variables
+        type (mpas_pool_type), pointer :: group
+        type (mpas_pool_field_info_type) :: info
+        integer, allocatable, dimension(:) :: fieldHaloInfo
+        type (field2DReal), pointer :: r2d
+        type (field3DReal), pointer :: r3d
 
+
+        call mpas_pool_get_subpool(domain % haloGroupPool, groupName, group)
+
+        !
+        ! Store an item in the pool to signal the field whose halo is to be exchanged
+        !
+        call mpas_pool_add_config(group, fieldName, 1)
+
+        call mpas_pool_get_field_info(domain % blocklist % allFields, fieldName, info)
+
+        !
+        ! Store an item in the pool with basic info about this field
+        !
+        allocate(fieldHaloInfo(4))
+        fieldHaloInfo(1) = info % fieldType
+        fieldHaloInfo(2) = info % nDims
+        fieldHaloInfo(3) = info % nTimeLevels
+        fieldHaloInfo(4) = info % nHaloLayers
+        call mpas_pool_add_dimension(group, fieldName//'.info', fieldHaloInfo)
+        deallocate(fieldHaloInfo)
+
+        !
+        ! Store an item in the pool with list of halo layers to exchange, or (/-1/) if all layers
+        !
+        if (present(haloLayers)) then
+            call mpas_pool_add_dimension(group, fieldName//'.layers', haloLayers)
+        else
+            call mpas_pool_add_dimension(group, fieldName//'.layers', (/ -1 /))
+        end if
+
+        !
+        ! Store an item in the pool indicating which time level to exchange
+        !
+        if (present(timeLevel)) then
+            call mpas_pool_add_dimension(group, fieldName//'.timelevel', timeLevel)
+        else
+            call mpas_pool_add_dimension(group, fieldName//'.timelevel', 1)
+        end if
+
+        !
+        ! Store a reference to the field itself in the pool
+        !
+        if (info % fieldType == MPAS_POOL_REAL) then
+            if (info % nDims == 2) then
+                call mpas_pool_get_field(domain % blocklist % allFields, fieldName, r2d)
+                call mpas_pool_add_field(group, fieldName//'.field', r2d)
+            else if (info % nDims == 3) then
+                call mpas_pool_get_field(domain % blocklist % allFields, fieldName, r3d)
+                call mpas_pool_add_field(group, fieldName//'.field', r3d)
+            else
+                call mpas_log_write('Unsupported dimensionality for real field '//trim(fieldName), messageType=MPAS_LOG_CRIT)
+            end if
+        else
+            call mpas_log_write('Unsupported field type for field '//trim(fieldName), messageType=MPAS_LOG_CRIT)
+        end if
+
+
+        !
+        ! TEMPORARY: pass through call to existing dmpar routine
+        !
         call mpas_dmpar_exch_group_add_field(domain, groupName, fieldName, timeLevel, haloLayers, iErr)
 
     end subroutine mpas_halo_exch_group_add_field
@@ -219,13 +398,38 @@ module mpas_halo
     subroutine mpas_halo_exch_group_full_halo_exch(domain, groupName, iErr)
 
         use mpas_dmpar, only : mpas_dmpar_exch_group_full_halo_exch
-        use mpas_derived_types, only : domain_type
+        use mpas_derived_types, only : domain_type, mpas_halo_group, MPAS_LOG_CRIT
+        use mpas_log, only : mpas_log_write
 
         type (domain_type), intent(inout) :: domain
         character (len=*), intent(in) :: groupName
         integer, optional, intent(out) :: iErr
 
+        ! Local variables
+        type (mpas_halo_group), pointer :: cursor
 
+
+        !
+        ! Find this halo exhange group in the list of groups
+        !
+        cursor => domain % haloGroups
+        do while (associated(cursor))
+            if (trim(cursor % groupName) == trim(groupName)) then
+                exit
+            end if
+           
+            cursor => cursor % next
+        end do
+
+        if (.not. associated(cursor)) then
+            call mpas_log_write('Halo exchange group '//trim(groupName)//' not found in full_exch routine.', &
+                                messageType=MPAS_LOG_CRIT)
+        end if
+
+
+        !
+        ! TEMPORARY: pass through call to existing dmpar routine
+        !
         call mpas_dmpar_exch_group_full_halo_exch(domain, groupName, iErr)
 
     end subroutine mpas_halo_exch_group_full_halo_exch
