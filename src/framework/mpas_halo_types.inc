@@ -14,5 +14,20 @@
         character(len=StrKIND) :: groupName = ''
         integer :: nFields = MPAS_HALO_INVALID
         type (mpas_halo_field), dimension(:), pointer :: fields => null()
+
+        integer :: nGroupSendNeighbors = MPAS_HALO_INVALID
+        integer :: groupSendBufSize = MPAS_HALO_INVALID     ! Total number of elements to be sent in a group exchange
+        integer, dimension(:,:), pointer :: groupPackOffsets => null()
+        integer, dimension(:), pointer :: groupSendNeighbors => null()
+        integer, dimension(:), pointer :: groupSendOffsets => null()
+        integer, dimension(:), pointer :: groupSendCounts => null()
+
+        integer :: nGroupRecvNeighbors = MPAS_HALO_INVALID
+        integer :: groupRecvBufSize = MPAS_HALO_INVALID     ! Total number of elements to be received in a group exchange
+        integer, dimension(:,:), pointer :: groupUnpackOffsets => null()
+        integer, dimension(:), pointer :: groupRecvNeighbors => null()
+        integer, dimension(:), pointer :: groupRecvOffsets => null()
+        integer, dimension(:), pointer :: groupRecvCounts => null()
+
         type (mpas_halo_group), pointer :: next => null()
     end type mpas_halo_group
