@@ -4,10 +4,10 @@
                           MPAS_HALO_INTEGER   = 5002
 
     type mpas_halo_field
+        character(len=StrKIND) :: fieldName = ''
         integer :: nDims = MPAS_HALO_INVALID
         integer :: fieldType = MPAS_HALO_INVALID
-        type (field2DReal), pointer :: r2d => null()    ! Valid when nDims == 2 and fieldType == MPAS_HALO_REAL
-        type (field3DReal), pointer :: r3d => null()    ! Valid when nDims == 3 and fieldType == MPAS_HALO_REAL
+        integer, dimension(:), pointer :: compactHaloInfo => null()
     end type mpas_halo_field
 
     type mpas_halo_group

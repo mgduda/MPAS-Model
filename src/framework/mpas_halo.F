@@ -149,10 +149,10 @@ module mpas_halo
     subroutine mpas_halo_exch_group_complete(domain, groupName, iErr)
 
         use mpas_derived_types, only : domain_type, mpas_pool_type, mpas_pool_iterator_type, MPAS_POOL_CONFIG, &
-                                       mpas_halo_group
+                                       MPAS_POOL_REAL, mpas_halo_group, MPAS_LOG_CRIT, field2DReal, field3DReal
         use mpas_pool_routines, only : mpas_pool_get_subpool, mpas_pool_remove_subpool, mpas_pool_destroy_pool, &
                                        mpas_pool_begin_iteration, mpas_pool_get_next_member, mpas_pool_get_dimension, &
-                                       mpas_pool_remove_field
+                                       mpas_pool_remove_field, mpas_pool_get_field
         use mpas_log, only : mpas_log_write
 
         type (domain_type), intent(inout) :: domain
@@ -160,10 +160,13 @@ module mpas_halo
         integer, optional, intent(out) :: iErr
 
         ! Local variables
+        integer :: i
         type (mpas_pool_type), pointer :: completedGroup
         type (mpas_pool_iterator_type) :: itr
         integer, dimension(:), pointer :: fieldHaloInfo
         type (mpas_halo_group), pointer :: newGroup
+        type (field2DReal), pointer :: r2d
+        type (field3DReal), pointer :: r3d
 
         call mpas_pool_get_subpool(domain % haloGroupPool, groupName, completedGroup)
 
@@ -193,16 +196,38 @@ module mpas_halo
         !
         ! Fill in field entries for this group
         !
+        i = 1
         call mpas_pool_begin_iteration(completedGroup)
         do while (mpas_pool_get_next_member(completedGroup, itr))
             if (itr % memberType == MPAS_POOL_CONFIG) then
-                call mpas_log_write('    '//trim(itr % memberName))
+                newGroup % fields(i) % fieldName = trim(itr % memberName)
+
+                call mpas_log_write('    '//trim(newGroup % fields(i) % fieldName))
+
                 call mpas_pool_get_dimension(completedGroup, trim(itr % memberName)//'.info', fieldHaloInfo)
+
+                if (fieldHaloInfo(1) == MPAS_POOL_REAL) then
+                    if (fieldHaloInfo(2) == 2) then
+                        call mpas_pool_get_field(completedGroup, trim(itr % memberName)//'.field', r2d)
+                        call mpas_halo_compact_halo_info(r2d, newGroup % fields(i) % compactHaloInfo)
+                    else if (fieldHaloInfo(2) == 3) then
+                        call mpas_pool_get_field(completedGroup, trim(itr % memberName)//'.field', r3d)
+                        call mpas_halo_compact_halo_info(r3d, newGroup % fields(i) % compactHaloInfo)
+                    else
+                        call mpas_log_write('Unsupported dimensionality for real field in mpas_halo_exch_group_complete.', &
+                                            messageType=MPAS_LOG_CRIT)
+                    end if
+                else
+                    call mpas_log_write('Unsupported field type in mpas_halo_exch_group_complete.', &
+                                        messageType=MPAS_LOG_CRIT)
+                end if
+
                 call mpas_log_write('     - fieldType = $i',   intArgs=[fieldHaloInfo(1)])
                 call mpas_log_write('     - nDims = $i',       intArgs=[fieldHaloInfo(2)])
                 call mpas_log_write('     - nTimeLevels = $i', intArgs=[fieldHaloInfo(3)])
                 call mpas_log_write('     - nHaloLayers = $i', intArgs=[fieldHaloInfo(4)])
                 call mpas_pool_remove_field(completedGroup, trim(itr % memberName)//'.field')
+                i = i + 1
             end if
         end do
 
@@ -236,6 +261,7 @@ module mpas_halo
         integer, optional, intent(out) :: iErr
 
         ! Local variables
+        integer :: i
         type (mpas_halo_group), pointer :: cursor, prev
 
 
@@ -272,6 +298,9 @@ module mpas_halo
         !
         ! Deallocate this exchange group
         !
+        do i = 1, cursor % nFields
+            deallocate(cursor % fields(i) % compactHaloInfo)
+        end do
         deallocate(cursor % fields)
 
 
@@ -367,10 +396,10 @@ module mpas_halo
         !
         if (info % fieldType == MPAS_POOL_REAL) then
             if (info % nDims == 2) then
-                call mpas_pool_get_field(domain % blocklist % allFields, fieldName, r2d)
+                call mpas_pool_get_field(domain % blocklist % allFields, fieldName, r2d, timeLevel=1)
                 call mpas_pool_add_field(group, fieldName//'.field', r2d)
             else if (info % nDims == 3) then
-                call mpas_pool_get_field(domain % blocklist % allFields, fieldName, r3d)
+                call mpas_pool_get_field(domain % blocklist % allFields, fieldName, r3d, timeLevel=1)
                 call mpas_pool_add_field(group, fieldName//'.field', r3d)
             else
                 call mpas_log_write('Unsupported dimensionality for real field '//trim(fieldName), messageType=MPAS_LOG_CRIT)
