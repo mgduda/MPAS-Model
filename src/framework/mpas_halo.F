@@ -231,6 +231,8 @@ module mpas_halo
             end if
         end do
 
+        call mpas_halo_aggregate_group_info(newGroup)
+
         call mpas_log_write('')
 
         call mpas_pool_destroy_pool(completedGroup)
@@ -302,6 +304,15 @@ module mpas_halo
             deallocate(cursor % fields(i) % compactHaloInfo)
         end do
         deallocate(cursor % fields)
+        deallocate(cursor % groupPackOffsets)
+        deallocate(cursor % groupSendNeighbors)
+        deallocate(cursor % groupSendOffsets)
+        deallocate(cursor % groupSendCounts)
+        deallocate(cursor % groupUnpackOffsets)
+        deallocate(cursor % groupRecvNeighbors)
+        deallocate(cursor % groupRecvOffsets)
+        deallocate(cursor % groupRecvCounts)
+        deallocate(cursor)
 
 
         !
@@ -1027,5 +1038,317 @@ module mpas_halo
         deallocate(recvEndpoints)
 
     end subroutine mpas_halo_compact_halo_info_3d_real
+
+
+    !-----------------------------------------------------------------------
+    !  routine mpas_halo_aggregate_group_info
+    !
+    !> \brief Aggregate exchange info from all fields in a halo exchange group
+    !> \author Michael Duda
+    !> \date   23 November 2021
+    !> \details
+    !>  Given an mpas_halo_group, this routine aggregates information from across
+    !>  all mpas_halo_field members of the group.
+    !
+    !-----------------------------------------------------------------------
+    subroutine mpas_halo_aggregate_group_info(group, ierr)
+
+        use mpas_derived_types, only : mpas_halo_group
+        use mpas_log, only : mpas_log_write
+
+        type (mpas_halo_group), intent(inout) :: group
+        integer, intent(out), optional :: ierr
+
+        ! Local variables
+        integer :: i, j, idx, ihalo, iendp, nlist, idxsend, idxrecv
+        integer :: ndims, ninnerelems
+        integer :: maxGroupSendNeighbors, maxGroupRecvNeighbors
+        integer, allocatable, dimension(:) :: sendNeighbors, recvNeighbors
+        integer, allocatable, dimension(:,:) :: sendCounts, recvCounts
+
+
+        if (present(ierr)) then
+            ierr = 0
+        end if
+
+        call mpas_log_write('Aggregating info for halo exchange group '//trim(group % groupName))
+
+
+        !
+        ! Compute an upper bound on the number of send and recv neighbors for this group
+        !
+        maxGroupSendNeighbors = 0
+        maxGroupRecvNeighbors = 0
+        do i = 1, group % nFields
+            maxGroupSendNeighbors = maxGroupSendNeighbors + group % fields(i) % compactHaloInfo(10)
+
+            ! Skip past send info to get to recv neighbor count
+            idx = 11
+            do iendp = 1, group % fields(i) % compactHaloInfo(10)
+                idx = idx + 1                ! skip over endPointID
+                do ihalo = 1, group % fields(i) % compactHaloInfo(9)
+                    nlist = group % fields(i) % compactHaloInfo(idx)
+                    idx = idx + 1            ! skip over nList
+                    idx = idx + 2 * nlist    ! skip over srcList and destList
+                end do
+            end do
+
+            maxGroupRecvNeighbors = maxGroupRecvNeighbors + group % fields(i) % compactHaloInfo(idx)
+        end do
+
+
+        !
+        ! Create a list of unique send and recv neighbors for this group
+        !
+        allocate(sendNeighbors(maxGroupSendNeighbors))
+        allocate(recvNeighbors(maxGroupRecvNeighbors))
+
+        sendNeighbors(:) = -1
+        recvNeighbors(:) = -1
+
+        group % nGroupSendNeighbors = 0
+        group % nGroupRecvNeighbors = 0
+
+        do i = 1, group % nFields
+            idxsend = 10
+            idx = idxsend + 1
+            do iendp = 1, group % fields(i) % compactHaloInfo(idxsend)
+               
+                ! Try to locate this endPointID in the list
+                do j = 1, group % nGroupSendNeighbors
+                    if (sendNeighbors(j) == group % fields(i) % compactHaloInfo(idx)) then
+                        exit
+                    end if
+                end do
+
+                ! If endPointID was not found, add it to the list
+                if (j > group % nGroupSendNeighbors) then
+                    group % nGroupSendNeighbors = group % nGroupSendNeighbors + 1
+                    sendNeighbors(group % nGroupSendNeighbors) = group % fields(i) % compactHaloInfo(idx)
+                end if
+
+                ! Skip over remaining info for this endpoint
+                idx = idx + 1                ! skip over endPointID
+                do ihalo = 1, group % fields(i) % compactHaloInfo(9)
+                    nlist = group % fields(i) % compactHaloInfo(idx)
+                    idx = idx + 1            ! skip over nList
+                    idx = idx + 2 * nlist    ! skip over srcList and destList
+                end do
+            end do
+
+            idxrecv = idx
+            idx = idxrecv + 1
+            do iendp = 1, group % fields(i) % compactHaloInfo(idxrecv)
+               
+                ! Try to locate this endPointID in the list
+                do j = 1, group % nGroupRecvNeighbors
+                    if (recvNeighbors(j) == group % fields(i) % compactHaloInfo(idx)) then
+                        exit
+                    end if
+                end do
+
+                ! If endPointID was not found, add it to the list
+                if (j > group % nGroupRecvNeighbors) then
+                    group % nGroupRecvNeighbors = group % nGroupRecvNeighbors + 1
+                    recvNeighbors(group % nGroupRecvNeighbors) = group % fields(i) % compactHaloInfo(idx)
+                end if
+
+                ! Skip over remaining info for this endpoint
+                idx = idx + 1                ! skip over endPointID
+                do ihalo = 1, group % fields(i) % compactHaloInfo(9)
+                    nlist = group % fields(i) % compactHaloInfo(idx)
+                    idx = idx + 1            ! skip over nList
+                    idx = idx + 2 * nlist    ! skip over srcList and destList
+                end do
+            end do
+
+        end do
+
+        allocate(group % groupSendNeighbors(group % nGroupSendNeighbors))
+        group % groupSendNeighbors(:) = sendNeighbors(1:group % nGroupSendNeighbors)
+
+        allocate(group % groupRecvNeighbors(group % nGroupRecvNeighbors))
+        group % groupRecvNeighbors(:) = recvNeighbors(1:group % nGroupRecvNeighbors)
+
+        deallocate(sendNeighbors)
+        deallocate(recvNeighbors)
+
+
+        !
+        ! Compute total size of send and receive buffers for this group
+        !
+        group % groupSendBufSize = 0
+        group % groupRecvBufSize = 0
+
+        do i = 1, group % nFields
+
+            ndims = group % fields(i) % compactHaloInfo(1)
+            ninnerelems = 1
+            do j = 1, ndims - 1    ! Do not include right-most dimension (nCells, nEdges, or nVertices)
+                ninnerelems = ninnerelems * group % fields(i) % compactHaloInfo(j + 1)    ! First dim is at (2), etc.
+            end do
+
+            idxsend = 10
+            idx = idxsend + 1
+            do iendp = 1, group % fields(i) % compactHaloInfo(idxsend)
+               
+                idx = idx + 1                ! skip over endPointID
+                do ihalo = 1, group % fields(i) % compactHaloInfo(9)
+                    nlist = group % fields(i) % compactHaloInfo(idx)
+                    group % groupSendBufSize = group % groupSendBufSize + ninnerelems * nlist
+
+                    idx = idx + 1            ! skip over nList
+                    idx = idx + 2 * nlist    ! skip over srcList and destList
+                end do
+            end do
+
+            idxrecv = idx
+            idx = idxrecv + 1
+            do iendp = 1, group % fields(i) % compactHaloInfo(idxrecv)
+               
+                idx = idx + 1                ! skip over endPointID
+                do ihalo = 1, group % fields(i) % compactHaloInfo(9)
+                    nlist = group % fields(i) % compactHaloInfo(idx)
+                    group % groupRecvBufSize = group % groupRecvBufSize + ninnerelems * nlist
+
+                    idx = idx + 1            ! skip over nList
+                    idx = idx + 2 * nlist    ! skip over srcList and destList
+                end do
+            end do
+
+        end do
+
+
+        !
+        ! Compute sizes and offsets in group send and recv buffers for all fields in group
+        !
+        allocate(group % groupPackOffsets(group % nGroupSendNeighbors, group % nFields))
+        allocate(group % groupSendOffsets(group % nGroupSendNeighbors))
+        allocate(group % groupSendCounts(group % nGroupSendNeighbors))
+        group % groupPackOffsets(:,:) = -1
+        group % groupSendOffsets(:) = -1
+        group % groupSendCounts(:) = -1
+
+        allocate(group % groupUnpackOffsets(group % nGroupRecvNeighbors, group % nFields))
+        allocate(group % groupRecvOffsets(group % nGroupRecvNeighbors))
+        allocate(group % groupRecvCounts(group % nGroupRecvNeighbors))
+        group % groupUnpackOffsets(:,:) = -1
+        group % groupRecvOffsets(:) = -1
+        group % groupRecvCounts(:) = -1
+
+        allocate(sendCounts(group % nGroupRecvNeighbors, group % nFields))
+        allocate(recvCounts(group % nGroupRecvNeighbors, group % nFields))
+        sendCounts(:,:) = 0
+        recvCounts(:,:) = 0
+
+        do i = 1, group % nFields
+
+            ndims = group % fields(i) % compactHaloInfo(1)
+            ninnerelems = 1
+            do j = 1, ndims - 1    ! Do not include right-most dimension (nCells, nEdges, or nVertices)
+                ninnerelems = ninnerelems * group % fields(i) % compactHaloInfo(j + 1)    ! First dim is at (2), etc.
+            end do
+
+            idxsend = 10
+            idx = idxsend + 1
+            do iendp = 1, group % fields(i) % compactHaloInfo(idxsend)
+
+                ! Find neighbor in groupSendNeighbors
+                do j = 1, group % nGroupSendNeighbors
+                    if (group % fields(i) % compactHaloInfo(idx) == group % groupSendNeighbors(j)) then
+                        exit
+                    end if
+                end do
+               
+                idx = idx + 1                ! skip over endPointID
+                sendCounts(j, i) = 0
+                do ihalo = 1, group % fields(i) % compactHaloInfo(9)
+                    nlist = group % fields(i) % compactHaloInfo(idx)
+                    sendCounts(j, i) = sendCounts(j, i) + nlist * ninnerelems
+
+                    idx = idx + 1            ! skip over nList
+                    idx = idx + 2 * nlist    ! skip over srcList and destList
+                end do
+            end do
+
+            idxrecv = idx
+            idx = idxrecv + 1
+            do iendp = 1, group % fields(i) % compactHaloInfo(idxrecv)
+
+                ! Find neighbor in groupRecvNeighbors
+                do j = 1, group % nGroupRecvNeighbors
+                    if (group % fields(i) % compactHaloInfo(idx) == group % groupRecvNeighbors(j)) then
+                        exit
+                    end if
+                end do
+               
+                idx = idx + 1                ! skip over endPointID
+                recvCounts(j, i) = 0
+                do ihalo = 1, group % fields(i) % compactHaloInfo(9)
+                    nlist = group % fields(i) % compactHaloInfo(idx)
+                    recvCounts(j, i) = recvCounts(j, i) + nlist * ninnerelems
+
+                    idx = idx + 1            ! skip over nList
+                    idx = idx + 2 * nlist    ! skip over srcList and destList
+                end do
+            end do
+
+        end do
+
+        do j = 1, group % nGroupSendNeighbors
+            group % groupPackOffsets(j, 1) = 0
+            group % groupUnpackOffsets(j, 1) = 0
+            do i = 2, group % nFields
+                group % groupPackOffsets(j, i) = group % groupPackOffsets(j, i-1) + sendCounts(j, i-1)
+                group % groupUnpackOffsets(j, i) = group % groupUnpackOffsets(j, i-1) + recvCounts(j, i-1)
+            end do
+        end do
+
+        do j = 1, group % nGroupSendNeighbors
+            group % groupSendCounts(j) = 0
+            group % groupRecvCounts(j) = 0
+            do i = 1, group % nFields
+                group % groupSendCounts(j) = group % groupSendCounts(j) + sendCounts(j, i)
+                group % groupRecvCounts(j) = group % groupRecvCounts(j) + recvCounts(j, i)
+            end do
+
+            if (j == 1) then
+                group % groupSendOffsets(j) = 1
+                group % groupRecvOffsets(j) = 1
+            else
+                group % groupSendOffsets(j) = group % groupSendOffsets(j-1) + group % groupSendCounts(j-1)
+                group % groupRecvOffsets(j) = group % groupRecvOffsets(j-1) + group % groupRecvCounts(j-1)
+
+                do i = 1, group % nFields
+                    group % groupPackOffsets(j, i) = group % groupPackOffsets(j, i) + group % groupSendOffsets(j) - 1
+                    group % groupUnpackOffsets(j, i) = group % groupUnpackOffsets(j, i) + group % groupRecvOffsets(j) - 1
+                end do
+            end if
+        end do
+
+        deallocate(sendCounts)
+        deallocate(recvCounts)
+
+call mpas_log_write('>>>>>>')
+call mpas_log_write('groupSendBufSize = $i', intArgs=[group % groupSendBufSize])
+do j = 1, group % nGroupSendNeighbors
+    call mpas_log_write('neigbor $i send offset/count = $i $i', intArgs=[j, group % groupSendOffsets(j), &
+                        group % groupSendCounts(j)])
+    do i = 1, group % nFields
+        call mpas_log_write('  pack offset $i', intArgs=[group % groupPackOffsets(j, i)])
+    end do
+end do
+
+call mpas_log_write('')
+call mpas_log_write('groupRecvBufSize = $i', intArgs=[group % groupRecvBufSize])
+do j = 1, group % nGroupRecvNeighbors
+    call mpas_log_write('neigbor $i recv offset/count = $i $i', intArgs=[j, group % groupRecvOffsets(j), &
+                        group % groupRecvCounts(j)])
+    do i = 1, group % nFields
+        call mpas_log_write('  unpack offset $i', intArgs=[group % groupUnpackOffsets(j, i)])
+    end do
+end do
+
+    end subroutine mpas_halo_aggregate_group_info
 
 end module mpas_halo
