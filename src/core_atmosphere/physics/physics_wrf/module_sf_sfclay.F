@@ -235,7 +235,7 @@ CONTAINS
            DO i=its,ite
               RHO = P1D(i)/R/(T1D(i)*(1.+EP1*QV1D(i)))
               HFX(i,j)=heat_flux*RHO*CP
-              QFX(i,j)=moisture_flux
+              QFX(i,j)=moisture_flux*RHO
            ENDDO
         ENDIF
 
