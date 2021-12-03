@@ -109,7 +109,6 @@ module mpas_halo
     !-----------------------------------------------------------------------
     subroutine mpas_halo_exch_group_create(domain, groupName, iErr)
 
-        use mpas_dmpar, only : mpas_dmpar_exch_group_create
         use mpas_derived_types, only : domain_type, mpas_pool_type
         use mpas_pool_routines, only : mpas_pool_create_pool, mpas_pool_add_subpool
 
@@ -123,11 +122,6 @@ module mpas_halo
 
         call mpas_pool_create_pool(newGroup)
 	call mpas_pool_add_subpool(domain % haloGroupPool, groupName, newGroup)
-
-        !
-        ! TEMPORARY: pass through call to existing dmpar routine
-        !
-        call mpas_dmpar_exch_group_create(domain, groupName, iErr)
 
     end subroutine mpas_halo_exch_group_create
 
@@ -149,7 +143,8 @@ module mpas_halo
     subroutine mpas_halo_exch_group_complete(domain, groupName, iErr)
 
         use mpas_derived_types, only : domain_type, mpas_pool_type, mpas_pool_iterator_type, MPAS_POOL_CONFIG, &
-                                       MPAS_POOL_REAL, mpas_halo_group, MPAS_LOG_CRIT, field2DReal, field3DReal
+                                       MPAS_POOL_REAL, MPAS_HALO_REAL, mpas_halo_group, MPAS_LOG_CRIT, &
+                                       field2DReal, field3DReal
         use mpas_pool_routines, only : mpas_pool_get_subpool, mpas_pool_remove_subpool, mpas_pool_destroy_pool, &
                                        mpas_pool_begin_iteration, mpas_pool_get_next_member, mpas_pool_get_dimension, &
                                        mpas_pool_remove_field, mpas_pool_get_field
@@ -167,6 +162,7 @@ module mpas_halo
         type (mpas_halo_group), pointer :: newGroup
         type (field2DReal), pointer :: r2d
         type (field3DReal), pointer :: r3d
+        integer, pointer :: timeLevel
 
         call mpas_pool_get_subpool(domain % haloGroupPool, groupName, completedGroup)
 
@@ -205,6 +201,19 @@ module mpas_halo
                 call mpas_log_write('    '//trim(newGroup % fields(i) % fieldName))
 
                 call mpas_pool_get_dimension(completedGroup, trim(itr % memberName)//'.info', fieldHaloInfo)
+
+                call mpas_pool_get_dimension(completedGroup, trim(itr % memberName)//'.timelevel', timeLevel)
+
+                newGroup % fields(i) % nDims = fieldHaloInfo(2)
+                newGroup % fields(i) % timeLevel = timeLevel
+
+                select case (fieldHaloInfo(1))
+                case (MPAS_POOL_REAL)
+                    newGroup % fields(i) % fieldType = MPAS_HALO_REAL
+                case default
+                    call mpas_log_write('Only real-valued fields are supported in mpas_halo_exch_group_complete', &
+                                        messageType=MPAS_LOG_CRIT)
+                end select
 
                 if (fieldHaloInfo(1) == MPAS_POOL_REAL) then
                     if (fieldHaloInfo(2) == 2) then
@@ -254,7 +263,6 @@ module mpas_halo
     !-----------------------------------------------------------------------
     subroutine mpas_halo_exch_group_destroy(domain, groupName, iErr)
 
-        use mpas_dmpar, only : mpas_dmpar_exch_group_destroy
         use mpas_derived_types, only : domain_type, mpas_halo_group, MPAS_LOG_CRIT
         use mpas_log, only : mpas_log_write
 
@@ -314,12 +322,6 @@ module mpas_halo
         deallocate(cursor % groupRecvCounts)
         deallocate(cursor)
 
-
-        !
-        ! TEMPORARY: pass through call to existing dmpar routine
-        !
-        call mpas_dmpar_exch_group_destroy(domain, groupName, iErr)
-
     end subroutine mpas_halo_exch_group_destroy
 
 
@@ -342,7 +344,6 @@ module mpas_halo
     !-----------------------------------------------------------------------
     subroutine mpas_halo_exch_group_add_field(domain, groupName, fieldName, timeLevel, haloLayers, iErr)
 
-        use mpas_dmpar, only : mpas_dmpar_exch_group_add_field
         use mpas_derived_types, only : domain_type, mpas_pool_type, mpas_pool_field_info_type, MPAS_POOL_REAL, &
                                        field2DReal, field3DReal, MPAS_LOG_CRIT
         use mpas_pool_routines, only : mpas_pool_get_subpool, mpas_pool_add_config, mpas_pool_get_field_info, &
@@ -360,6 +361,7 @@ module mpas_halo
         type (mpas_pool_type), pointer :: group
         type (mpas_pool_field_info_type) :: info
         integer, allocatable, dimension(:) :: fieldHaloInfo
+        integer :: local_timeLevel
         type (field2DReal), pointer :: r2d
         type (field3DReal), pointer :: r3d
 
@@ -397,20 +399,21 @@ module mpas_halo
         ! Store an item in the pool indicating which time level to exchange
         !
         if (present(timeLevel)) then
-            call mpas_pool_add_dimension(group, fieldName//'.timelevel', timeLevel)
+            local_timeLevel = timeLevel
         else
-            call mpas_pool_add_dimension(group, fieldName//'.timelevel', 1)
+            local_timeLevel = 1
         end if
+        call mpas_pool_add_dimension(group, fieldName//'.timelevel', local_timeLevel)
 
         !
         ! Store a reference to the field itself in the pool
         !
         if (info % fieldType == MPAS_POOL_REAL) then
             if (info % nDims == 2) then
-                call mpas_pool_get_field(domain % blocklist % allFields, fieldName, r2d, timeLevel=1)
+                call mpas_pool_get_field(domain % blocklist % allFields, fieldName, r2d, timeLevel=local_timeLevel)
                 call mpas_pool_add_field(group, fieldName//'.field', r2d)
             else if (info % nDims == 3) then
-                call mpas_pool_get_field(domain % blocklist % allFields, fieldName, r3d, timeLevel=1)
+                call mpas_pool_get_field(domain % blocklist % allFields, fieldName, r3d, timeLevel=local_timeLevel)
                 call mpas_pool_add_field(group, fieldName//'.field', r3d)
             else
                 call mpas_log_write('Unsupported dimensionality for real field '//trim(fieldName), messageType=MPAS_LOG_CRIT)
@@ -418,12 +421,6 @@ module mpas_halo
         else
             call mpas_log_write('Unsupported field type for field '//trim(fieldName), messageType=MPAS_LOG_CRIT)
         end if
-
-
-        !
-        ! TEMPORARY: pass through call to existing dmpar routine
-        !
-        call mpas_dmpar_exch_group_add_field(domain, groupName, fieldName, timeLevel, haloLayers, iErr)
 
     end subroutine mpas_halo_exch_group_add_field
 
@@ -442,40 +439,284 @@ module mpas_halo
     !-----------------------------------------------------------------------
     subroutine mpas_halo_exch_group_full_halo_exch(domain, groupName, iErr)
 
-        use mpas_dmpar, only : mpas_dmpar_exch_group_full_halo_exch
-        use mpas_derived_types, only : domain_type, mpas_halo_group, MPAS_LOG_CRIT
+        use mpas_kind_types, only : RKIND
+        use mpas_derived_types, only : domain_type, mpas_halo_group, MPAS_HALO_REAL, MPAS_LOG_CRIT
+        use mpas_pool_routines, only : mpas_pool_get_array
         use mpas_log, only : mpas_log_write
+        use mpi, only : MPI_Irecv, MPI_Wait, MPI_REAL, MPI_STATUS_IGNORE, MPI_SUCCESS
 
         type (domain_type), intent(inout) :: domain
         character (len=*), intent(in) :: groupName
         integer, optional, intent(out) :: iErr
 
         ! Local variables
-        type (mpas_halo_group), pointer :: cursor
+        integer :: i, bufstart, bufend
+        integer :: dim1, dim2, dim3
+        integer :: i1, i2, i3, iNeighbor, j
+        integer :: iHalo, iEndp, iOffset
+        integer :: nSendEndpts, nRecvEndpts
+        integer :: idx, nList
+        integer :: mpi_ierr
+        type (mpas_halo_group), pointer :: group
+        integer, dimension(:), pointer :: compactHaloInfo
 
 
         !
         ! Find this halo exhange group in the list of groups
         !
-        cursor => domain % haloGroups
-        do while (associated(cursor))
-            if (trim(cursor % groupName) == trim(groupName)) then
+        group => domain % haloGroups
+        do while (associated(group))
+            if (trim(group % groupName) == trim(groupName)) then
                 exit
             end if
            
-            cursor => cursor % next
+            group => group % next
         end do
 
-        if (.not. associated(cursor)) then
+        if (.not. associated(group)) then
             call mpas_log_write('Halo exchange group '//trim(groupName)//' not found in full_exch routine.', &
                                 messageType=MPAS_LOG_CRIT)
         end if
 
+!        call mpas_log_write('==== Exchanging halo group '//trim(group % groupName)//' ====')
 
-        !
-        ! TEMPORARY: pass through call to existing dmpar routine
-        !
-        call mpas_dmpar_exch_group_full_halo_exch(domain, groupName, iErr)
+        allocate(group % sendBuf(group % groupSendBufSize))
+        allocate(group % recvBuf(group % groupRecvBufSize))
+        allocate(group % sendRequests(group % nGroupSendNeighbors))
+        allocate(group % recvRequests(group % nGroupRecvNeighbors))
+
+group % sendBuf(:) = -1.0e38
+group % recvBuf(:) = -1.0e38
+
+
+!        call mpas_log_write(' posting MPI_IRecv')
+
+        do i = 1, group % nGroupRecvNeighbors
+            if (group % groupRecvCounts(i) > 0) then
+                bufstart = group % groupRecvOffsets(i)
+                bufend = group % groupRecvOffsets(i) + group % groupRecvCounts(i) - 1
+!TO DO: how do we determine appropriate type here?
+!TO DO: how should we set tag here?
+                call MPI_Irecv(group % recvBuf(bufstart:bufend), group % groupRecvCounts(i), MPI_REAL, &
+                               group % groupRecvNeighbors(i), group % groupRecvNeighbors(i), domain % dminfo % comm, &
+                               group % recvRequests(i), mpi_ierr)
+if (mpi_ierr /= MPI_SUCCESS) then
+call mpas_log_write('MPI_Irecv returned non-success $i', intArgs=[mpi_ierr])
+end if
+            end if
+        end do
+
+        do i = 1, group % nFields
+!            call mpas_log_write(' packing field '//trim(group % fields(i) % fieldName))
+
+            compactHaloInfo => group % fields(i) % compactHaloInfo
+
+            if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
+                dim1 = compactHaloInfo(2)
+                dim2 = compactHaloInfo(3)
+                dim3 = compactHaloInfo(4)
+
+                nSendEndpts = compactHaloInfo(10)
+                idx = 11
+
+                select case (group % fields(i) % nDims)
+                case (2)
+                    call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
+                                             group % fields(i) % r2arr, timeLevel=group % fields(i) % timeLevel)
+!call mpas_log_write(' time level $i', intArgs=[group % fields(i) % timeLevel])
+
+                    do iEndp = 1, nSendEndpts
+                        ! Find this endpoint in the list of neighbors
+                        do iNeighbor = 1, group % nGroupSendNeighbors
+                            if (group % groupSendNeighbors(iNeighbor) == compactHaloInfo(idx)) exit
+                        end do
+                        idx = idx + 1
+
+                        iOffset = group % groupPackOffsets(iNeighbor, i)
+
+                        do iHalo = 1, compactHaloInfo(9)
+                            nList = compactHaloInfo(idx)
+                            idx = idx + 1
+
+                            do j = 1, nList
+                                do i1 = 1, dim1
+                                    group % sendBuf(iOffset + dim1 * (compactHaloInfo(idx + nList) - 1) + i1) = &
+                                        group % fields(i) % r2arr(i1, compactHaloInfo(idx))
+                                end do
+                                idx = idx + 1
+                            end do
+                            idx = idx + nList
+                        end do
+                    end do
+
+                case (3)
+
+                    call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
+                                             group % fields(i) % r3arr, group % fields(i) % timeLevel)
+!call mpas_log_write(' time level $i', intArgs=[group % fields(i) % timeLevel])
+
+                    do iEndp = 1, compactHaloInfo(10)
+                        ! Find this endpoint in the list of neighbors
+                        do iNeighbor = 1, group % nGroupSendNeighbors
+                            if (group % groupSendNeighbors(iNeighbor) == compactHaloInfo(idx)) exit
+                        end do
+                        idx = idx + 1
+
+                        iOffset = group % groupPackOffsets(iNeighbor, i)
+
+                        do iHalo = 1, compactHaloInfo(9)
+                            nList = compactHaloInfo(idx)
+                            idx = idx + 1
+
+                            do j = 1, nList
+                                do i2 = 1, dim2
+                                do i1 = 1, dim1
+                                    group % sendBuf(iOffset + dim1 * dim2 * (compactHaloInfo(idx + nList) - 1) + dim1 * (i2 - 1) + i1) = &
+                                        group % fields(i) % r3arr(i1, i2, compactHaloInfo(idx))
+                                end do
+                                end do
+                                idx = idx + 1
+                            end do
+                            idx = idx + nList
+                        end do
+                    end do
+                case default
+                    call mpas_log_write('Only 2-d and 3-d fields are supported by mpas_halo_exch_group_full_halo_exch', &
+                                    messageType=MPAS_LOG_CRIT)
+                end select
+            else
+                call mpas_log_write('Only real-valued fields are supported by mpas_halo_exch_group_full_halo_exch', &
+                                    messageType=MPAS_LOG_CRIT)
+            end if
+        end do
+
+!        call mpas_log_write(' posting MPI_ISend')
+
+        do i = 1, group % nGroupSendNeighbors
+            if (group % groupSendCounts(i) > 0) then
+                bufstart = group % groupSendOffsets(i)
+                bufend = group % groupSendOffsets(i) + group % groupSendCounts(i) - 1
+!TO DO: how do we determine appropriate type here?
+!TO DO: how should we set tag here?
+                call MPI_Isend(group % sendBuf(bufstart:bufend), group % groupSendCounts(i), MPI_REAL, &
+                               group % groupSendNeighbors(i), domain % dminfo % my_proc_id, domain % dminfo % comm, &
+                               group % sendRequests(i), mpi_ierr)
+if (mpi_ierr /= MPI_SUCCESS) then
+call mpas_log_write('MPI_Isend returned non-success $i', intArgs=[mpi_ierr])
+end if
+            end if
+        end do
+
+!        call mpas_log_write(' waiting on receives')
+        do i = 1, group % nGroupRecvNeighbors
+            if (group % groupRecvCounts(i) > 0) then
+                call MPI_Wait(group % recvRequests(i), MPI_STATUS_IGNORE, mpi_ierr)
+if (mpi_ierr /= MPI_SUCCESS) then
+call mpas_log_write('MPI_Wait returned non-success $i', intArgs=[mpi_ierr])
+end if
+            end if
+        end do
+
+        do i = 1, group % nFields
+!            call mpas_log_write(' unpacking field '//trim(group % fields(i) % fieldName))
+
+            compactHaloInfo => group % fields(i) % compactHaloInfo
+
+            if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
+                dim1 = compactHaloInfo(2)
+                dim2 = compactHaloInfo(3)
+                dim3 = compactHaloInfo(4)
+
+                nSendEndpts = compactHaloInfo(10)
+                idx = 11
+                do iendp = 1, nSendEndpts
+                    idx = idx + 1                ! skip over endPointID
+                    do ihalo = 1, compactHaloInfo(9)
+                        nlist = compactHaloInfo(idx)
+                        idx = idx + 1            ! skip over nList
+                        idx = idx + 2 * nlist    ! skip over srcList and destList
+                    end do
+                end do
+
+                nRecvEndpts = compactHaloInfo(idx)
+                idx = idx + 1
+
+                select case (group % fields(i) % nDims)
+                case (2)
+                    do iEndp = 1, nRecvEndpts
+                        ! Find this endpoint in the list of neighbors
+                        do iNeighbor = 1, group % nGroupRecvNeighbors
+                            if (group % groupRecvNeighbors(iNeighbor) == compactHaloInfo(idx)) exit
+                        end do
+                        idx = idx + 1
+
+                        iOffset = group % groupUnpackOffsets(iNeighbor, i)
+
+                        do iHalo = 1, compactHaloInfo(9)
+                            nList = compactHaloInfo(idx)
+                            idx = idx + 1
+
+                            do j = 1, nList
+                                do i1 = 1, dim1
+                                    group % fields(i) % r2arr(i1, compactHaloInfo(idx + nList)) = &
+                                        group % recvBuf(iOffset + dim1 * (compactHaloInfo(idx) - 1) + i1)
+                                end do
+                                idx = idx + 1
+                            end do
+                            idx = idx + nList
+                        end do
+                    end do
+
+                case (3)
+                    do iEndp = 1, nRecvEndpts
+                        ! Find this endpoint in the list of neighbors
+                        do iNeighbor = 1, group % nGroupRecvNeighbors
+                            if (group % groupRecvNeighbors(iNeighbor) == compactHaloInfo(idx)) exit
+                        end do
+                        idx = idx + 1
+
+                        iOffset = group % groupUnpackOffsets(iNeighbor, i)
+
+                        do iHalo = 1, compactHaloInfo(9)
+                            nList = compactHaloInfo(idx)
+                            idx = idx + 1
+
+                            do j = 1, nList
+                                do i2 = 1, dim2
+                                do i1 = 1, dim1
+                                    group % fields(i) % r3arr(i1, i2, compactHaloInfo(idx + nList)) = &
+                                        group % recvBuf(iOffset + dim1 * dim2 * (compactHaloInfo(idx) - 1) + dim1 * (i2 - 1) + i1)
+                                end do
+                                end do
+                                idx = idx + 1
+                            end do
+                            idx = idx + nList
+                        end do
+                    end do
+                case default
+                    call mpas_log_write('Only 2-d and 3-d fields are supported by mpas_halo_exch_group_full_halo_exch', &
+                                    messageType=MPAS_LOG_CRIT)
+                end select
+            else
+                call mpas_log_write('Only real-valued fields are supported by mpas_halo_exch_group_full_halo_exch', &
+                                    messageType=MPAS_LOG_CRIT)
+            end if
+        end do
+
+!        call mpas_log_write(' waiting on sends')
+        do i = 1, group % nGroupSendNeighbors
+            if (group % groupSendCounts(i) > 0) then
+                call MPI_Wait(group % sendRequests(i), MPI_STATUS_IGNORE, mpi_ierr)
+if (mpi_ierr /= MPI_SUCCESS) then
+call mpas_log_write('MPI_Wait returned non-success $i', intArgs=[mpi_ierr])
+end if
+            end if
+        end do
+
+        deallocate(group % sendBuf)
+        deallocate(group % recvBuf)
+        deallocate(group % sendRequests)
+        deallocate(group % recvRequests)
 
     end subroutine mpas_halo_exch_group_full_halo_exch
 
@@ -656,7 +897,7 @@ module mpas_halo
         compactHaloInfo(1) = 2    ! Dimensionality of the field
         idx = 2
         do i=1,compactHaloInfo(1)
-            compactHaloInfo(idx) = size(field % array, i)
+            compactHaloInfo(idx) = field % dimSizes(i)
             idx = idx + 1
         end do
 
@@ -936,7 +1177,7 @@ module mpas_halo
         compactHaloInfo(1) = 3    ! Dimensionality of the field
         idx = 2
         do i=1,compactHaloInfo(1)
-            compactHaloInfo(idx) = size(field % array, i)
+            compactHaloInfo(idx) = field % dimSizes(i)
             idx = idx + 1
         end do
 
