@@ -164,9 +164,8 @@ module mpas_halo
         type (field3DReal), pointer :: r3d
         integer, pointer :: timeLevel
 
-        call mpas_pool_get_subpool(domain % haloGroupPool, groupName, completedGroup)
 
-        call mpas_log_write('--- Creating halo exchange group '//trim(groupName)//' ---')
+        call mpas_pool_get_subpool(domain % haloGroupPool, groupName, completedGroup)
 
         !
         ! Add new mpas_halo_group to list of haloGroups in domain
@@ -197,8 +196,6 @@ module mpas_halo
         do while (mpas_pool_get_next_member(completedGroup, itr))
             if (itr % memberType == MPAS_POOL_CONFIG) then
                 newGroup % fields(i) % fieldName = trim(itr % memberName)
-
-                call mpas_log_write('    '//trim(newGroup % fields(i) % fieldName))
 
                 call mpas_pool_get_dimension(completedGroup, trim(itr % memberName)//'.info', fieldHaloInfo)
 
@@ -231,18 +228,12 @@ module mpas_halo
                                         messageType=MPAS_LOG_CRIT)
                 end if
 
-                call mpas_log_write('     - fieldType = $i',   intArgs=[fieldHaloInfo(1)])
-                call mpas_log_write('     - nDims = $i',       intArgs=[fieldHaloInfo(2)])
-                call mpas_log_write('     - nTimeLevels = $i', intArgs=[fieldHaloInfo(3)])
-                call mpas_log_write('     - nHaloLayers = $i', intArgs=[fieldHaloInfo(4)])
                 call mpas_pool_remove_field(completedGroup, trim(itr % memberName)//'.field')
                 i = i + 1
             end if
         end do
 
         call mpas_halo_aggregate_group_info(newGroup)
-
-        call mpas_log_write('')
 
         call mpas_pool_destroy_pool(completedGroup)
         call mpas_pool_remove_subpool(domain % haloGroupPool, groupName)
@@ -302,8 +293,6 @@ module mpas_halo
         else
             prev % next => cursor % next
         end if
-
-        call mpas_log_write('--- Destroying halo exchange group '//trim(groupName)//' ---')
 
         !
         ! Deallocate this exchange group
@@ -478,15 +467,11 @@ module mpas_halo
                                 messageType=MPAS_LOG_CRIT)
         end if
 
-!        call mpas_log_write('==== Exchanging halo group '//trim(group % groupName)//' ====')
-
         allocate(group % sendBuf(group % groupSendBufSize))
         allocate(group % recvBuf(group % groupRecvBufSize))
         allocate(group % sendRequests(group % nGroupSendNeighbors))
         allocate(group % recvRequests(group % nGroupRecvNeighbors))
 
-
-!        call mpas_log_write(' posting MPI_IRecv')
 
         do i = 1, group % nGroupRecvNeighbors
             if (group % groupRecvCounts(i) > 0) then
@@ -500,7 +485,6 @@ module mpas_halo
         end do
 
         do i = 1, group % nFields
-!            call mpas_log_write(' packing field '//trim(group % fields(i) % fieldName))
 
             compactHaloInfo => group % fields(i) % compactHaloInfo
 
@@ -523,19 +507,14 @@ module mpas_halo
                             if (group % groupSendNeighbors(iNeighbor) == compactHaloInfo(idx)) exit
                         end do
                         idx = idx + 1
-!call mpas_log_write('  section of message for neighbor $i', intArgs=[group % groupSendNeighbors(iNeighbor)])
 
                         iOffset = group % groupPackOffsets(iNeighbor, i)
-!call mpas_log_write('  iOffset = $i', intArgs=[iOffset])
 
                         do iHalo = 1, compactHaloInfo(9)
-!call mpas_log_write('     halo layer $i', intArgs=[iHalo])
                             nList = compactHaloInfo(idx)
-!call mpas_log_write('     total cells $i (idx=$i)', intArgs=[nList, idx])
                             idx = idx + 1
 
                             do j = 1, nList
-!call mpas_log_write('     idx, src/dst = $i $i $i', intArgs=[idx, compactHaloInfo(idx), compactHaloInfo(idx + nList)])
                                 do i1 = 1, dim1
                                     group % sendBuf(iOffset + dim1 * (compactHaloInfo(idx + nList) - 1) + i1) = &
                                         group % fields(i) % r2arr(i1, compactHaloInfo(idx))
@@ -586,7 +565,6 @@ module mpas_halo
             end if
         end do
 
-!        call mpas_log_write(' posting MPI_ISend')
 
         do i = 1, group % nGroupSendNeighbors
             if (group % groupSendCounts(i) > 0) then
@@ -599,7 +577,6 @@ module mpas_halo
             end if
         end do
 
-!        call mpas_log_write(' waiting on receives')
         do i = 1, group % nGroupRecvNeighbors
             if (group % groupRecvCounts(i) > 0) then
                 call MPI_Wait(group % recvRequests(i), MPI_STATUS_IGNORE, mpi_ierr)
@@ -607,7 +584,6 @@ module mpas_halo
         end do
 
         do i = 1, group % nFields
-!            call mpas_log_write(' unpacking field '//trim(group % fields(i) % fieldName))
 
             compactHaloInfo => group % fields(i) % compactHaloInfo
 
@@ -638,19 +614,14 @@ module mpas_halo
                             if (group % groupRecvNeighbors(iNeighbor) == compactHaloInfo(idx)) exit
                         end do
                         idx = idx + 1
-!call mpas_log_write('  section of message from neighbor $i', intArgs=[group % groupRecvNeighbors(iNeighbor)])
 
                         iOffset = group % groupUnpackOffsets(iNeighbor, i)
-!call mpas_log_write('  iOffset = $i', intArgs=[iOffset])
 
                         do iHalo = 1, compactHaloInfo(9)
-!call mpas_log_write('     halo layer $i', intArgs=[iHalo])
                             nList = compactHaloInfo(idx)
-!call mpas_log_write('     total cells $i (idx=$i)', intArgs=[nList, idx])
                             idx = idx + 1
 
                             do j = 1, nList
-!call mpas_log_write('     idx, src/dst = $i $i $i', intArgs=[idx, compactHaloInfo(idx), compactHaloInfo(idx + nList)])
                                 do i1 = 1, dim1
                                     group % fields(i) % r2arr(i1, compactHaloInfo(idx + nList)) = &
                                         group % recvBuf(iOffset + dim1 * (compactHaloInfo(idx) - 1) + i1)
@@ -697,7 +668,6 @@ module mpas_halo
             end if
         end do
 
-!        call mpas_log_write(' waiting on sends')
         do i = 1, group % nGroupSendNeighbors
             if (group % groupSendCounts(i) > 0) then
                 call MPI_Wait(group % sendRequests(i), MPI_STATUS_IGNORE, mpi_ierr)
@@ -1294,7 +1264,6 @@ module mpas_halo
     subroutine mpas_halo_aggregate_group_info(group, ierr)
 
         use mpas_derived_types, only : mpas_halo_group
-        use mpas_log, only : mpas_log_write
 
         type (mpas_halo_group), intent(inout) :: group
         integer, intent(out), optional :: ierr
@@ -1310,8 +1279,6 @@ module mpas_halo
         if (present(ierr)) then
             ierr = 0
         end if
-
-        call mpas_log_write('Aggregating info for halo exchange group '//trim(group % groupName))
 
 
         !
@@ -1568,26 +1535,6 @@ module mpas_halo
 
         deallocate(sendCounts)
         deallocate(recvCounts)
-
-!call mpas_log_write('>>>>>>')
-!call mpas_log_write('groupSendBufSize = $i', intArgs=[group % groupSendBufSize])
-!do j = 1, group % nGroupSendNeighbors
-!    call mpas_log_write('neigbor $i send offset/count = $i $i', intArgs=[j, group % groupSendOffsets(j), &
-!                        group % groupSendCounts(j)])
-!    do i = 1, group % nFields
-!        call mpas_log_write('  pack offset $i', intArgs=[group % groupPackOffsets(j, i)])
-!    end do
-!end do
-
-!call mpas_log_write('')
-!call mpas_log_write('groupRecvBufSize = $i', intArgs=[group % groupRecvBufSize])
-!do j = 1, group % nGroupRecvNeighbors
-!    call mpas_log_write('neigbor $i recv offset/count = $i $i', intArgs=[j, group % groupRecvOffsets(j), &
-!                        group % groupRecvCounts(j)])
-!    do i = 1, group % nFields
-!        call mpas_log_write('  unpack offset $i', intArgs=[group % groupUnpackOffsets(j, i)])
-!    end do
-!end do
 
     end subroutine mpas_halo_aggregate_group_info
 
