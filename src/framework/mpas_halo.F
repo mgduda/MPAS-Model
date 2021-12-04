@@ -485,9 +485,6 @@ module mpas_halo
         allocate(group % sendRequests(group % nGroupSendNeighbors))
         allocate(group % recvRequests(group % nGroupRecvNeighbors))
 
-group % sendBuf(:) = -1.0e38
-group % recvBuf(:) = -1.0e38
-
 
 !        call mpas_log_write(' posting MPI_IRecv')
 
@@ -496,13 +493,9 @@ group % recvBuf(:) = -1.0e38
                 bufstart = group % groupRecvOffsets(i)
                 bufend = group % groupRecvOffsets(i) + group % groupRecvCounts(i) - 1
 !TO DO: how do we determine appropriate type here?
-!TO DO: how should we set tag here?
                 call MPI_Irecv(group % recvBuf(bufstart:bufend), group % groupRecvCounts(i), MPI_REAL, &
                                group % groupRecvNeighbors(i), group % groupRecvNeighbors(i), domain % dminfo % comm, &
                                group % recvRequests(i), mpi_ierr)
-if (mpi_ierr /= MPI_SUCCESS) then
-call mpas_log_write('MPI_Irecv returned non-success $i', intArgs=[mpi_ierr])
-end if
             end if
         end do
 
@@ -523,7 +516,6 @@ end if
                 case (2)
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r2arr, timeLevel=group % fields(i) % timeLevel)
-!call mpas_log_write(' time level $i', intArgs=[group % fields(i) % timeLevel])
 
                     do iEndp = 1, nSendEndpts
                         ! Find this endpoint in the list of neighbors
@@ -531,14 +523,19 @@ end if
                             if (group % groupSendNeighbors(iNeighbor) == compactHaloInfo(idx)) exit
                         end do
                         idx = idx + 1
+!call mpas_log_write('  section of message for neighbor $i', intArgs=[group % groupSendNeighbors(iNeighbor)])
 
                         iOffset = group % groupPackOffsets(iNeighbor, i)
+!call mpas_log_write('  iOffset = $i', intArgs=[iOffset])
 
                         do iHalo = 1, compactHaloInfo(9)
+!call mpas_log_write('     halo layer $i', intArgs=[iHalo])
                             nList = compactHaloInfo(idx)
+!call mpas_log_write('     total cells $i (idx=$i)', intArgs=[nList, idx])
                             idx = idx + 1
 
                             do j = 1, nList
+!call mpas_log_write('     idx, src/dst = $i $i $i', intArgs=[idx, compactHaloInfo(idx), compactHaloInfo(idx + nList)])
                                 do i1 = 1, dim1
                                     group % sendBuf(iOffset + dim1 * (compactHaloInfo(idx + nList) - 1) + i1) = &
                                         group % fields(i) % r2arr(i1, compactHaloInfo(idx))
@@ -553,7 +550,6 @@ end if
 
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r3arr, group % fields(i) % timeLevel)
-!call mpas_log_write(' time level $i', intArgs=[group % fields(i) % timeLevel])
 
                     do iEndp = 1, compactHaloInfo(10)
                         ! Find this endpoint in the list of neighbors
@@ -597,13 +593,9 @@ end if
                 bufstart = group % groupSendOffsets(i)
                 bufend = group % groupSendOffsets(i) + group % groupSendCounts(i) - 1
 !TO DO: how do we determine appropriate type here?
-!TO DO: how should we set tag here?
                 call MPI_Isend(group % sendBuf(bufstart:bufend), group % groupSendCounts(i), MPI_REAL, &
                                group % groupSendNeighbors(i), domain % dminfo % my_proc_id, domain % dminfo % comm, &
                                group % sendRequests(i), mpi_ierr)
-if (mpi_ierr /= MPI_SUCCESS) then
-call mpas_log_write('MPI_Isend returned non-success $i', intArgs=[mpi_ierr])
-end if
             end if
         end do
 
@@ -611,9 +603,6 @@ end if
         do i = 1, group % nGroupRecvNeighbors
             if (group % groupRecvCounts(i) > 0) then
                 call MPI_Wait(group % recvRequests(i), MPI_STATUS_IGNORE, mpi_ierr)
-if (mpi_ierr /= MPI_SUCCESS) then
-call mpas_log_write('MPI_Wait returned non-success $i', intArgs=[mpi_ierr])
-end if
             end if
         end do
 
@@ -649,14 +638,19 @@ end if
                             if (group % groupRecvNeighbors(iNeighbor) == compactHaloInfo(idx)) exit
                         end do
                         idx = idx + 1
+!call mpas_log_write('  section of message from neighbor $i', intArgs=[group % groupRecvNeighbors(iNeighbor)])
 
                         iOffset = group % groupUnpackOffsets(iNeighbor, i)
+!call mpas_log_write('  iOffset = $i', intArgs=[iOffset])
 
                         do iHalo = 1, compactHaloInfo(9)
+!call mpas_log_write('     halo layer $i', intArgs=[iHalo])
                             nList = compactHaloInfo(idx)
+!call mpas_log_write('     total cells $i (idx=$i)', intArgs=[nList, idx])
                             idx = idx + 1
 
                             do j = 1, nList
+!call mpas_log_write('     idx, src/dst = $i $i $i', intArgs=[idx, compactHaloInfo(idx), compactHaloInfo(idx + nList)])
                                 do i1 = 1, dim1
                                     group % fields(i) % r2arr(i1, compactHaloInfo(idx + nList)) = &
                                         group % recvBuf(iOffset + dim1 * (compactHaloInfo(idx) - 1) + i1)
@@ -707,9 +701,6 @@ end if
         do i = 1, group % nGroupSendNeighbors
             if (group % groupSendCounts(i) > 0) then
                 call MPI_Wait(group % sendRequests(i), MPI_STATUS_IGNORE, mpi_ierr)
-if (mpi_ierr /= MPI_SUCCESS) then
-call mpas_log_write('MPI_Wait returned non-success $i', intArgs=[mpi_ierr])
-end if
             end if
         end do
 
@@ -759,7 +750,7 @@ end if
 
         ! Local variables
         integer :: infosize
-        integer :: i, iendpt, j
+        integer :: i, iendpt, j, ioffset
         integer :: idx
         integer :: nSendEndpoints
         integer :: maxSendEndpoints
@@ -928,6 +919,7 @@ end if
         do iendpt=1,nSendEndpoints
             compactHaloInfo(idx) = sendEndpoints(iendpt)
             idx = idx + 1
+            ioffset = 0
             do i=1,nHaloLayers
                 sendListCursor => field % sendList
                 do while (associated(sendListCursor))
@@ -940,8 +932,9 @@ end if
                             idx = idx + 1
                             compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList)
                             idx = idx + exchListPtr % nList
-                            compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList)
+                            compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList) + ioffset
                             idx = idx + exchListPtr % nList
+                            ioffset = ioffset + exchListPtr % nList
                             exit
                         end if
                         exchListPtr => exchListPtr % next
@@ -969,6 +962,7 @@ end if
         do iendpt=1,nRecvEndpoints
             compactHaloInfo(idx) = recvEndpoints(iendpt)
             idx = idx + 1
+            ioffset = 0
             do i=1,nHaloLayers
                 recvListCursor => field % recvList
                 do while (associated(recvListCursor))
@@ -979,10 +973,11 @@ end if
                             found = .true.
                             compactHaloInfo(idx) = exchListPtr % nList
                             idx = idx + 1
-                            compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList)
+                            compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList) + ioffset
                             idx = idx + exchListPtr % nList
                             compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList)
                             idx = idx + exchListPtr % nList
+                            ioffset = ioffset + exchListPtr % nList
                             exit
                         end if
                         exchListPtr => exchListPtr % next
@@ -1039,7 +1034,7 @@ end if
 
         ! Local variables
         integer :: infosize
-        integer :: i, iendpt, j
+        integer :: i, iendpt, j, ioffset
         integer :: idx
         integer :: nSendEndpoints
         integer :: maxSendEndpoints
@@ -1208,6 +1203,7 @@ end if
         do iendpt=1,nSendEndpoints
             compactHaloInfo(idx) = sendEndpoints(iendpt)
             idx = idx + 1
+            ioffset = 0
             do i=1,nHaloLayers
                 sendListCursor => field % sendList
                 do while (associated(sendListCursor))
@@ -1220,8 +1216,9 @@ end if
                             idx = idx + 1
                             compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList)
                             idx = idx + exchListPtr % nList
-                            compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList)
+                            compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList) + ioffset
                             idx = idx + exchListPtr % nList
+                            ioffset = ioffset + exchListPtr % nList
                             exit
                         end if
                         exchListPtr => exchListPtr % next
@@ -1249,6 +1246,7 @@ end if
         do iendpt=1,nRecvEndpoints
             compactHaloInfo(idx) = recvEndpoints(iendpt)
             idx = idx + 1
+            ioffset = 0
             do i=1,nHaloLayers
                 recvListCursor => field % recvList
                 do while (associated(recvListCursor))
@@ -1259,10 +1257,11 @@ end if
                             found = .true.
                             compactHaloInfo(idx) = exchListPtr % nList
                             idx = idx + 1
-                            compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList)
+                            compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList) + ioffset
                             idx = idx + exchListPtr % nList
                             compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList)
                             idx = idx + exchListPtr % nList
+                            ioffset = ioffset + exchListPtr % nList
                             exit
                         end if
                         exchListPtr => exchListPtr % next
@@ -1570,25 +1569,25 @@ end if
         deallocate(sendCounts)
         deallocate(recvCounts)
 
-call mpas_log_write('>>>>>>')
-call mpas_log_write('groupSendBufSize = $i', intArgs=[group % groupSendBufSize])
-do j = 1, group % nGroupSendNeighbors
-    call mpas_log_write('neigbor $i send offset/count = $i $i', intArgs=[j, group % groupSendOffsets(j), &
-                        group % groupSendCounts(j)])
-    do i = 1, group % nFields
-        call mpas_log_write('  pack offset $i', intArgs=[group % groupPackOffsets(j, i)])
-    end do
-end do
+!call mpas_log_write('>>>>>>')
+!call mpas_log_write('groupSendBufSize = $i', intArgs=[group % groupSendBufSize])
+!do j = 1, group % nGroupSendNeighbors
+!    call mpas_log_write('neigbor $i send offset/count = $i $i', intArgs=[j, group % groupSendOffsets(j), &
+!                        group % groupSendCounts(j)])
+!    do i = 1, group % nFields
+!        call mpas_log_write('  pack offset $i', intArgs=[group % groupPackOffsets(j, i)])
+!    end do
+!end do
 
-call mpas_log_write('')
-call mpas_log_write('groupRecvBufSize = $i', intArgs=[group % groupRecvBufSize])
-do j = 1, group % nGroupRecvNeighbors
-    call mpas_log_write('neigbor $i recv offset/count = $i $i', intArgs=[j, group % groupRecvOffsets(j), &
-                        group % groupRecvCounts(j)])
-    do i = 1, group % nFields
-        call mpas_log_write('  unpack offset $i', intArgs=[group % groupUnpackOffsets(j, i)])
-    end do
-end do
+!call mpas_log_write('')
+!call mpas_log_write('groupRecvBufSize = $i', intArgs=[group % groupRecvBufSize])
+!do j = 1, group % nGroupRecvNeighbors
+!    call mpas_log_write('neigbor $i recv offset/count = $i $i', intArgs=[j, group % groupRecvOffsets(j), &
+!                        group % groupRecvCounts(j)])
+!    do i = 1, group % nFields
+!        call mpas_log_write('  unpack offset $i', intArgs=[group % groupUnpackOffsets(j, i)])
+!    end do
+!end do
 
     end subroutine mpas_halo_aggregate_group_info
 
