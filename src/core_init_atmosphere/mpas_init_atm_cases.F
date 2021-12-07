@@ -90,6 +90,79 @@ module init_atm_cases
       integer, dimension(:), pointer :: bdyMaskCell
 
 
+      character(len=StrKIND) :: actualTimestamp
+      type (mpas_time_type) :: beforeTime, afterTime
+      type (mpas_timeinterval_type) :: beforeDelta, afterDelta, totalDelta
+      real (kind=RKIND), dimension(:), pointer :: foo, foo_temp
+      type (mpas_pool_type), pointer :: emissions
+      real (kind=RKIND) :: total_dt, before_dt, after_dt
+
+      !
+      ! Get a pointer to the 'foo' array in the 'emissions' pool/var_struct
+      !
+      call mpas_pool_get_subpool(domain % blocklist % structs, 'emissions', emissions)
+      call mpas_pool_get_array(emissions, 'foo', foo)
+
+      !
+      ! Read latest time slice from the file that is before (or equal to) the current time
+      !
+      call mpas_stream_mgr_read(stream_manager, 'CAMS_emissions', rightNow=.true., whence=MPAS_STREAM_LATEST_BEFORE, &
+                                actualWhen=actualTimestamp)
+      call mpas_log_write('latest time before is '//trim(actualTimestamp))
+      call mpas_log_write('maxval(foo) = $r', realArgs=[maxval(foo)])
+      call mpas_set_time(beforeTime, dateTimeString=trim(actualTimestamp))
+
+      !
+      ! Before reading the next time from the file, copy the foo array to a temporary array
+      ! for later use in interpolating
+      !
+      call mpas_pool_get_dimension(domain % blocklist % dimensions, 'nCells', nCells)
+      allocate(foo_temp(nCells+1))  ! Allocate the nCells+1 garbage cell, too
+      foo_temp(:) = foo(:)
+
+      !
+      ! Read earliest time slice from the file that is after (or equal to) the current time
+      !
+      call mpas_stream_mgr_read(stream_manager, 'CAMS_emissions', rightNow=.true., whence=MPAS_STREAM_EARLIEST_AFTER, &
+                                actualWhen=actualTimestamp)
+      call mpas_log_write('earliest time after is '//trim(actualTimestamp))
+      call mpas_log_write('maxval(foo) = $r', realArgs=[maxval(foo)])
+      call mpas_set_time(afterTime, dateTimeString=trim(actualTimestamp))
+
+      !
+      ! Get current time
+      !
+      curr_time = mpas_get_clock_time(domain % clock, MPAS_NOW)
+
+      !
+      ! Calculate time deltas between the times that were actually read and the current time
+      !
+      totalDelta = afterTime - beforeTime
+      beforeDelta = curr_time - beforeTime
+      afterDelta = afterTime - curr_time
+
+      !
+      ! Retrieve time deltas as real values
+      !
+      call mpas_get_timeInterval(totalDelta, dt=total_dt)
+      call mpas_get_timeInterval(beforeDelta, dt=before_dt)
+      call mpas_get_timeInterval(afterDelta, dt=after_dt)
+
+      !
+      ! At this point we should have the necessary information to compute linear interpolation
+      ! weights; if total_dt = 0, then no interpolation is necessary because an exact match for
+      ! the current time was read
+      !
+      call mpas_log_write('time deltas: $r $r $r', realArgs=[before_dt, after_dt, total_dt])
+
+      if (total_dt > 0.0_RKIND) then
+          foo(:) = (after_dt / total_dt) * foo_temp(:) + (before_dt / total_dt) * foo(:)
+          call mpas_log_write('interpolated maxval(foo) = $r', realArgs=[maxval(foo)])
+      end if
+
+      deallocate(foo_temp)
+
+
       call mpas_pool_get_config(domain % blocklist % configs, 'config_init_case', config_init_case)
 
       if ((config_init_case == 1) .or. (config_init_case == 2) .or. (config_init_case == 3)) then
