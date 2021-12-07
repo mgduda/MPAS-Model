@@ -159,6 +159,7 @@ module mpas_halo
         type (mpas_pool_type), pointer :: completedGroup
         type (mpas_pool_iterator_type) :: itr
         integer, dimension(:), pointer :: fieldHaloInfo
+        integer, dimension(:), pointer :: haloLayers
         type (mpas_halo_group), pointer :: newGroup
         type (field2DReal), pointer :: r2d
         type (field3DReal), pointer :: r3d
@@ -201,6 +202,8 @@ module mpas_halo
 
                 call mpas_pool_get_dimension(completedGroup, trim(itr % memberName)//'.timelevel', timeLevel)
 
+                call mpas_pool_get_dimension(completedGroup, trim(itr % memberName)//'.layers', haloLayers)
+
                 newGroup % fields(i) % nDims = fieldHaloInfo(2)
                 newGroup % fields(i) % timeLevel = timeLevel
 
@@ -215,10 +218,10 @@ module mpas_halo
                 if (fieldHaloInfo(1) == MPAS_POOL_REAL) then
                     if (fieldHaloInfo(2) == 2) then
                         call mpas_pool_get_field(completedGroup, trim(itr % memberName)//'.field', r2d)
-                        call mpas_halo_compact_halo_info(r2d, newGroup % fields(i) % compactHaloInfo)
+                        call mpas_halo_compact_halo_info(r2d, newGroup % fields(i) % compactHaloInfo, haloLayers)
                     else if (fieldHaloInfo(2) == 3) then
                         call mpas_pool_get_field(completedGroup, trim(itr % memberName)//'.field', r3d)
-                        call mpas_halo_compact_halo_info(r3d, newGroup % fields(i) % compactHaloInfo)
+                        call mpas_halo_compact_halo_info(r3d, newGroup % fields(i) % compactHaloInfo, haloLayers)
                     else
                         call mpas_log_write('Unsupported dimensionality for real field in mpas_halo_exch_group_complete.', &
                                             messageType=MPAS_LOG_CRIT)
@@ -708,7 +711,7 @@ module mpas_halo
     !>   13 - foreach (recv endpoint) { endPointID foreach (halolayer) {nList srcList(1:nList) destList(1:nList)} }
     !
     !-----------------------------------------------------------------------
-    subroutine mpas_halo_compact_halo_info_2d_real(field, compactHaloInfo)
+    subroutine mpas_halo_compact_halo_info_2d_real(field, compactHaloInfo, haloLayers)
 
         use mpas_derived_types, only : field2DReal, mpas_multihalo_exchange_list, mpas_exchange_list, MPAS_LOG_CRIT
         use mpas_log, only : mpas_log_write
@@ -717,6 +720,7 @@ module mpas_halo
 
         type (field2DReal), pointer :: field
         integer, dimension(:), pointer :: compactHaloInfo
+        integer, dimension(:), intent(in) :: haloLayers
 
         ! Local variables
         integer :: infosize
@@ -735,6 +739,8 @@ module mpas_halo
         integer, allocatable, dimension(:) :: recvEndpoints
         type (mpas_multihalo_exchange_list), pointer :: sendListCursor, recvListCursor
         type (mpas_exchange_list), pointer :: exchListPtr
+        integer :: activeHaloLayers
+        logical, dimension(:), allocatable :: useHalo
 
 
         !
@@ -747,6 +753,23 @@ module mpas_halo
         end if
 
         !
+        ! Create logical array indicating, for each halo layer, whether that halo layer should be
+        ! used in a halo exchange
+        !
+        allocate(useHalo(nHaloLayers))
+
+        if (haloLayers(1) == -1) then     ! Use all halo layers
+            useHalo(:) = .true.
+            activeHaloLayers = nHaloLayers
+        else
+            useHalo(:) = .false.
+            activeHaloLayers = size(haloLayers)
+            do i = 1, activeHaloLayers
+                useHalo(haloLayers(i)) = .true.
+            end do
+        end if
+
+        !
         ! Find the maximum number of "endpoints" that we will need to send to for any halo layer,
         ! as well as the total size of the send lists for all halo layers
         !
@@ -755,19 +778,21 @@ module mpas_halo
         sendListCursor => field % sendList
         do while (associated(sendListCursor))
             do i=1,nHaloLayers
-                nSendEndpoints = 0
-                exchListPtr => sendListCursor % halos(i) % exchList
-                do while (associated(exchListPtr))
-                    nSendEndpoints = nSendEndpoints + 1
-                    totSendListSize = totSendListSize + 2 * exchListPtr % nList    ! We have srcList and destList
-                    exchListPtr => exchListPtr % next
-                end do
-                maxSendEndpoints = max(nSendEndpoints, maxSendEndpoints)
+                if (useHalo(i)) then
+                    nSendEndpoints = 0
+                    exchListPtr => sendListCursor % halos(i) % exchList
+                    do while (associated(exchListPtr))
+                        nSendEndpoints = nSendEndpoints + 1
+                        totSendListSize = totSendListSize + 2 * exchListPtr % nList    ! We have srcList and destList
+                        exchListPtr => exchListPtr % next
+                    end do
+                    maxSendEndpoints = max(nSendEndpoints, maxSendEndpoints)
+                end if
             end do
             sendListCursor => sendListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
         end do
 
-        allocate(sendEndpoints(maxSendEndpoints * nHaloLayers))
+        allocate(sendEndpoints(maxSendEndpoints * activeHaloLayers))
 
         !
         ! Gather a list of the unique endpoints that we will need to send to
@@ -776,20 +801,22 @@ module mpas_halo
         sendListCursor => field % sendList
         do while (associated(sendListCursor))
             do i=1,nHaloLayers
-                exchListPtr => sendListCursor % halos(i) % exchList
-                do while (associated(exchListPtr))
+                if (useHalo(i)) then
+                    exchListPtr => sendListCursor % halos(i) % exchList
+                    do while (associated(exchListPtr))
  
-                    ! If the current endpoint is not already in the list, add it
-                    do j=1,nSendEndpoints
-                        if (exchListPtr % endPointID == sendEndpoints(j)) exit
-                    end do
-                    if (j > nSendEndpoints) then
-                        nSendEndpoints = nSendEndpoints + 1
-                        sendEndpoints(nSendEndpoints) = exchListPtr % endPointID
-                    end if
+                        ! If the current endpoint is not already in the list, add it
+                        do j=1,nSendEndpoints
+                            if (exchListPtr % endPointID == sendEndpoints(j)) exit
+                        end do
+                        if (j > nSendEndpoints) then
+                            nSendEndpoints = nSendEndpoints + 1
+                            sendEndpoints(nSendEndpoints) = exchListPtr % endPointID
+                        end if
 
-                    exchListPtr => exchListPtr % next
-                end do
+                        exchListPtr => exchListPtr % next
+                    end do
+                end if
             end do
             sendListCursor => sendListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
         end do
@@ -803,19 +830,21 @@ module mpas_halo
         recvListCursor => field % recvList
         do while (associated(recvListCursor))
             do i=1,nHaloLayers
-                nRecvEndpoints = 0
-                exchListPtr => recvListCursor % halos(i) % exchList
-                do while (associated(exchListPtr))
-                    nRecvEndpoints = nRecvEndpoints + 1
-                    totRecvListSize = totRecvListSize + 2 * exchListPtr % nList    ! We have srcList and destList
-                    exchListPtr => exchListPtr % next
-                end do
-                maxRecvEndpoints = max(nRecvEndpoints, maxRecvEndpoints)
+                if (useHalo(i)) then
+                    nRecvEndpoints = 0
+                    exchListPtr => recvListCursor % halos(i) % exchList
+                    do while (associated(exchListPtr))
+                        nRecvEndpoints = nRecvEndpoints + 1
+                        totRecvListSize = totRecvListSize + 2 * exchListPtr % nList    ! We have srcList and destList
+                        exchListPtr => exchListPtr % next
+                    end do
+                    maxRecvEndpoints = max(nRecvEndpoints, maxRecvEndpoints)
+                end if
             end do
             recvListCursor => recvListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
         end do
 
-        allocate(recvEndpoints(maxRecvEndpoints * nHaloLayers))
+        allocate(recvEndpoints(maxRecvEndpoints * activeHaloLayers))
 
         !
         ! Gather a list of the unique endpoints that we will need to receive from
@@ -824,20 +853,22 @@ module mpas_halo
         recvListCursor => field % recvList
         do while (associated(recvListCursor))
             do i=1,nHaloLayers
-                exchListPtr => recvListCursor % halos(i) % exchList
-                do while (associated(exchListPtr))
+                if (useHalo(i)) then
+                    exchListPtr => recvListCursor % halos(i) % exchList
+                    do while (associated(exchListPtr))
 
-                    ! If the current endpoint is not already in the list, add it
-                    do j=1,nRecvEndpoints
-                        if (exchListPtr % endPointID == recvEndpoints(j)) exit
+                        ! If the current endpoint is not already in the list, add it
+                        do j=1,nRecvEndpoints
+                            if (exchListPtr % endPointID == recvEndpoints(j)) exit
+                        end do
+                        if (j > nRecvEndpoints) then
+                            nRecvEndpoints = nRecvEndpoints + 1
+                            recvEndpoints(nRecvEndpoints) = exchListPtr % endPointID
+                        end if
+
+                        exchListPtr => exchListPtr % next
                     end do
-                    if (j > nRecvEndpoints) then
-                        nRecvEndpoints = nRecvEndpoints + 1
-                        recvEndpoints(nRecvEndpoints) = exchListPtr % endPointID
-                    end if
-
-                    exchListPtr => exchListPtr % next
-                end do
+                end if
             end do
             recvListCursor => recvListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
         end do
@@ -846,8 +877,8 @@ module mpas_halo
         !
         ! Compute the number of elements we will need in compactHaloInfo
         !
-        infosize = 11 + nSendEndpoints + nHaloLayers * nSendEndpoints + totSendListSize &
-                      + nRecvEndpoints + nHaloLayers * nRecvEndpoints + totRecvListSize
+        infosize = 11 + nSendEndpoints + activeHaloLayers * nSendEndpoints + totSendListSize &
+                      + nRecvEndpoints + activeHaloLayers * nRecvEndpoints + totRecvListSize
 
         allocate(compactHaloInfo(infosize))
         compactHaloInfo(:) = 0
@@ -874,7 +905,7 @@ module mpas_halo
         !
         ! 9: Add number of halo layers
         !
-        compactHaloInfo(idx) = nHaloLayers
+        compactHaloInfo(idx) = activeHaloLayers
         idx = idx + 1
 
         !
@@ -891,30 +922,32 @@ module mpas_halo
             idx = idx + 1
             ioffset = 0
             do i=1,nHaloLayers
-                sendListCursor => field % sendList
-                do while (associated(sendListCursor))
-                    found = .false.
-                    exchListPtr => sendListCursor % halos(i) % exchList
-                    do while (associated(exchListPtr))
-                        if (exchListPtr % endPointID == sendEndpoints(iendpt)) then
-                            found = .true.
-                            compactHaloInfo(idx) = exchListPtr % nList
+                if (useHalo(i)) then
+                    sendListCursor => field % sendList
+                    do while (associated(sendListCursor))
+                        found = .false.
+                        exchListPtr => sendListCursor % halos(i) % exchList
+                        do while (associated(exchListPtr))
+                            if (exchListPtr % endPointID == sendEndpoints(iendpt)) then
+                                found = .true.
+                                compactHaloInfo(idx) = exchListPtr % nList
+                                idx = idx + 1
+                                compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList)
+                                idx = idx + exchListPtr % nList
+                                compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList) + ioffset
+                                idx = idx + exchListPtr % nList
+                                ioffset = ioffset + exchListPtr % nList
+                                exit
+                            end if
+                            exchListPtr => exchListPtr % next
+                        end do
+                        if (.not. found) then
+                            compactHaloInfo(idx) = 0
                             idx = idx + 1
-                            compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList)
-                            idx = idx + exchListPtr % nList
-                            compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList) + ioffset
-                            idx = idx + exchListPtr % nList
-                            ioffset = ioffset + exchListPtr % nList
-                            exit
                         end if
-                        exchListPtr => exchListPtr % next
+                        sendListCursor => sendListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
                     end do
-                    if (.not. found) then
-                        compactHaloInfo(idx) = 0
-                        idx = idx + 1
-                    end if
-                    sendListCursor => sendListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
-                end do
+                end if
             end do
         end do
 
@@ -934,34 +967,38 @@ module mpas_halo
             idx = idx + 1
             ioffset = 0
             do i=1,nHaloLayers
-                recvListCursor => field % recvList
-                do while (associated(recvListCursor))
-                    found = .false.
-                    exchListPtr => recvListCursor % halos(i) % exchList
-                    do while (associated(exchListPtr))
-                        if (exchListPtr % endPointID == recvEndpoints(iendpt)) then
-                            found = .true.
-                            compactHaloInfo(idx) = exchListPtr % nList
+                if (useHalo(i)) then
+                    recvListCursor => field % recvList
+                    do while (associated(recvListCursor))
+                        found = .false.
+                        exchListPtr => recvListCursor % halos(i) % exchList
+                        do while (associated(exchListPtr))
+                            if (exchListPtr % endPointID == recvEndpoints(iendpt)) then
+                                found = .true.
+                                compactHaloInfo(idx) = exchListPtr % nList
+                                idx = idx + 1
+                                compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList) + ioffset
+                                idx = idx + exchListPtr % nList
+                                compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList)
+                                idx = idx + exchListPtr % nList
+                                ioffset = ioffset + exchListPtr % nList
+                                exit
+                            end if
+                            exchListPtr => exchListPtr % next
+                        end do
+                        if (.not. found) then
+                            compactHaloInfo(idx) = 0
                             idx = idx + 1
-                            compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList) + ioffset
-                            idx = idx + exchListPtr % nList
-                            compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList)
-                            idx = idx + exchListPtr % nList
-                            ioffset = ioffset + exchListPtr % nList
-                            exit
                         end if
-                        exchListPtr => exchListPtr % next
+                        recvListCursor => recvListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
                     end do
-                    if (.not. found) then
-                        compactHaloInfo(idx) = 0
-                        idx = idx + 1
-                    end if
-                    recvListCursor => recvListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
-                end do
+                end if
             end do
         end do
 
         deallocate(recvEndpoints)
+
+        deallocate(useHalo)
 
     end subroutine mpas_halo_compact_halo_info_2d_real
 
@@ -992,7 +1029,7 @@ module mpas_halo
     !>   13 - foreach (recv endpoint) { endPointID foreach (halolayer) {nList srcList(1:nList) destList(1:nList)} }
     !
     !-----------------------------------------------------------------------
-    subroutine mpas_halo_compact_halo_info_3d_real(field, compactHaloInfo)
+    subroutine mpas_halo_compact_halo_info_3d_real(field, compactHaloInfo, haloLayers)
 
         use mpas_derived_types, only : field3DReal, mpas_multihalo_exchange_list, mpas_exchange_list, MPAS_LOG_CRIT
         use mpas_log, only : mpas_log_write
@@ -1001,6 +1038,7 @@ module mpas_halo
 
         type (field3DReal), pointer :: field
         integer, dimension(:), pointer :: compactHaloInfo
+        integer, dimension(:), intent(in) :: haloLayers
 
         ! Local variables
         integer :: infosize
@@ -1019,6 +1057,8 @@ module mpas_halo
         integer, allocatable, dimension(:) :: recvEndpoints
         type (mpas_multihalo_exchange_list), pointer :: sendListCursor, recvListCursor
         type (mpas_exchange_list), pointer :: exchListPtr
+        integer :: activeHaloLayers
+        logical, dimension(:), allocatable :: useHalo
 
 
         !
@@ -1031,6 +1071,23 @@ module mpas_halo
         end if
 
         !
+        ! Create logical array indicating, for each halo layer, whether that halo layer should be
+        ! used in a halo exchange
+        !
+        allocate(useHalo(nHaloLayers))
+
+        if (haloLayers(1) == -1) then     ! Use all halo layers
+            useHalo(:) = .true.
+            activeHaloLayers = nHaloLayers
+        else
+            useHalo(:) = .false.
+            activeHaloLayers = size(haloLayers)
+            do i = 1, activeHaloLayers
+                useHalo(haloLayers(i)) = .true.
+            end do
+        end if
+
+        !
         ! Find the maximum number of "endpoints" that we will need to send to for any halo layer,
         ! as well as the total size of the send lists for all halo layers
         !
@@ -1039,19 +1096,21 @@ module mpas_halo
         sendListCursor => field % sendList
         do while (associated(sendListCursor))
             do i=1,nHaloLayers
-                nSendEndpoints = 0
-                exchListPtr => sendListCursor % halos(i) % exchList
-                do while (associated(exchListPtr))
-                    nSendEndpoints = nSendEndpoints + 1
-                    totSendListSize = totSendListSize + 2 * exchListPtr % nList    ! We have srcList and destList
-                    exchListPtr => exchListPtr % next
-                end do
-                maxSendEndpoints = max(nSendEndpoints, maxSendEndpoints)
+                if (useHalo(i)) then
+                    nSendEndpoints = 0
+                    exchListPtr => sendListCursor % halos(i) % exchList
+                    do while (associated(exchListPtr))
+                        nSendEndpoints = nSendEndpoints + 1
+                        totSendListSize = totSendListSize + 2 * exchListPtr % nList    ! We have srcList and destList
+                        exchListPtr => exchListPtr % next
+                    end do
+                    maxSendEndpoints = max(nSendEndpoints, maxSendEndpoints)
+                end if
             end do
             sendListCursor => sendListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
         end do
 
-        allocate(sendEndpoints(maxSendEndpoints * nHaloLayers))
+        allocate(sendEndpoints(maxSendEndpoints * activeHaloLayers))
 
         !
         ! Gather a list of the unique endpoints that we will need to send to
@@ -1060,20 +1119,22 @@ module mpas_halo
         sendListCursor => field % sendList
         do while (associated(sendListCursor))
             do i=1,nHaloLayers
-                exchListPtr => sendListCursor % halos(i) % exchList
-                do while (associated(exchListPtr))
+                if (useHalo(i)) then
+                    exchListPtr => sendListCursor % halos(i) % exchList
+                    do while (associated(exchListPtr))
 
-                    ! If the current endpoint is not already in the list, add it
-                    do j=1,nSendEndpoints
-                        if (exchListPtr % endPointID == sendEndpoints(j)) exit
+                        ! If the current endpoint is not already in the list, add it
+                        do j=1,nSendEndpoints
+                            if (exchListPtr % endPointID == sendEndpoints(j)) exit
+                        end do
+                        if (j > nSendEndpoints) then
+                            nSendEndpoints = nSendEndpoints + 1
+                            sendEndpoints(nSendEndpoints) = exchListPtr % endPointID
+                        end if
+
+                        exchListPtr => exchListPtr % next
                     end do
-                    if (j > nSendEndpoints) then
-                        nSendEndpoints = nSendEndpoints + 1
-                        sendEndpoints(nSendEndpoints) = exchListPtr % endPointID
-                    end if
-
-                    exchListPtr => exchListPtr % next
-                end do
+                end if
             end do
             sendListCursor => sendListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
         end do
@@ -1087,19 +1148,21 @@ module mpas_halo
         recvListCursor => field % recvList
         do while (associated(recvListCursor))
             do i=1,nHaloLayers
-                nRecvEndpoints = 0
-                exchListPtr => recvListCursor % halos(i) % exchList
-                do while (associated(exchListPtr))
-                    nRecvEndpoints = nRecvEndpoints + 1
-                    totRecvListSize = totRecvListSize + 2 * exchListPtr % nList    ! We have srcList and destList
-                    exchListPtr => exchListPtr % next
-                end do
-                maxRecvEndpoints = max(nRecvEndpoints, maxRecvEndpoints)
+                if (useHalo(i)) then
+                    nRecvEndpoints = 0
+                    exchListPtr => recvListCursor % halos(i) % exchList
+                    do while (associated(exchListPtr))
+                        nRecvEndpoints = nRecvEndpoints + 1
+                        totRecvListSize = totRecvListSize + 2 * exchListPtr % nList    ! We have srcList and destList
+                        exchListPtr => exchListPtr % next
+                    end do
+                    maxRecvEndpoints = max(nRecvEndpoints, maxRecvEndpoints)
+                end if
             end do
             recvListCursor => recvListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
         end do
 
-        allocate(recvEndpoints(maxRecvEndpoints * nHaloLayers))
+        allocate(recvEndpoints(maxRecvEndpoints * activeHaloLayers))
 
         !
         ! Gather a list of the unique endpoints that we will need to receive from
@@ -1108,20 +1171,22 @@ module mpas_halo
         recvListCursor => field % recvList
         do while (associated(recvListCursor))
             do i=1,nHaloLayers
-                exchListPtr => recvListCursor % halos(i) % exchList
-                do while (associated(exchListPtr))
+                if (useHalo(i)) then
+                    exchListPtr => recvListCursor % halos(i) % exchList
+                    do while (associated(exchListPtr))
 
-                    ! If the current endpoint is not already in the list, add it
-                    do j=1,nRecvEndpoints
-                        if (exchListPtr % endPointID == recvEndpoints(j)) exit
+                        ! If the current endpoint is not already in the list, add it
+                        do j=1,nRecvEndpoints
+                            if (exchListPtr % endPointID == recvEndpoints(j)) exit
+                        end do
+                        if (j > nRecvEndpoints) then
+                            nRecvEndpoints = nRecvEndpoints + 1
+                            recvEndpoints(nRecvEndpoints) = exchListPtr % endPointID
+                        end if
+
+                        exchListPtr => exchListPtr % next
                     end do
-                    if (j > nRecvEndpoints) then
-                        nRecvEndpoints = nRecvEndpoints + 1
-                        recvEndpoints(nRecvEndpoints) = exchListPtr % endPointID
-                    end if
-
-                    exchListPtr => exchListPtr % next
-                end do
+                end if
             end do
             recvListCursor => recvListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
         end do
@@ -1130,8 +1195,8 @@ module mpas_halo
         !
         ! Compute the number of elements we will need in compactHaloInfo
         !
-        infosize = 11 + nSendEndpoints + nHaloLayers * nSendEndpoints + totSendListSize &
-                      + nRecvEndpoints + nHaloLayers * nRecvEndpoints + totRecvListSize
+        infosize = 11 + nSendEndpoints + activeHaloLayers * nSendEndpoints + totSendListSize &
+                      + nRecvEndpoints + activeHaloLayers * nRecvEndpoints + totRecvListSize
 
         allocate(compactHaloInfo(infosize))
         compactHaloInfo(:) = 0
@@ -1158,7 +1223,7 @@ module mpas_halo
         !
         ! 9: Add number of halo layers
         !
-        compactHaloInfo(idx) = nHaloLayers
+        compactHaloInfo(idx) = activeHaloLayers
         idx = idx + 1
 
         !
@@ -1175,30 +1240,32 @@ module mpas_halo
             idx = idx + 1
             ioffset = 0
             do i=1,nHaloLayers
-                sendListCursor => field % sendList
-                do while (associated(sendListCursor))
-                    found = .false.
-                    exchListPtr => sendListCursor % halos(i) % exchList
-                    do while (associated(exchListPtr))
-                        if (exchListPtr % endPointID == sendEndpoints(iendpt)) then
-                            found = .true.
-                            compactHaloInfo(idx) = exchListPtr % nList
-                            idx = idx + 1
-                            compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList)
-                            idx = idx + exchListPtr % nList
-                            compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList) + ioffset
-                            idx = idx + exchListPtr % nList
-                            ioffset = ioffset + exchListPtr % nList
-                            exit
+                if (useHalo(i)) then
+                    sendListCursor => field % sendList
+                    do while (associated(sendListCursor))
+                        found = .false.
+                        exchListPtr => sendListCursor % halos(i) % exchList
+                        do while (associated(exchListPtr))
+                            if (exchListPtr % endPointID == sendEndpoints(iendpt)) then
+                                found = .true.
+                                compactHaloInfo(idx) = exchListPtr % nList
+                                idx = idx + 1
+                                compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList)
+                                idx = idx + exchListPtr % nList
+                                compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList) + ioffset
+                                idx = idx + exchListPtr % nList
+                                ioffset = ioffset + exchListPtr % nList
+                                exit
+                            end if
+                            exchListPtr => exchListPtr % next
+                        end do
+                        if (.not. found) then
+                           compactHaloInfo(idx) = 0
+                           idx = idx + 1
                         end if
-                        exchListPtr => exchListPtr % next
+                        sendListCursor => sendListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
                     end do
-                    if (.not. found) then
-                       compactHaloInfo(idx) = 0
-                       idx = idx + 1
-                    end if
-                    sendListCursor => sendListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
-                end do
+                end if
             end do
         end do
 
@@ -1218,34 +1285,38 @@ module mpas_halo
             idx = idx + 1
             ioffset = 0
             do i=1,nHaloLayers
-                recvListCursor => field % recvList
-                do while (associated(recvListCursor))
-                    found = .false.
-                    exchListPtr => recvListCursor % halos(i) % exchList
-                    do while (associated(exchListPtr))
-                        if (exchListPtr % endPointID == recvEndpoints(iendpt)) then
-                            found = .true.
-                            compactHaloInfo(idx) = exchListPtr % nList
+                if (useHalo(i)) then
+                    recvListCursor => field % recvList
+                    do while (associated(recvListCursor))
+                        found = .false.
+                        exchListPtr => recvListCursor % halos(i) % exchList
+                        do while (associated(exchListPtr))
+                            if (exchListPtr % endPointID == recvEndpoints(iendpt)) then
+                                found = .true.
+                                compactHaloInfo(idx) = exchListPtr % nList
+                                idx = idx + 1
+                                compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList) + ioffset
+                                idx = idx + exchListPtr % nList
+                                compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList)
+                                idx = idx + exchListPtr % nList
+                                ioffset = ioffset + exchListPtr % nList
+                                exit
+                            end if
+                            exchListPtr => exchListPtr % next
+                        end do
+                        if (.not. found) then
+                            compactHaloInfo(idx) = 0
                             idx = idx + 1
-                            compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList) + ioffset
-                            idx = idx + exchListPtr % nList
-                            compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList)
-                            idx = idx + exchListPtr % nList
-                            ioffset = ioffset + exchListPtr % nList
-                            exit
                         end if
-                        exchListPtr => exchListPtr % next
+                        recvListCursor => recvListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
                     end do
-                    if (.not. found) then
-                        compactHaloInfo(idx) = 0
-                        idx = idx + 1
-                    end if
-                    recvListCursor => recvListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
-                end do
+                end if
             end do
         end do
 
         deallocate(recvEndpoints)
+
+        deallocate(useHalo)
 
     end subroutine mpas_halo_compact_halo_info_3d_real
 
@@ -1279,7 +1350,6 @@ module mpas_halo
         if (present(ierr)) then
             ierr = 0
         end if
-
 
         !
         ! Compute an upper bound on the number of send and recv neighbors for this group
@@ -1443,7 +1513,7 @@ module mpas_halo
         group % groupRecvOffsets(:) = -1
         group % groupRecvCounts(:) = -1
 
-        allocate(sendCounts(group % nGroupRecvNeighbors, group % nFields))
+        allocate(sendCounts(group % nGroupSendNeighbors, group % nFields))
         allocate(recvCounts(group % nGroupRecvNeighbors, group % nFields))
         sendCounts(:,:) = 0
         recvCounts(:,:) = 0
@@ -1504,30 +1574,47 @@ module mpas_halo
 
         do j = 1, group % nGroupSendNeighbors
             group % groupPackOffsets(j, 1) = 0
-            group % groupUnpackOffsets(j, 1) = 0
             do i = 2, group % nFields
                 group % groupPackOffsets(j, i) = group % groupPackOffsets(j, i-1) + sendCounts(j, i-1)
+            end do
+        end do
+
+        do j = 1, group % nGroupRecvNeighbors
+            group % groupUnpackOffsets(j, 1) = 0
+            do i = 2, group % nFields
                 group % groupUnpackOffsets(j, i) = group % groupUnpackOffsets(j, i-1) + recvCounts(j, i-1)
             end do
         end do
 
         do j = 1, group % nGroupSendNeighbors
             group % groupSendCounts(j) = 0
-            group % groupRecvCounts(j) = 0
             do i = 1, group % nFields
                 group % groupSendCounts(j) = group % groupSendCounts(j) + sendCounts(j, i)
-                group % groupRecvCounts(j) = group % groupRecvCounts(j) + recvCounts(j, i)
             end do
 
             if (j == 1) then
                 group % groupSendOffsets(j) = 1
-                group % groupRecvOffsets(j) = 1
             else
                 group % groupSendOffsets(j) = group % groupSendOffsets(j-1) + group % groupSendCounts(j-1)
-                group % groupRecvOffsets(j) = group % groupRecvOffsets(j-1) + group % groupRecvCounts(j-1)
 
                 do i = 1, group % nFields
                     group % groupPackOffsets(j, i) = group % groupPackOffsets(j, i) + group % groupSendOffsets(j) - 1
+                end do
+            end if
+        end do
+
+        do j = 1, group % nGroupRecvNeighbors
+            group % groupRecvCounts(j) = 0
+            do i = 1, group % nFields
+                group % groupRecvCounts(j) = group % groupRecvCounts(j) + recvCounts(j, i)
+            end do
+
+            if (j == 1) then
+                group % groupRecvOffsets(j) = 1
+            else
+                group % groupRecvOffsets(j) = group % groupRecvOffsets(j-1) + group % groupRecvCounts(j-1)
+
+                do i = 1, group % nFields
                     group % groupUnpackOffsets(j, i) = group % groupUnpackOffsets(j, i) + group % groupRecvOffsets(j) - 1
                 end do
             end if
