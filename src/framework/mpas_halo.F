@@ -445,6 +445,7 @@ module mpas_halo
         integer :: iHalo, iEndp, iOffset
         integer :: nSendEndpts, nRecvEndpts
         integer :: idx, nList
+        integer :: mpi_rank, mpi_comm
         integer :: mpi_ierr
         type (mpas_halo_group), pointer :: group
         integer, dimension(:), pointer :: compactHaloInfo
@@ -467,6 +468,14 @@ module mpas_halo
                                 messageType=MPAS_LOG_CRIT)
         end if
 
+        !
+        ! Get the rank of this task and the MPI communicator to use from the first field in
+        ! the group; all fields should be using the same communicator, so this should not
+        ! be problematic
+        !
+        mpi_comm = group % fields(1) % compactHaloInfo(7)
+        mpi_rank = group % fields(1) % compactHaloInfo(8)
+
         allocate(group % sendBuf(group % groupSendBufSize))
         allocate(group % recvBuf(group % groupRecvBufSize))
         allocate(group % sendRequests(group % nGroupSendNeighbors))
@@ -479,7 +488,7 @@ module mpas_halo
                 bufend = group % groupRecvOffsets(i) + group % groupRecvCounts(i) - 1
 !TO DO: how do we determine appropriate type here?
                 call MPI_Irecv(group % recvBuf(bufstart:bufend), group % groupRecvCounts(i), MPI_REAL, &
-                               group % groupRecvNeighbors(i), group % groupRecvNeighbors(i), domain % dminfo % comm, &
+                               group % groupRecvNeighbors(i), group % groupRecvNeighbors(i), mpi_comm, &
                                group % recvRequests(i), mpi_ierr)
             end if
         end do
@@ -572,7 +581,7 @@ module mpas_halo
                 bufend = group % groupSendOffsets(i) + group % groupSendCounts(i) - 1
 !TO DO: how do we determine appropriate type here?
                 call MPI_Isend(group % sendBuf(bufstart:bufend), group % groupSendCounts(i), MPI_REAL, &
-                               group % groupSendNeighbors(i), domain % dminfo % my_proc_id, domain % dminfo % comm, &
+                               group % groupSendNeighbors(i), mpi_rank, mpi_comm, &
                                group % sendRequests(i), mpi_ierr)
             end if
         end do
