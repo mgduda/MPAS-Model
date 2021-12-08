@@ -235,6 +235,14 @@ module mpas_halo
 
         call mpas_halo_aggregate_group_info(newGroup)
 
+        !
+        ! Pre-allocate buffers and MPI request lists
+        !
+        allocate(newGroup % sendBuf(newGroup % groupSendBufSize))
+        allocate(newGroup % recvBuf(newGroup % groupRecvBufSize))
+        allocate(newGroup % sendRequests(newGroup % nGroupSendNeighbors))
+        allocate(newGroup % recvRequests(newGroup % nGroupRecvNeighbors))
+
         call mpas_pool_destroy_pool(completedGroup)
         call mpas_pool_remove_subpool(domain % haloGroupPool, groupName)
 
@@ -309,6 +317,10 @@ module mpas_halo
         deallocate(cursor % groupRecvNeighbors)
         deallocate(cursor % groupRecvOffsets)
         deallocate(cursor % groupRecvCounts)
+        deallocate(cursor % sendBuf)
+        deallocate(cursor % recvBuf)
+        deallocate(cursor % sendRequests)
+        deallocate(cursor % recvRequests)
         deallocate(cursor)
 
     end subroutine mpas_halo_exch_group_destroy
@@ -475,11 +487,6 @@ module mpas_halo
         !
         mpi_comm = group % fields(1) % compactHaloInfo(7)
         mpi_rank = group % fields(1) % compactHaloInfo(8)
-
-        allocate(group % sendBuf(group % groupSendBufSize))
-        allocate(group % recvBuf(group % groupRecvBufSize))
-        allocate(group % sendRequests(group % nGroupSendNeighbors))
-        allocate(group % recvRequests(group % nGroupRecvNeighbors))
 
 
         do i = 1, group % nGroupRecvNeighbors
@@ -682,11 +689,6 @@ module mpas_halo
                 call MPI_Wait(group % sendRequests(i), MPI_STATUS_IGNORE, mpi_ierr)
             end if
         end do
-
-        deallocate(group % sendBuf)
-        deallocate(group % recvBuf)
-        deallocate(group % sendRequests)
-        deallocate(group % recvRequests)
 
     end subroutine mpas_halo_exch_group_full_halo_exch
 
