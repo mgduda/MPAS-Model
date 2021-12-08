@@ -1891,7 +1891,7 @@ module mpas_atm_dissipation_models
 
 !                 call flux_les_sas( heat_flux, moisture_flux, time_of_day_seconds )
                   heat_flux = hfx(iCell)/rho_zz(1,iCell)/cp
-                  moisture_flux = qfx(iCell)
+                  moisture_flux = qfx(iCell)/rho_zz(1,iCell)
                   if(iCell == 1) call mpas_log_write(' SAS t and qv fluxes, $r, $r ', realArgs=(/heat_flux, moisture_flux/))
 
                   theta_m_flux = heat_flux*(1.0+(rv/rgas)*qv_cell)+(rv/rgas)*theta_cell*moisture_flux
