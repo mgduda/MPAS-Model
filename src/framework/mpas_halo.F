@@ -214,11 +214,17 @@ module mpas_halo
                     if (fieldHaloInfo(2) == 2) then
                         call mpas_pool_get_field(completedGroup, trim(itr % memberName)//'.field', r2d)
                         call mpas_halo_compact_halo_info(domain, r2d % sendList, r2d % recvList, r2d % dimSizes, &
-                                                         newGroup % fields(i) % compactHaloInfo, haloLayers)
+                                                         haloLayers, &
+                                                         newGroup % fields(i) % compactHaloInfo, &
+                                                         newGroup % fields(i) % compactSendLists, &
+                                                         newGroup % fields(i) % compactRecvLists)
                     else if (fieldHaloInfo(2) == 3) then
                         call mpas_pool_get_field(completedGroup, trim(itr % memberName)//'.field', r3d)
                         call mpas_halo_compact_halo_info(domain, r3d % sendList, r3d % recvList, r3d % dimSizes, &
-                                                         newGroup % fields(i) % compactHaloInfo, haloLayers)
+                                                         haloLayers, &
+                                                         newGroup % fields(i) % compactHaloInfo, &
+                                                         newGroup % fields(i) % compactSendLists, &
+                                                         newGroup % fields(i) % compactRecvLists)
                     else
                         call mpas_log_write('Unsupported dimensionality for real field in mpas_halo_exch_group_complete.', &
                                             messageType=MPAS_LOG_CRIT)
@@ -307,6 +313,8 @@ module mpas_halo
         !
         do i = 1, cursor % nFields
             deallocate(cursor % fields(i) % compactHaloInfo)
+            deallocate(cursor % fields(i) % compactSendLists)
+            deallocate(cursor % fields(i) % compactRecvLists)
         end do
         deallocate(cursor % fields)
         deallocate(cursor % groupPackOffsets)
@@ -452,15 +460,17 @@ module mpas_halo
 
         ! Local variables
         integer :: i, bufstart, bufend
-        integer :: dim1, dim2, dim3
-        integer :: i1, i2, i3, iNeighbor, j
+        integer :: dim1, dim2
+        integer :: i1, i2, iNeighbor, j
         integer :: iHalo, iEndp, iOffset
-        integer :: nSendEndpts, nRecvEndpts
+        integer :: nHalos, nSendEndpts, nRecvEndpts
         integer :: idx, nList
         integer :: mpi_rank, mpi_comm
         integer :: mpi_ierr
         type (mpas_halo_group), pointer :: group
         integer, dimension(:), pointer :: compactHaloInfo
+        integer, dimension(:), pointer :: compactSendLists
+        integer, dimension(:), pointer :: compactRecvLists
 
 
         !
@@ -503,14 +513,15 @@ module mpas_halo
         do i = 1, group % nFields
 
             compactHaloInfo => group % fields(i) % compactHaloInfo
+            compactSendLists => group % fields(i) % compactSendLists
 
             if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
                 dim1 = compactHaloInfo(2)
                 dim2 = compactHaloInfo(3)
-                dim3 = compactHaloInfo(4)
 
+                nHalos = compactHaloInfo(9)
                 nSendEndpts = compactHaloInfo(10)
-                idx = 11
+                idx = 1
 
                 select case (group % fields(i) % nDims)
                 case (2)
@@ -518,22 +529,23 @@ module mpas_halo
                                              group % fields(i) % r2arr, timeLevel=group % fields(i) % timeLevel)
 
                     do iEndp = 1, nSendEndpts
+
                         ! Find this endpoint in the list of neighbors
                         do iNeighbor = 1, group % nGroupSendNeighbors
-                            if (group % groupSendNeighbors(iNeighbor) == compactHaloInfo(idx)) exit
+                            if (group % groupSendNeighbors(iNeighbor) == compactSendLists(idx)) exit
                         end do
                         idx = idx + 1
 
                         iOffset = group % groupPackOffsets(iNeighbor, i)
 
-                        do iHalo = 1, compactHaloInfo(9)
-                            nList = compactHaloInfo(idx)
+                        do iHalo = 1, nHalos
+                            nList = compactSendLists(idx)
                             idx = idx + 1
 
                             do j = 1, nList
                                 do i1 = 1, dim1
-                                    group % sendBuf(iOffset + dim1 * (compactHaloInfo(idx + nList) - 1) + i1) = &
-                                        group % fields(i) % r2arr(i1, compactHaloInfo(idx))
+                                    group % sendBuf(iOffset + dim1 * (compactSendLists(idx + nList) - 1) + i1) = &
+                                        group % fields(i) % r2arr(i1, compactSendLists(idx))
                                 end do
                                 idx = idx + 1
                             end do
@@ -546,24 +558,25 @@ module mpas_halo
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r3arr, group % fields(i) % timeLevel)
 
-                    do iEndp = 1, compactHaloInfo(10)
+                    do iEndp = 1, nSendEndpts
+
                         ! Find this endpoint in the list of neighbors
                         do iNeighbor = 1, group % nGroupSendNeighbors
-                            if (group % groupSendNeighbors(iNeighbor) == compactHaloInfo(idx)) exit
+                            if (group % groupSendNeighbors(iNeighbor) == compactSendLists(idx)) exit
                         end do
                         idx = idx + 1
 
                         iOffset = group % groupPackOffsets(iNeighbor, i)
 
-                        do iHalo = 1, compactHaloInfo(9)
-                            nList = compactHaloInfo(idx)
+                        do iHalo = 1, nHalos
+                            nList = compactSendLists(idx)
                             idx = idx + 1
 
                             do j = 1, nList
                                 do i2 = 1, dim2
                                 do i1 = 1, dim1
-                                    group % sendBuf(iOffset + dim1 * dim2 * (compactHaloInfo(idx + nList) - 1) + dim1 * (i2 - 1) + i1) = &
-                                        group % fields(i) % r3arr(i1, i2, compactHaloInfo(idx))
+                                    group % sendBuf(iOffset + dim1 * dim2 * (compactSendLists(idx + nList) - 1) + dim1 * (i2 - 1) + i1) = &
+                                        group % fields(i) % r3arr(i1, i2, compactSendLists(idx))
                                 end do
                                 end do
                                 idx = idx + 1
@@ -602,45 +615,36 @@ module mpas_halo
         do i = 1, group % nFields
 
             compactHaloInfo => group % fields(i) % compactHaloInfo
+            compactRecvLists => group % fields(i) % compactRecvLists
 
             if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
                 dim1 = compactHaloInfo(2)
                 dim2 = compactHaloInfo(3)
-                dim3 = compactHaloInfo(4)
 
-                nSendEndpts = compactHaloInfo(10)
-                idx = 11
-                do iendp = 1, nSendEndpts
-                    idx = idx + 1                ! skip over endPointID
-                    do ihalo = 1, compactHaloInfo(9)
-                        nlist = compactHaloInfo(idx)
-                        idx = idx + 1            ! skip over nList
-                        idx = idx + 2 * nlist    ! skip over srcList and destList
-                    end do
-                end do
-
-                nRecvEndpts = compactHaloInfo(idx)
-                idx = idx + 1
+                nHalos = compactHaloInfo(9)
+                nRecvEndpts = compactHaloInfo(11)
+                idx = 1
 
                 select case (group % fields(i) % nDims)
                 case (2)
                     do iEndp = 1, nRecvEndpts
+
                         ! Find this endpoint in the list of neighbors
                         do iNeighbor = 1, group % nGroupRecvNeighbors
-                            if (group % groupRecvNeighbors(iNeighbor) == compactHaloInfo(idx)) exit
+                            if (group % groupRecvNeighbors(iNeighbor) == compactRecvLists(idx)) exit
                         end do
                         idx = idx + 1
 
                         iOffset = group % groupUnpackOffsets(iNeighbor, i)
 
-                        do iHalo = 1, compactHaloInfo(9)
-                            nList = compactHaloInfo(idx)
+                        do iHalo = 1, nHalos
+                            nList = compactRecvLists(idx)
                             idx = idx + 1
 
                             do j = 1, nList
                                 do i1 = 1, dim1
-                                    group % fields(i) % r2arr(i1, compactHaloInfo(idx + nList)) = &
-                                        group % recvBuf(iOffset + dim1 * (compactHaloInfo(idx) - 1) + i1)
+                                    group % fields(i) % r2arr(i1, compactRecvLists(idx + nList)) = &
+                                        group % recvBuf(iOffset + dim1 * (compactRecvLists(idx) - 1) + i1)
                                 end do
                                 idx = idx + 1
                             end do
@@ -650,23 +654,24 @@ module mpas_halo
 
                 case (3)
                     do iEndp = 1, nRecvEndpts
+
                         ! Find this endpoint in the list of neighbors
                         do iNeighbor = 1, group % nGroupRecvNeighbors
-                            if (group % groupRecvNeighbors(iNeighbor) == compactHaloInfo(idx)) exit
+                            if (group % groupRecvNeighbors(iNeighbor) == compactRecvLists(idx)) exit
                         end do
                         idx = idx + 1
 
                         iOffset = group % groupUnpackOffsets(iNeighbor, i)
 
-                        do iHalo = 1, compactHaloInfo(9)
-                            nList = compactHaloInfo(idx)
+                        do iHalo = 1, nHalos
+                            nList = compactRecvLists(idx)
                             idx = idx + 1
 
                             do j = 1, nList
                                 do i2 = 1, dim2
                                 do i1 = 1, dim1
-                                    group % fields(i) % r3arr(i1, i2, compactHaloInfo(idx + nList)) = &
-                                        group % recvBuf(iOffset + dim1 * dim2 * (compactHaloInfo(idx) - 1) + dim1 * (i2 - 1) + i1)
+                                    group % fields(i) % r3arr(i1, i2, compactRecvLists(idx + nList)) = &
+                                        group % recvBuf(iOffset + dim1 * dim2 * (compactRecvLists(idx) - 1) + dim1 * (i2 - 1) + i1)
                                 end do
                                 end do
                                 idx = idx + 1
@@ -674,6 +679,7 @@ module mpas_halo
                             idx = idx + nList
                         end do
                     end do
+
                 case default
                     call mpas_log_write('Only 2-d and 3-d fields are supported by mpas_halo_exch_group_full_halo_exch', &
                                     messageType=MPAS_LOG_CRIT)
@@ -714,12 +720,15 @@ module mpas_halo
     !>    8 - The MPI rank of the current process
     !>    9 - The number of halo layers for the field
     !>   10 - The number of endpoints to send to
-    !>   11 - foreach (send endpoint) { endPointID foreach (halolayer) {nList srcList(1:nList) destList(1:nList)} }
-    !>   12 - The number of endpoints to recv from
-    !>   13 - foreach (recv endpoint) { endPointID foreach (halolayer) {nList srcList(1:nList) destList(1:nList)} }
+    !>   11 - The number of endpoints to recv from
+    !>
+    !>  The compactSendLists and compactRecvLists arrays have the following elements:
+    !>   foreach (send endpoint) { endPointID foreach (halolayer) {nList srcList(1:nList) destList(1:nList)} }
+    !>   foreach (recv endpoint) { endPointID foreach (halolayer) {nList srcList(1:nList) destList(1:nList)} }
     !
     !-----------------------------------------------------------------------
-    subroutine mpas_halo_compact_halo_info(domain, sendList, recvList, dimSizes, compactHaloInfo, haloLayers)
+    subroutine mpas_halo_compact_halo_info(domain, sendList, recvList, dimSizes, haloLayers, &
+                                           compactHaloInfo, compactSendLists, compactRecvLists)
 
         use mpas_derived_types, only : domain_type, mpas_multihalo_exchange_list, mpas_exchange_list, MPAS_LOG_CRIT
         use mpas_log, only : mpas_log_write
@@ -730,11 +739,12 @@ module mpas_halo
         type (mpas_multihalo_exchange_list), pointer :: sendList
         type (mpas_multihalo_exchange_list), pointer :: recvList
         integer, dimension(:), intent(in) :: dimsizes
-        integer, dimension(:), pointer :: compactHaloInfo
         integer, dimension(:), intent(in) :: haloLayers
+        integer, dimension(:), pointer :: compactHaloInfo
+        integer, dimension(:), pointer :: compactSendLists
+        integer, dimension(:), pointer :: compactRecvLists
 
         ! Local variables
-        integer :: infosize
         integer :: i, iendpt, j, ioffset
         integer :: idx
         integer :: nSendEndpoints
@@ -888,11 +898,13 @@ module mpas_halo
         !
         ! Compute the number of elements we will need in compactHaloInfo
         !
-        infosize = 11 + nSendEndpoints + activeHaloLayers * nSendEndpoints + totSendListSize &
-                      + nRecvEndpoints + activeHaloLayers * nRecvEndpoints + totRecvListSize
+        allocate(compactHaloInfo(11))
+        allocate(compactSendLists(nSendEndpoints + activeHaloLayers * nSendEndpoints + totSendListSize))
+        allocate(compactRecvLists(nRecvEndpoints + activeHaloLayers * nRecvEndpoints + totRecvListSize))
 
-        allocate(compactHaloInfo(infosize))
         compactHaloInfo(:) = 0
+        compactSendLists(:) = 0
+        compactRecvLists(:) = 0
 
         !
         ! 1-6: Add field dimensionality and dimensions
@@ -926,10 +938,17 @@ module mpas_halo
         idx = idx + 1
 
         !
-        ! 11: foreach (endpoint) { endPointID foreach (halolayer) {nList srcList(1:nList) destList(1:nList)} }
+        ! 11: Add number of receive endpoints
         !
+        compactHaloInfo(idx) = nRecvEndpoints
+        idx = idx + 1
+
+        !
+        ! foreach (endpoint) { endPointID foreach (halolayer) {nList srcList(1:nList) destList(1:nList)} }
+        !
+        idx = 1
         do iendpt=1,nSendEndpoints
-            compactHaloInfo(idx) = sendEndpoints(iendpt)
+            compactSendLists(idx) = sendEndpoints(iendpt)
             idx = idx + 1
             ioffset = 0
             do i=1,nHaloLayers
@@ -941,11 +960,11 @@ module mpas_halo
                         do while (associated(exchListPtr))
                             if (exchListPtr % endPointID == sendEndpoints(iendpt)) then
                                 found = .true.
-                                compactHaloInfo(idx) = exchListPtr % nList
+                                compactSendLists(idx) = exchListPtr % nList
                                 idx = idx + 1
-                                compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList)
+                                compactSendLists(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList)
                                 idx = idx + exchListPtr % nList
-                                compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList) + ioffset
+                                compactSendLists(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList) + ioffset
                                 idx = idx + exchListPtr % nList
                                 ioffset = ioffset + exchListPtr % nList
                                 exit
@@ -953,7 +972,7 @@ module mpas_halo
                             exchListPtr => exchListPtr % next
                         end do
                         if (.not. found) then
-                            compactHaloInfo(idx) = 0
+                            compactSendLists(idx) = 0
                             idx = idx + 1
                         end if
                         sendListCursor => sendListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
@@ -965,16 +984,11 @@ module mpas_halo
         deallocate(sendEndpoints)
 
         !
-        ! 12: Add number of receive endpoints
+        ! foreach (endpoint) { endPointID foreach (halolayer) {nList srcList(1:nList) destList(1:nList)} }
         !
-        compactHaloInfo(idx) = nRecvEndpoints
-        idx = idx + 1
-
-        !
-        ! 13: foreach (endpoint) { endPointID foreach (halolayer) {nList srcList(1:nList) destList(1:nList)} }
-        !
+        idx = 1
         do iendpt=1,nRecvEndpoints
-            compactHaloInfo(idx) = recvEndpoints(iendpt)
+            compactRecvLists(idx) = recvEndpoints(iendpt)
             idx = idx + 1
             ioffset = 0
             do i=1,nHaloLayers
@@ -986,11 +1000,11 @@ module mpas_halo
                         do while (associated(exchListPtr))
                             if (exchListPtr % endPointID == recvEndpoints(iendpt)) then
                                 found = .true.
-                                compactHaloInfo(idx) = exchListPtr % nList
+                                compactRecvLists(idx) = exchListPtr % nList
                                 idx = idx + 1
-                                compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList) + ioffset
+                                compactRecvLists(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList) + ioffset
                                 idx = idx + exchListPtr % nList
-                                compactHaloInfo(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList)
+                                compactRecvLists(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList)
                                 idx = idx + exchListPtr % nList
                                 ioffset = ioffset + exchListPtr % nList
                                 exit
@@ -998,7 +1012,7 @@ module mpas_halo
                             exchListPtr => exchListPtr % next
                         end do
                         if (.not. found) then
-                            compactHaloInfo(idx) = 0
+                            compactRecvLists(idx) = 0
                             idx = idx + 1
                         end if
                         recvListCursor => recvListCursor % next     ! Expected to iterate just once for MPAS-Atmosphere
@@ -1051,19 +1065,7 @@ module mpas_halo
         maxGroupRecvNeighbors = 0
         do i = 1, group % nFields
             maxGroupSendNeighbors = maxGroupSendNeighbors + group % fields(i) % compactHaloInfo(10)
-
-            ! Skip past send info to get to recv neighbor count
-            idx = 11
-            do iendp = 1, group % fields(i) % compactHaloInfo(10)
-                idx = idx + 1                ! skip over endPointID
-                do ihalo = 1, group % fields(i) % compactHaloInfo(9)
-                    nlist = group % fields(i) % compactHaloInfo(idx)
-                    idx = idx + 1            ! skip over nList
-                    idx = idx + 2 * nlist    ! skip over srcList and destList
-                end do
-            end do
-
-            maxGroupRecvNeighbors = maxGroupRecvNeighbors + group % fields(i) % compactHaloInfo(idx)
+            maxGroupRecvNeighbors = maxGroupRecvNeighbors + group % fields(i) % compactHaloInfo(11)
         end do
 
 
@@ -1080,13 +1082,12 @@ module mpas_halo
         group % nGroupRecvNeighbors = 0
 
         do i = 1, group % nFields
-            idxsend = 10
-            idx = idxsend + 1
-            do iendp = 1, group % fields(i) % compactHaloInfo(idxsend)
+            idx = 1
+            do iendp = 1, group % fields(i) % compactHaloInfo(10)
                
                 ! Try to locate this endPointID in the list
                 do j = 1, group % nGroupSendNeighbors
-                    if (sendNeighbors(j) == group % fields(i) % compactHaloInfo(idx)) then
+                    if (sendNeighbors(j) == group % fields(i) % compactSendLists(idx)) then
                         exit
                     end if
                 end do
@@ -1094,25 +1095,24 @@ module mpas_halo
                 ! If endPointID was not found, add it to the list
                 if (j > group % nGroupSendNeighbors) then
                     group % nGroupSendNeighbors = group % nGroupSendNeighbors + 1
-                    sendNeighbors(group % nGroupSendNeighbors) = group % fields(i) % compactHaloInfo(idx)
+                    sendNeighbors(group % nGroupSendNeighbors) = group % fields(i) % compactSendLists(idx)
                 end if
 
                 ! Skip over remaining info for this endpoint
                 idx = idx + 1                ! skip over endPointID
                 do ihalo = 1, group % fields(i) % compactHaloInfo(9)
-                    nlist = group % fields(i) % compactHaloInfo(idx)
+                    nlist = group % fields(i) % compactSendLists(idx)
                     idx = idx + 1            ! skip over nList
                     idx = idx + 2 * nlist    ! skip over srcList and destList
                 end do
             end do
 
-            idxrecv = idx
-            idx = idxrecv + 1
-            do iendp = 1, group % fields(i) % compactHaloInfo(idxrecv)
+            idx = 1
+            do iendp = 1, group % fields(i) % compactHaloInfo(11)
                
                 ! Try to locate this endPointID in the list
                 do j = 1, group % nGroupRecvNeighbors
-                    if (recvNeighbors(j) == group % fields(i) % compactHaloInfo(idx)) then
+                    if (recvNeighbors(j) == group % fields(i) % compactRecvLists(idx)) then
                         exit
                     end if
                 end do
@@ -1120,13 +1120,13 @@ module mpas_halo
                 ! If endPointID was not found, add it to the list
                 if (j > group % nGroupRecvNeighbors) then
                     group % nGroupRecvNeighbors = group % nGroupRecvNeighbors + 1
-                    recvNeighbors(group % nGroupRecvNeighbors) = group % fields(i) % compactHaloInfo(idx)
+                    recvNeighbors(group % nGroupRecvNeighbors) = group % fields(i) % compactRecvLists(idx)
                 end if
 
                 ! Skip over remaining info for this endpoint
                 idx = idx + 1                ! skip over endPointID
                 do ihalo = 1, group % fields(i) % compactHaloInfo(9)
-                    nlist = group % fields(i) % compactHaloInfo(idx)
+                    nlist = group % fields(i) % compactRecvLists(idx)
                     idx = idx + 1            ! skip over nList
                     idx = idx + 2 * nlist    ! skip over srcList and destList
                 end do
@@ -1158,13 +1158,12 @@ module mpas_halo
                 ninnerelems = ninnerelems * group % fields(i) % compactHaloInfo(j + 1)    ! First dim is at (2), etc.
             end do
 
-            idxsend = 10
-            idx = idxsend + 1
-            do iendp = 1, group % fields(i) % compactHaloInfo(idxsend)
+            idx = 1
+            do iendp = 1, group % fields(i) % compactHaloInfo(10)
                
                 idx = idx + 1                ! skip over endPointID
                 do ihalo = 1, group % fields(i) % compactHaloInfo(9)
-                    nlist = group % fields(i) % compactHaloInfo(idx)
+                    nlist = group % fields(i) % compactSendLists(idx)
                     group % groupSendBufSize = group % groupSendBufSize + ninnerelems * nlist
 
                     idx = idx + 1            ! skip over nList
@@ -1172,13 +1171,12 @@ module mpas_halo
                 end do
             end do
 
-            idxrecv = idx
-            idx = idxrecv + 1
-            do iendp = 1, group % fields(i) % compactHaloInfo(idxrecv)
+            idx = 1
+            do iendp = 1, group % fields(i) % compactHaloInfo(11)
                
                 idx = idx + 1                ! skip over endPointID
                 do ihalo = 1, group % fields(i) % compactHaloInfo(9)
-                    nlist = group % fields(i) % compactHaloInfo(idx)
+                    nlist = group % fields(i) % compactRecvLists(idx)
                     group % groupRecvBufSize = group % groupRecvBufSize + ninnerelems * nlist
 
                     idx = idx + 1            ! skip over nList
@@ -1219,13 +1217,12 @@ module mpas_halo
                 ninnerelems = ninnerelems * group % fields(i) % compactHaloInfo(j + 1)    ! First dim is at (2), etc.
             end do
 
-            idxsend = 10
-            idx = idxsend + 1
-            do iendp = 1, group % fields(i) % compactHaloInfo(idxsend)
+            idx = 1
+            do iendp = 1, group % fields(i) % compactHaloInfo(10)
 
                 ! Find neighbor in groupSendNeighbors
                 do j = 1, group % nGroupSendNeighbors
-                    if (group % fields(i) % compactHaloInfo(idx) == group % groupSendNeighbors(j)) then
+                    if (group % fields(i) % compactSendLists(idx) == group % groupSendNeighbors(j)) then
                         exit
                     end if
                 end do
@@ -1233,7 +1230,7 @@ module mpas_halo
                 idx = idx + 1                ! skip over endPointID
                 sendCounts(j, i) = 0
                 do ihalo = 1, group % fields(i) % compactHaloInfo(9)
-                    nlist = group % fields(i) % compactHaloInfo(idx)
+                    nlist = group % fields(i) % compactSendLists(idx)
                     sendCounts(j, i) = sendCounts(j, i) + nlist * ninnerelems
 
                     idx = idx + 1            ! skip over nList
@@ -1241,13 +1238,12 @@ module mpas_halo
                 end do
             end do
 
-            idxrecv = idx
-            idx = idxrecv + 1
-            do iendp = 1, group % fields(i) % compactHaloInfo(idxrecv)
+            idx = 1
+            do iendp = 1, group % fields(i) % compactHaloInfo(11)
 
                 ! Find neighbor in groupRecvNeighbors
                 do j = 1, group % nGroupRecvNeighbors
-                    if (group % fields(i) % compactHaloInfo(idx) == group % groupRecvNeighbors(j)) then
+                    if (group % fields(i) % compactRecvLists(idx) == group % groupRecvNeighbors(j)) then
                         exit
                     end if
                 end do
@@ -1255,7 +1251,7 @@ module mpas_halo
                 idx = idx + 1                ! skip over endPointID
                 recvCounts(j, i) = 0
                 do ihalo = 1, group % fields(i) % compactHaloInfo(9)
-                    nlist = group % fields(i) % compactHaloInfo(idx)
+                    nlist = group % fields(i) % compactRecvLists(idx)
                     recvCounts(j, i) = recvCounts(j, i) + nlist * ninnerelems
 
                     idx = idx + 1            ! skip over nList
