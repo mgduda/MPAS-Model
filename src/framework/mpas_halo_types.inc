@@ -9,6 +9,8 @@
         integer :: fieldType = MPAS_HALO_INVALID
         integer :: timeLevel = MPAS_HALO_INVALID
         integer, dimension(:), pointer :: compactHaloInfo => null()
+        integer, dimension(:), pointer :: compactSendLists => null()
+        integer, dimension(:), pointer :: compactRecvLists => null()
         real (kind=RKIND), dimension(:,:), pointer :: r2arr => null()
         real (kind=RKIND), dimension(:,:,:), pointer :: r3arr => null()
     end type mpas_halo_field
