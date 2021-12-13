@@ -8,11 +8,12 @@
 !-----------------------------------------------------------------------
 !  mpas_halo
 !
-!> \brief Routines for updating field halos
+!> \brief Communication of halos for groups of fields
 !> \author Michael Duda
 !> \date   29 September 2021
 !> \details
-!>  This module provides routines for updating the halos of fields.
+!>  This module provides routines for defining groups of fields, and for
+!>  communicating the halos of all fields in a group.
 !
 !-----------------------------------------------------------------------
 module mpas_halo
@@ -36,12 +37,12 @@ module mpas_halo
     !-----------------------------------------------------------------------
     !  routine mpas_halo_exch_group_init
     !
-    !> \brief Initialize group halo exchanges
+    !> \brief Initialize group halo exchange module
     !> \author Michael Duda
     !> \date   17 November 2021
     !> \details
-    !>  This routine initializes group halo exchanges, and must be called
-    !>  before any other routine for building or exchanging halos.
+    !>  This routine initialize the group halo exchange module and must be
+    !>  called before any other routine for building or exchanging halos.
     !
     !-----------------------------------------------------------------------
     subroutine mpas_halo_exch_group_init(domain, iErr)
@@ -49,6 +50,7 @@ module mpas_halo
         use mpas_derived_types, only : domain_type
         use mpas_pool_routines, only : mpas_pool_create_pool
 
+        ! Arguments
         type (domain_type), intent(inout) :: domain
         integer, optional, intent(out) :: iErr
 
@@ -65,12 +67,12 @@ module mpas_halo
     !-----------------------------------------------------------------------
     !  routine mpas_halo_exch_group_finalize
     !
-    !> \brief Finalize group halo exchanges
+    !> \brief Finalize group halo exchange module
     !> \author Michael Duda
     !> \date   17 November 2021
     !> \details
-    !>  This routine finalize group halo exchanges, and must be called
-    !>  after all other calls for building or exchanging halos.
+    !>  This routine finalize the group halo exchange module and must be
+    !>  called after all other calls for building or exchanging halos.
     !
     !-----------------------------------------------------------------------
     subroutine mpas_halo_exch_group_finalize(domain, iErr)
@@ -78,6 +80,7 @@ module mpas_halo
         use mpas_derived_types, only : domain_type
         use mpas_pool_routines, only : mpas_pool_destroy_pool
 
+        ! Arguments
         type (domain_type), intent(inout) :: domain
         integer, optional, intent(out) :: iErr
 
@@ -94,12 +97,16 @@ module mpas_halo
     !-----------------------------------------------------------------------
     !  routine mpas_halo_exch_group_create
     !
-    !> \brief MPAS halo exchange group creation routine
-    !> \author Doug Jacobsen
-    !> \date   01/05/2016
+    !> \brief Create a new group, to which fields can be later added
+    !> \author Michael Duda
+    !> \date   17 November 2021
     !> \details
-    !>  This routine creates a new exchange group named 'groupName' within a
-    !>  domain's list of exchange groups.
+    !>  This routine creates a new group, into which fields can be added by
+    !>  subsequent calls to mpas_halo_exch_group_add_field. After one or more
+    !>  fields have been added to a group created by this routine, a call to
+    !>  mpas_halo_exch_group_complete must be made before the halos of fields
+    !>  in the group can be exchanged with a call to
+    !>  mpas_halo_exch_group_full_halo_exch.
     !
     !-----------------------------------------------------------------------
     subroutine mpas_halo_exch_group_create(domain, groupName, iErr)
@@ -107,6 +114,7 @@ module mpas_halo
         use mpas_derived_types, only : domain_type, mpas_pool_type
         use mpas_pool_routines, only : mpas_pool_create_pool, mpas_pool_add_subpool
 
+        ! Arguments
         type (domain_type), intent(inout) :: domain
         character (len=*), intent(in) :: groupName
         integer, optional, intent(out) :: iErr
@@ -115,8 +123,12 @@ module mpas_halo
         type (mpas_pool_type), pointer :: newGroup
 
 
+        if (present(iErr)) then
+           iErr = 0
+        end if
+
         call mpas_pool_create_pool(newGroup)
-	call mpas_pool_add_subpool(domain % haloGroupPool, groupName, newGroup)
+        call mpas_pool_add_subpool(domain % haloGroupPool, groupName, newGroup)
 
     end subroutine mpas_halo_exch_group_create
 
@@ -129,7 +141,7 @@ module mpas_halo
     !> \date   29 September 2021
     !> \details
     !>  Complete the creation of an exchange group that was defined via a call
-    !>  to the mpas_halo_exch_group_create routine, and to which field were
+    !>  to the mpas_halo_exch_group_create routine, and to which fields were
     !>  added through calls to mpas_halo_exch_group_add_field. This routine
     !>  must be called for an exchange group before the group can be used in
     !>  calls to the mpas_halo_exch_group_full_halo_exch routine.
@@ -145,6 +157,7 @@ module mpas_halo
                                        mpas_pool_remove_field, mpas_pool_get_field
         use mpas_log, only : mpas_log_write
 
+        ! Arguments
         type (domain_type), intent(inout) :: domain
         character (len=*), intent(in) :: groupName
         integer, optional, intent(out) :: iErr
@@ -160,6 +173,10 @@ module mpas_halo
         type (field3DReal), pointer :: r3d
         integer, pointer :: timeLevel
 
+
+        if (present(iErr)) then
+           iErr = 0
+        end if
 
         call mpas_pool_get_subpool(domain % haloGroupPool, groupName, completedGroup)
 
@@ -258,12 +275,13 @@ module mpas_halo
     !-----------------------------------------------------------------------
     !  routine mpas_halo_exch_group_destroy
     !
-    !> \brief MPAS halo exchange group destruction routine
-    !> \author Doug Jacobsen
-    !> \date   01/05/2016
+    !> \brief Destroys a halo exchange group
+    !> \author Michael Duda
+    !> \date   17 November 2021
     !> \details
-    !>  This routine destroys an exchange group named 'groupName' within a
-    !>  domain's list of exchange groups.
+    !>  This routine frees memory associated with the named group, which must
+    !>  have been previously created with calls to mpas_halo_exch_group_create
+    !>  and mpas_halo_exch_group_complete.
     !
     !-----------------------------------------------------------------------
     subroutine mpas_halo_exch_group_destroy(domain, groupName, iErr)
@@ -271,6 +289,7 @@ module mpas_halo
         use mpas_derived_types, only : domain_type, mpas_halo_group, MPAS_LOG_CRIT
         use mpas_log, only : mpas_log_write
 
+        ! Arguments
         type (domain_type), intent(inout) :: domain
         character (len=*), intent(in) :: groupName
         integer, optional, intent(out) :: iErr
@@ -279,6 +298,10 @@ module mpas_halo
         integer :: i
         type (mpas_halo_group), pointer :: cursor, prev
 
+
+        if (present(iErr)) then
+           iErr = 0
+        end if
 
         !
         ! Find this halo exhange group in the list of groups
@@ -337,18 +360,16 @@ module mpas_halo
     !-----------------------------------------------------------------------
     !  routine mpas_halo_exch_group_add_field
     !
-    !> \brief MPAS halo exchange group add field routine
-    !> \author Doug Jacobsen
-    !> \date   01/05/2016
+    !> \brief Add a field to a halo exchange group
+    !> \author Michael Duda
+    !> \date   17 November 2021
     !> \details
-    !>  This routine adds a field named 'fieldName' to an exchange group named
-    !>  'groupName' within a domain's list of exchange groups.
-    !>  The timeLevel argument allows control over which timeLevel(s) will be
-    !>    exchanged as part of this group. If the timeLevel argument is omitted or if it
-    !>    has a value of -1, all time levels will be exchanged.
-    !>  The haloLayers argument allows an input array to define the halo layers
-    !>    that should be exchanged as part of this exchange group. If it is
-    !>    omitted, all halo layers will be exchanged.
+    !>  This routine adds the field named fieldName to the exchange group named
+    !>  groupName. The timeLevel argument provides control over which time level
+    !>  will be exchanged for the field. If the timeLevel argument is omitted,
+    !>  time level 1 of the field will be exchanged. The haloLayers argument
+    !>  specifies which halo layers will be exchanged for the field; if haloLayers
+    !>  is not specified, all halo layers will be exchanged.
     !
     !-----------------------------------------------------------------------
     subroutine mpas_halo_exch_group_add_field(domain, groupName, fieldName, timeLevel, haloLayers, iErr)
@@ -359,6 +380,7 @@ module mpas_halo
                                        mpas_pool_add_dimension, mpas_pool_get_field, mpas_pool_add_field
         use mpas_log, only : mpas_log_write
 
+        ! Arguments
         type (domain_type), intent(inout) :: domain
         character (len=*), intent(in) :: groupName
         character (len=*), intent(in) :: fieldName
@@ -374,6 +396,10 @@ module mpas_halo
         type (field2DReal), pointer :: r2d
         type (field3DReal), pointer :: r3d
 
+
+        if (present(iErr)) then
+           iErr = 0
+        end if
 
         call mpas_pool_get_subpool(domain % haloGroupPool, groupName, group)
 
@@ -437,13 +463,12 @@ module mpas_halo
     !-----------------------------------------------------------------------
     !  routine mpas_halo_exch_group_full_halo_exch
     !
-    !> \brief MPAS halo exchange group full halo exchange routine
-    !> \author Doug Jacobsen
-    !> \date   01/11/2016
+    !> \brief Communicate halos for all fields in a group
+    !> \author Michael Duda
+    !> \date   17 November 2021
     !> \details
-    !>  This routine performs a full halo exchange on an exchange group.
-    !>  It is blocking, in that the routine doesn't return until the full
-    !>  exchange is complete.
+    !>  This routine exchanges the halos for all fields in the named halo
+    !>  exchange group.
     !
     !-----------------------------------------------------------------------
     subroutine mpas_halo_exch_group_full_halo_exch(domain, groupName, iErr)
@@ -454,6 +479,7 @@ module mpas_halo
         use mpas_log, only : mpas_log_write
         use mpi, only : MPI_Irecv, MPI_Wait, MPI_REAL, MPI_STATUS_IGNORE, MPI_SUCCESS
 
+        ! Arguments
         type (domain_type), intent(inout) :: domain
         character (len=*), intent(in) :: groupName
         integer, optional, intent(out) :: iErr
@@ -472,6 +498,10 @@ module mpas_halo
         integer, dimension(:), pointer :: compactSendLists
         integer, dimension(:), pointer :: compactRecvLists
 
+
+        if (present(iErr)) then
+           iErr = 0
+        end if
 
         !
         ! Find this halo exhange group in the list of groups
@@ -499,6 +529,9 @@ module mpas_halo
         mpi_rank = group % fields(1) % compactHaloInfo(8)
 
 
+        !
+        ! Initiate non-blocking MPI receives for all neighbors
+        !
         do i = 1, group % nGroupRecvNeighbors
             if (group % groupRecvCounts(i) > 0) then
                 bufstart = group % groupRecvOffsets(i)
@@ -510,11 +543,17 @@ module mpas_halo
             end if
         end do
 
+        !
+        ! Pack the segmented send buffer with elements from all fields and for all neighbors
+        !
         do i = 1, group % nFields
 
             compactHaloInfo => group % fields(i) % compactHaloInfo
             compactSendLists => group % fields(i) % compactSendLists
 
+            !
+            ! Packing code for real-valued fields
+            !
             if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
                 dim1 = compactHaloInfo(2)
                 dim2 = compactHaloInfo(3)
@@ -524,6 +563,10 @@ module mpas_halo
                 idx = 1
 
                 select case (group % fields(i) % nDims)
+
+                !
+                ! Packing code for 2-d real-valued fields
+                !
                 case (2)
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r2arr, timeLevel=group % fields(i) % timeLevel)
@@ -553,6 +596,9 @@ module mpas_halo
                         end do
                     end do
 
+                !
+                ! Packing code for 3-d real-valued fields
+                !
                 case (3)
 
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
@@ -575,7 +621,7 @@ module mpas_halo
                             do j = 1, nList
                                 do i2 = 1, dim2
                                 do i1 = 1, dim1
-                                    group % sendBuf(iOffset + dim1 * dim2 * (compactSendLists(idx + nList) - 1) + dim1 * (i2 - 1) + i1) = &
+                                    group % sendBuf(iOffset + dim1*dim2*(compactSendLists(idx+nList) - 1) + dim1*(i2-1) + i1) = &
                                         group % fields(i) % r3arr(i1, i2, compactSendLists(idx))
                                 end do
                                 end do
@@ -584,17 +630,13 @@ module mpas_halo
                             idx = idx + nList
                         end do
                     end do
-                case default
-                    call mpas_log_write('Only 2-d and 3-d fields are supported by mpas_halo_exch_group_full_halo_exch', &
-                                    messageType=MPAS_LOG_CRIT)
                 end select
-            else
-                call mpas_log_write('Only real-valued fields are supported by mpas_halo_exch_group_full_halo_exch', &
-                                    messageType=MPAS_LOG_CRIT)
             end if
         end do
 
-
+        !
+        ! Initiate non-blocking sends to all neighbors
+        !
         do i = 1, group % nGroupSendNeighbors
             if (group % groupSendCounts(i) > 0) then
                 bufstart = group % groupSendOffsets(i)
@@ -606,17 +648,26 @@ module mpas_halo
             end if
         end do
 
+        !
+        ! Wait for receives from all neighbors to complete before unpacking buffers
+        !
         do i = 1, group % nGroupRecvNeighbors
             if (group % groupRecvCounts(i) > 0) then
                 call MPI_Wait(group % recvRequests(i), MPI_STATUS_IGNORE, mpi_ierr)
             end if
         end do
 
+        !
+        ! Unpack the segmented recv buffer with elements for all fields and from all neighbors
+        !
         do i = 1, group % nFields
 
             compactHaloInfo => group % fields(i) % compactHaloInfo
             compactRecvLists => group % fields(i) % compactRecvLists
 
+            !
+            ! Unpacking code for real-valued fields
+            !
             if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
                 dim1 = compactHaloInfo(2)
                 dim2 = compactHaloInfo(3)
@@ -626,6 +677,10 @@ module mpas_halo
                 idx = 1
 
                 select case (group % fields(i) % nDims)
+
+                !
+                ! Unpacking code for 2-d real-valued fields
+                !
                 case (2)
                     do iEndp = 1, nRecvEndpts
 
@@ -652,6 +707,11 @@ module mpas_halo
                         end do
                     end do
 
+                    nullify(group % fields(i) % r2arr)
+
+                !
+                ! Unpacking code for 3-d real-valued fields
+                !
                 case (3)
                     do iEndp = 1, nRecvEndpts
 
@@ -670,8 +730,8 @@ module mpas_halo
                             do j = 1, nList
                                 do i2 = 1, dim2
                                 do i1 = 1, dim1
-                                    group % fields(i) % r3arr(i1, i2, compactRecvLists(idx + nList)) = &
-                                        group % recvBuf(iOffset + dim1 * dim2 * (compactRecvLists(idx) - 1) + dim1 * (i2 - 1) + i1)
+                                    group % fields(i) % r3arr(i1, i2, compactRecvLists(idx+nList)) = &
+                                        group % recvBuf(iOffset + dim1*dim2*(compactRecvLists(idx) - 1) + dim1*(i2-1) + i1)
                                 end do
                                 end do
                                 idx = idx + 1
@@ -680,16 +740,15 @@ module mpas_halo
                         end do
                     end do
 
-                case default
-                    call mpas_log_write('Only 2-d and 3-d fields are supported by mpas_halo_exch_group_full_halo_exch', &
-                                    messageType=MPAS_LOG_CRIT)
+                    nullify(group % fields(i) % r3arr)
+
                 end select
-            else
-                call mpas_log_write('Only real-valued fields are supported by mpas_halo_exch_group_full_halo_exch', &
-                                    messageType=MPAS_LOG_CRIT)
             end if
         end do
 
+        !
+        ! Wait for all sends to complete before returning
+        !
         do i = 1, group % nGroupSendNeighbors
             if (group % groupSendCounts(i) > 0) then
                 call MPI_Wait(group % sendRequests(i), MPI_STATUS_IGNORE, mpi_ierr)
@@ -735,6 +794,7 @@ module mpas_halo
 
         implicit none
 
+        ! Arguments
         type (domain_type), intent(in) :: domain
         type (mpas_multihalo_exchange_list), pointer :: sendList
         type (mpas_multihalo_exchange_list), pointer :: recvList
@@ -754,7 +814,6 @@ module mpas_halo
         integer :: maxRecvEndpoints
         integer :: totRecvListSize
         integer :: nHaloLayers
-        integer :: nEndpoints
         logical :: found
         integer, allocatable, dimension(:) :: sendEndpoints
         integer, allocatable, dimension(:) :: recvEndpoints
@@ -964,7 +1023,8 @@ module mpas_halo
                                 idx = idx + 1
                                 compactSendLists(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList)
                                 idx = idx + exchListPtr % nList
-                                compactSendLists(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList) + ioffset
+                                compactSendLists(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList) + &
+                                                                                  ioffset
                                 idx = idx + exchListPtr % nList
                                 ioffset = ioffset + exchListPtr % nList
                                 exit
@@ -1002,7 +1062,8 @@ module mpas_halo
                                 found = .true.
                                 compactRecvLists(idx) = exchListPtr % nList
                                 idx = idx + 1
-                                compactRecvLists(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList) + ioffset
+                                compactRecvLists(idx:idx+exchListPtr % nList-1) = exchListPtr % srcList(1:exchListPtr % nList) + &
+                                                                                  ioffset
                                 idx = idx + exchListPtr % nList
                                 compactRecvLists(idx:idx+exchListPtr % nList-1) = exchListPtr % destList(1:exchListPtr % nList)
                                 idx = idx + exchListPtr % nList
@@ -1037,17 +1098,35 @@ module mpas_halo
     !> \details
     !>  Given an mpas_halo_group, this routine aggregates information from across
     !>  all mpas_halo_field members of the group.
+    !>  The end result of this routine is a set of arrays that can be used by
+    !>  the mpas_halo_exch_group_full_halo_exch routine to pack/unpack buffers
+    !>  and launch MPI sends and receives:
+    !>
+    !>    nGroupSendNeighbors
+    !>    groupSendBufSize
+    !>    groupPackOffsets
+    !>    groupSendNeighbors
+    !>    groupSendOffsets
+    !>    groupSendCounts
+    !>
+    !>    nGroupRecvNeighbors
+    !>    groupRecvBufSize
+    !>    groupUnpackOffsets
+    !>    groupRecvNeighbors
+    !>    groupRecvOffsets
+    !>    groupRecvCounts
     !
     !-----------------------------------------------------------------------
     subroutine mpas_halo_aggregate_group_info(group, ierr)
 
         use mpas_derived_types, only : mpas_halo_group
 
+        ! Arguments
         type (mpas_halo_group), intent(inout) :: group
         integer, intent(out), optional :: ierr
 
         ! Local variables
-        integer :: i, j, idx, ihalo, iendp, nlist, idxsend, idxrecv
+        integer :: i, j, idx, ihalo, iendp, nlist
         integer :: ndims, ninnerelems
         integer :: maxGroupSendNeighbors, maxGroupRecvNeighbors
         integer, allocatable, dimension(:) :: sendNeighbors, recvNeighbors
