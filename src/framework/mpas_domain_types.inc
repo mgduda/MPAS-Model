@@ -16,8 +16,8 @@
       type (mpas_exchange_group), pointer :: exchangeGroups => null()
 
       ! Storage for halo exchange groups
-      type (mpas_pool_type), pointer :: haloGroupPool => null()
-      type (mpas_halo_group), pointer :: haloGroups => null()
+      type (mpas_pool_type), pointer :: haloGroupPool => null()   ! Only used internally by mpas_halo module
+      type (mpas_halo_group), pointer :: haloGroups => null()     ! Head pointer of linked list of halo groups
 
       ! Domain specific constants
       logical :: on_a_sphere = .true.
