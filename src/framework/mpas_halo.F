@@ -473,11 +473,19 @@ module mpas_halo
     !-----------------------------------------------------------------------
     subroutine mpas_halo_exch_group_full_halo_exch(domain, groupName, iErr)
 
-        use mpas_kind_types, only : RKIND
         use mpas_derived_types, only : domain_type, mpas_halo_group, MPAS_HALO_REAL, MPAS_LOG_CRIT
         use mpas_pool_routines, only : mpas_pool_get_array
         use mpas_log, only : mpas_log_write
-        use mpi, only : MPI_Irecv, MPI_Wait, MPI_REAL, MPI_STATUS_IGNORE, MPI_SUCCESS
+        use mpi, only : MPI_Irecv, MPI_Wait, MPI_STATUS_IGNORE, MPI_SUCCESS
+#ifdef SINGLE_PRECISION
+        use mpi, only : MPI_REAL
+
+        integer, parameter :: MPI_REALKIND = MPI_REAL
+#else
+        use mpi, only : MPI_DOUBLE_PRECISION
+
+        integer, parameter :: MPI_REALKIND = MPI_DOUBLE_PRECISION
+#endif
 
         ! Arguments
         type (domain_type), intent(inout) :: domain
@@ -537,7 +545,7 @@ module mpas_halo
                 bufstart = group % groupRecvOffsets(i)
                 bufend = group % groupRecvOffsets(i) + group % groupRecvCounts(i) - 1
 !TO DO: how do we determine appropriate type here?
-                call MPI_Irecv(group % recvBuf(bufstart:bufend), group % groupRecvCounts(i), MPI_REAL, &
+                call MPI_Irecv(group % recvBuf(bufstart:bufend), group % groupRecvCounts(i), MPI_REALKIND, &
                                group % groupRecvNeighbors(i), group % groupRecvNeighbors(i), mpi_comm, &
                                group % recvRequests(i), mpi_ierr)
             end if
@@ -642,7 +650,7 @@ module mpas_halo
                 bufstart = group % groupSendOffsets(i)
                 bufend = group % groupSendOffsets(i) + group % groupSendCounts(i) - 1
 !TO DO: how do we determine appropriate type here?
-                call MPI_Isend(group % sendBuf(bufstart:bufend), group % groupSendCounts(i), MPI_REAL, &
+                call MPI_Isend(group % sendBuf(bufstart:bufend), group % groupSendCounts(i), MPI_REALKIND, &
                                group % groupSendNeighbors(i), mpi_rank, mpi_comm, &
                                group % sendRequests(i), mpi_ierr)
             end if
