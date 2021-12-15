@@ -147,6 +147,9 @@ module atm_time_integration
    !-----------------------------------------------------------------------
    subroutine mpas_atm_dynamics_init(domain)
 
+      use mpas_halo, only : mpas_halo_exch_group_init, mpas_halo_exch_group_create, mpas_halo_exch_group_add_field, &
+                            mpas_halo_exch_group_complete
+
       implicit none
 
       type (domain_type), intent(inout) :: domain
@@ -155,6 +158,88 @@ module atm_time_integration
       type (field2DReal), pointer :: field_2d_ptr
       type (field3DReal), pointer :: field_3d_ptr
       integer, pointer :: nCells, nVertLevels
+
+      !
+      ! Initialize the mpas_halo module
+      !
+      call mpas_halo_exch_group_init(domain)
+
+      !
+      ! Build halo exchange groups
+      !
+      call mpas_halo_exch_group_create(domain, 'group1')
+      call mpas_halo_exch_group_add_field(domain, 'group1', 'theta_m', timeLevel=1, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_add_field(domain, 'group1', 'scalars', timeLevel=1, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_add_field(domain, 'group1', 'pressure_p', timeLevel=1, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_add_field(domain, 'group1', 'rtheta_p', timeLevel=1, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_complete(domain, 'group1')
+
+      call mpas_halo_exch_group_create(domain, 'group3')
+      call mpas_halo_exch_group_add_field(domain, 'group3', 'rw_p', timeLevel=1, haloLayers=(/1/))
+      call mpas_halo_exch_group_add_field(domain, 'group3', 'ru_p', timeLevel=1, haloLayers=(/2/))
+      call mpas_halo_exch_group_add_field(domain, 'group3', 'rho_pp', timeLevel=1, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_add_field(domain, 'group3', 'rtheta_pp', timeLevel=1, haloLayers=(/2/))
+      call mpas_halo_exch_group_complete(domain, 'group3')
+
+      call mpas_halo_exch_group_create(domain, 'group4a')
+      call mpas_halo_exch_group_add_field(domain, 'group4a', 'w', timeLevel=2, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_add_field(domain, 'group4a', 'pv_edge', timeLevel=1, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_add_field(domain, 'group4a', 'rho_edge', timeLevel=1, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_complete(domain, 'group4a')
+
+      call mpas_halo_exch_group_create(domain, 'group4b')
+      call mpas_halo_exch_group_add_field(domain, 'group4b', 'w', timeLevel=2, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_add_field(domain, 'group4b', 'pv_edge', timeLevel=1, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_add_field(domain, 'group4b', 'rho_edge', timeLevel=1, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_add_field(domain, 'group4b', 'scalars', timeLevel=2, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_complete(domain, 'group4b')
+
+      call mpas_halo_exch_group_create(domain, 'group5')
+      call mpas_halo_exch_group_add_field(domain, 'group5', 'theta_m', timeLevel=2, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_add_field(domain, 'group5', 'pressure_p', timeLevel=1, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_add_field(domain, 'group5', 'rtheta_p', timeLevel=1, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_complete(domain, 'group5')
+
+
+      call mpas_halo_exch_group_create(domain, 'exner')
+      call mpas_halo_exch_group_add_field(domain, 'exner', 'exner', timeLevel=1, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_complete(domain, 'exner')
+
+      call mpas_halo_exch_group_create(domain, 'tend_u')
+      call mpas_halo_exch_group_add_field(domain, 'tend_u', 'tend_u', timeLevel=1, haloLayers=(/1/))
+      call mpas_halo_exch_group_complete(domain, 'tend_u')
+
+      call mpas_halo_exch_group_create(domain, 'rho_pp')
+      call mpas_halo_exch_group_add_field(domain, 'rho_pp', 'rho_pp', timeLevel=1, haloLayers=(/1/))
+      call mpas_halo_exch_group_complete(domain, 'rho_pp')
+
+      call mpas_halo_exch_group_create(domain, 'rtheta_pp')
+      call mpas_halo_exch_group_add_field(domain, 'rtheta_pp', 'rtheta_pp', timeLevel=1, haloLayers=(/1/))
+      call mpas_halo_exch_group_complete(domain, 'rtheta_pp')
+
+      call mpas_halo_exch_group_create(domain, 'u_123')
+      call mpas_halo_exch_group_add_field(domain, 'u_123', 'u', timeLevel=2, haloLayers=(/1,2,3/))
+      call mpas_halo_exch_group_complete(domain, 'u_123')
+
+      call mpas_halo_exch_group_create(domain, 'u_3')
+      call mpas_halo_exch_group_add_field(domain, 'u_3', 'u', timeLevel=2, haloLayers=(/3/))
+      call mpas_halo_exch_group_complete(domain, 'u_3')
+
+      call mpas_halo_exch_group_create(domain, 'scalars')
+      call mpas_halo_exch_group_add_field(domain, 'scalars', 'scalars', timeLevel=2, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_complete(domain, 'scalars')
+
+      call mpas_halo_exch_group_create(domain, 'scalars_old')
+      call mpas_halo_exch_group_add_field(domain, 'scalars_old', 'scalars', timeLevel=1, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_complete(domain, 'scalars_old')
+
+      call mpas_halo_exch_group_create(domain, 'w')
+      call mpas_halo_exch_group_add_field(domain, 'w', 'w', timeLevel=2, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_complete(domain, 'w')
+
+      call mpas_halo_exch_group_create(domain, 'scale')
+      call mpas_halo_exch_group_add_field(domain, 'scale', 'scale', timeLevel=1, haloLayers=(/1,2/))
+      call mpas_halo_exch_group_complete(domain, 'scale')
 
 
       !
@@ -301,9 +386,37 @@ module atm_time_integration
    !-----------------------------------------------------------------------
    subroutine mpas_atm_dynamics_finalize(domain)
 
+      use mpas_halo, only : mpas_halo_exch_group_finalize, mpas_halo_exch_group_destroy
+
       implicit none
 
       type (domain_type), intent(inout) :: domain
+
+
+      !
+      ! Destroy halo exchange groups
+      !
+      call mpas_halo_exch_group_destroy(domain, 'group1')
+      call mpas_halo_exch_group_destroy(domain, 'group3')
+      call mpas_halo_exch_group_destroy(domain, 'group4a')
+      call mpas_halo_exch_group_destroy(domain, 'group4b')
+      call mpas_halo_exch_group_destroy(domain, 'group5')
+
+      call mpas_halo_exch_group_destroy(domain, 'exner')
+      call mpas_halo_exch_group_destroy(domain, 'tend_u')
+      call mpas_halo_exch_group_destroy(domain, 'rho_pp')
+      call mpas_halo_exch_group_destroy(domain, 'rtheta_pp')
+      call mpas_halo_exch_group_destroy(domain, 'u_123')
+      call mpas_halo_exch_group_destroy(domain, 'u_3')
+      call mpas_halo_exch_group_destroy(domain, 'scalars')
+      call mpas_halo_exch_group_destroy(domain, 'scalars_old')
+      call mpas_halo_exch_group_destroy(domain, 'w')
+      call mpas_halo_exch_group_destroy(domain, 'scale')
+
+      !
+      ! Finalize the mpas_halo module
+      !
+      call mpas_halo_exch_group_finalize(domain)
 
 
       !
