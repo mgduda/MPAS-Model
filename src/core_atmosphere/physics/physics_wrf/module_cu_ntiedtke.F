@@ -1918,7 +1918,6 @@ contains
 ! check the levels from lowest level to second top level
       do jk=klevm1,2,-1
 ! define the variables at the first level      
-      flag=.false.
       if(jk .eq. klevm1) then
 !$acc parallel vector_length(128)
 !$acc loop gang vector reduction(.or.:flag) &
@@ -1943,7 +1942,6 @@ contains
           vten(jl,klev)=ptenh(jl,klev)*(1.+vtmpc1*pqenh(jl,klev))
           zbuo(jl,klev)=(vptu(jl,klev)-vten(jl,klev))/vten(jl,klev)
           klab(jl,klev) = 1
-          flag = .true.
         else
           loflag(jl) = .false.
         end if
@@ -1951,14 +1949,13 @@ contains
 !$acc end parallel
       end if
  
-!!!   is=0
-!!!   do jl=1,klon
-!!!      if(loflag(jl))then
-!!!         is=is+1
-!!!      endif
-!!!   enddo
-!!!   if(is.eq.0) exit
-      if  ( .not. flag ) exit
+      is=0
+      do jl=1,klon
+         if(loflag(jl))then
+            is=is+1
+         endif
+      enddo
+      if(is.eq.0) exit
 
 ! the next levels, we use the variables at the first level as initial values
 !$acc parallel vector_length(128)
@@ -2060,11 +2057,9 @@ contains
           end if
         end if
       end do
-!$acc end parallel
-     end do ! end all the levels
 
-!$acc parallel vector_length(128)
-!$acc loop gang vector private(ikb,ikt)
+      end do ! end all the levels
+
       do jl=1,klon
         ikb = kcbot(jl)
         ikt = kctop(jl)
@@ -2148,9 +2143,6 @@ contains
         end do
 !$acc end parallel
 
-        flag = .false.
-!$acc parallel vector_length(128) reduction(.or.:flag)
-!$acc loop gang vector
         do jl=1,klon
            kcbot(jl)    =  levels
            kctop(jl)    =  levels
@@ -2158,20 +2150,18 @@ contains
            lldcum(jl)   = .false.
            resetflag(jl)= .false.
            loflag(jl)   = (.not. deepflag(jl)) .and. (levels.ge.itoppacel(jl))
-           flag         = loflag(jl)
         end do
 !$acc end parallel
 
 ! start the inner loop to search the deep convection points
-      if ( flag ) then
       do jk=levels,2,-1
-!!!     is=0
-!!!     do jl=1,klon
-!!!      if(loflag(jl))then
-!!!         is=is+1
-!!!      endif
-!!!     enddo
-!!!     if(is.eq.0) exit
+        is=0
+        do jl=1,klon
+         if(loflag(jl))then
+            is=is+1
+         endif
+        enddo
+        if(is.eq.0) exit
 
 ! define the variables at the departure level 
         if(jk .eq. levels) then
@@ -2315,7 +2305,6 @@ contains
       end do
 !$acc end parallel
       end do ! end all the levels
-      end if
 
       needreset = .false.
 !$acc parallel vector_length(128)
