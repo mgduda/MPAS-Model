@@ -1454,8 +1454,7 @@ end if
       ! should be -1
       if (passive_start /= -1 .and. passive_end /= -1) then
          do iCell=1,nCellsSolve
-            scalars(passive_start:passive_end,:,iCell) = 0.5 * (sin(10.0 *
-latCell(iCell)) * sin(10.0 * lonCell(iCell))) + 0.5
+            scalars(passive_start:passive_end,:,iCell) = 0.5 * (sin(10.0 * latCell(iCell)) * sin(10.0 * lonCell(iCell))) + 0.5
          end do
       end if
 
