@@ -4,7 +4,7 @@
 # To build a dycore-only MPAS-Atmosphere model, comment-out or delete
 # the definition of PHYSICS, below
 #
-PHYSICS=-DDO_PHYSICS
+PHYSICS= #-DDO_PHYSICS
 
 
 ifdef PHYSICS
