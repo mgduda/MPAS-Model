@@ -381,8 +381,15 @@
                      possible_values=".true. or .false."/>
         </nml_record>
 
+        <nml_record name="development">
+                <nml_option name="config_halo_exch_method" type="character" default_value="mpas_dmpar"
+                     units="-"
+                     description="Which method/implementation to use for exchanging halos"
+                     possible_values="`mpas_dmpar', `mpas_halo'"/>
+        </nml_record>
+
 <!-- **************************************************************************************** -->
-<!-- **************************************  Packages  ************************************** -->
+d!-- **************************************  Packages  ************************************** -->
 <!-- **************************************************************************************** -->
 
         <packages>
@@ -2193,6 +2200,13 @@
                         <var name="lbc_ni" name_in_code="ni" array_group="number" packages="bl_mynn_in;mp_thompson_in" units="m^{-3} s^{-1}"
                              description="Lateral boundary tendency of ice number concentration"/>
                 </var_array>
+        </var_struct>
+
+
+        <var_struct name="halo_scratch" time_levs="1">
+                <var name="scale" type="real" dimensions="nVertLevels TWO nCells" units="-"
+                     description="Scaling coefficients for monotonic-limited horizontal fluxes"
+                     persistence="scratch" />
         </var_struct>
 
 

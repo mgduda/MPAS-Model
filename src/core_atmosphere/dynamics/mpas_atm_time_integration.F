@@ -59,7 +59,6 @@ module atm_time_integration
    ! Used in atm_advance_scalars_mono
    real (kind=RKIND), dimension(:,:), allocatable :: scalar_old_arr, scalar_new_arr
    real (kind=RKIND), dimension(:,:), allocatable :: s_max_arr, s_min_arr
-   real (kind=RKIND), dimension(:,:,:), allocatable :: scale_array
    real (kind=RKIND), dimension(:,:), allocatable :: flux_array
    real (kind=RKIND), dimension(:,:), allocatable :: flux_upwind_tmp_arr
    real (kind=RKIND), dimension(:,:), allocatable :: flux_tmp_arr
@@ -67,7 +66,7 @@ module atm_time_integration
    real (kind=RKIND), dimension(:,:), allocatable :: rho_zz_int
    real (kind=RKIND), dimension(:,:,:), allocatable :: scalar_tend_array
 !$acc declare create(scalar_old_arr, scalar_new_arr,s_max_arr, s_min_arr)
-!$acc declare create(scale_array, flux_array, flux_upwind_tmp_arr, flux_tmp_arr)
+!$acc declare create(flux_array, flux_upwind_tmp_arr, flux_tmp_arr)
 !$acc declare create(wdtn_arr, rho_zz_int, scalar_tend_array)
 
    real (kind=RKIND), dimension(:,:,:), allocatable :: scalars_driving ! regional_MPAS addition 
@@ -129,6 +128,11 @@ module atm_time_integration
    ! if damping in the model changed with the simulation calendar
    real (kind=RKIND), parameter, private :: seconds_per_day = 86400.0_RKIND
 
+   integer, parameter, private :: MPAS_DMPAR_ROUTINES = 1, &
+                                  MPAS_HALO_ROUTINES = 2
+
+   integer, private :: halo_exch_method
+
 
    contains
 
@@ -147,6 +151,9 @@ module atm_time_integration
    !-----------------------------------------------------------------------
    subroutine mpas_atm_dynamics_init(domain)
 
+      use mpas_halo, only : mpas_halo_exch_group_init, mpas_halo_exch_group_create, mpas_halo_exch_group_add_field, &
+                            mpas_halo_exch_group_complete
+
       implicit none
 
       type (domain_type), intent(inout) :: domain
@@ -156,82 +163,201 @@ module atm_time_integration
       type (field3DReal), pointer :: field_3d_ptr
       integer, pointer :: nCells, nVertLevels
 
+      character(len=StrKIND), pointer :: config_halo_exch_method
 
       !
-      ! Set up compacted halo info arrays. The exact fields used here do not matter, so long
-      !   as they have the correct dimensions.
+      ! Determine from the namelist option config_halo_exch_method which halo exchange
+      ! method to employ throughout the dynamics
       !
-      call mpas_pool_get_subpool(domain % blocklist % structs, 'state', state)
+      call mpas_pool_get_config(domain % blocklist % configs, 'config_halo_exch_method', config_halo_exch_method)
 
-      call mpas_pool_get_field(state, 'rho_zz', field_2d_ptr, 1)
-      call mpas_dmpar_compact_halo_info(field_2d_ptr, compactHaloInfo_c_v)
-      call mpas_dmpar_gpu_init_2d_real_acc(field_2d_ptr%array, compactHaloInfo_c_v,sendList_c_v, recvList_c_v, gpu_bufferOffset_send_c_v, &
-                                              gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
-                                              gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v )
-      gpu_send_size_c_v = size(gpu_nList_send_c_v)
-      gpu_recv_size_c_v = size(gpu_nList_recv_c_v)
-      gpu_compactHaloInfoSize_c_v = size(compactHaloInfo_c_v)
-      call mpas_pool_get_field(state, 'w', field_2d_ptr, 1)
-      call mpas_dmpar_compact_halo_info(field_2d_ptr, compactHaloInfo_c_vP1)
-      call mpas_dmpar_gpu_init_2d_real_acc(field_2d_ptr%array, compactHaloInfo_c_vP1,sendList_c_vP1, recvList_c_vP1, gpu_bufferOffset_send_c_vP1, &
-                                              gpu_nList_send_c_vP1, gpu_idx_send_c_vP1, gpu_bufferOffset_recv_c_vP1, gpu_nList_recv_c_vP1,&
-                                              gpu_idx_recv_c_vP1, gpu_dimsizes_c_vP1, gpu_nHaloLayers_c_vP1 )
-      gpu_send_size_c_vP1 = size(gpu_nList_send_c_vP1)
-      gpu_recv_size_c_vP1 = size(gpu_nList_recv_c_vP1)
-      gpu_compactHaloInfoSize_c_vP1 = size(compactHaloInfo_c_vP1)
-      call mpas_pool_get_field(state, 'scalars', field_3d_ptr, 1)
-      call mpas_dmpar_compact_halo_info(field_3d_ptr, compactHaloInfo_c_v_s)
+      if (trim(config_halo_exch_method) == 'mpas_halo') then
+         halo_exch_method = MPAS_HALO_ROUTINES
+         call mpas_log_write('')
+         call mpas_log_write('*** Using new ''mpas_halo'' routines for exchanging halos')
+         call mpas_log_write('')
+      else
+         halo_exch_method = MPAS_DMPAR_ROUTINES
+         call mpas_log_write('')
+         call mpas_log_write('*** Using ''mpas_dmpar'' routines for exchanging halos')
+         call mpas_log_write('')
+      end if
 
-      call mpas_dmpar_gpu_init_3d_real_acc(field_3d_ptr%array, compactHaloInfo_c_v_s,sendList_c_v_s, recvList_c_v_s, gpu_bufferOffset_send_c_v_s, &
-                                              gpu_nList_send_c_v_s, gpu_idx_send_c_v_s, gpu_bufferOffset_recv_c_v_s, gpu_nList_recv_c_v_s,&
-                                              gpu_idx_recv_c_v_s, gpu_dimsizes_c_v_s, gpu_nHaloLayers_c_v_s )
-      gpu_send_size_c_v_s = size(gpu_nList_send_c_v_s)
-      gpu_recv_size_c_v_s = size(gpu_nList_recv_c_v_s)
-      gpu_compactHaloInfoSize_c_v_s = size(compactHaloInfo_c_v_s)
-      call mpas_pool_get_field(state, 'u', field_2d_ptr, 1)
-      call mpas_dmpar_compact_halo_info(field_2d_ptr, compactHaloInfo_e_v)
-      call mpas_dmpar_gpu_init_2d_real_acc(field_2d_ptr%array, compactHaloInfo_e_v,sendList_e_v, recvList_e_v, gpu_bufferOffset_send_e_v, &
-                                              gpu_nList_send_e_v, gpu_idx_send_e_v, gpu_bufferOffset_recv_e_v, gpu_nList_recv_e_v,&
-                                              gpu_idx_recv_e_v, gpu_dimsizes_e_v, gpu_nHaloLayers_e_v )
-      gpu_send_size_e_v = size(gpu_nList_send_e_v)
-      gpu_recv_size_e_v = size(gpu_nList_recv_e_v)
-      gpu_compactHaloInfoSize_e_v = size(compactHaloInfo_e_v)
-      allocate(field_3d_ptr)
-      call mpas_pool_get_dimension(state, 'nCells', nCells)
-      call mpas_pool_get_dimension(state, 'nVertLevels', nVertLevels)
-      field_3d_ptr % block => domain % blocklist
-      field_3d_ptr % dimSizes(1) = nVertLevels
-      field_3d_ptr % dimSizes(2) = 2
-      field_3d_ptr % dimSizes(3) = nCells
-      field_3d_ptr % sendList => domain % blocklist % parinfo % cellsToSend
-      field_3d_ptr % recvList => domain % blocklist % parinfo % cellsToRecv
-      field_3d_ptr % copyList => domain % blocklist % parinfo % cellsToCopy
-      field_3d_ptr % prev => null()
-      field_3d_ptr % next => null()
-      field_3d_ptr % isActive = .true.
-      allocate(field_3d_ptr % array(nVertLevels, 2, nCells+1))
-      call mpas_dmpar_compact_halo_info(field_3d_ptr, compactHaloInfo_c_2_v)
-      call mpas_dmpar_gpu_init_3d_real_acc(field_3d_ptr%array, compactHaloInfo_c_2_v,sendList_c_2_v, recvList_c_2_v, gpu_bufferOffset_send_c_2_v, &
-                                              gpu_nList_send_c_2_v, gpu_idx_send_c_2_v, gpu_bufferOffset_recv_c_2_v, gpu_nList_recv_c_2_v,&
-                                              gpu_idx_recv_c_2_v, gpu_dimsizes_c_2_v, gpu_nHaloLayers_c_2_v)
-      gpu_send_size_c_2_v = size(gpu_nList_send_c_2_v)
-      gpu_recv_size_c_2_v = size(gpu_nList_recv_c_2_v)
-      gpu_compactHaloInfoSize_c_2_v = size(compactHaloInfo_c_2_v)
 
-      call mpas_gpu_halo_init(domain, compactHaloInfo_c_v, compactHaloInfo_c_vP1, &
-                compactHaloInfo_c_v_s, compactHaloInfo_e_v, compactHaloInfo_c_2_v, gpu_bufferOffset_send_c_v, &
-                gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
-                gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_bufferOffset_send_c_vP1, &
-                gpu_nList_send_c_vP1, gpu_idx_send_c_vP1, gpu_bufferOffset_recv_c_vP1, gpu_nList_recv_c_vP1,&
-                gpu_idx_recv_c_vP1, gpu_dimsizes_c_vP1, gpu_nHaloLayers_c_vP1, gpu_bufferOffset_send_e_v, &
-                gpu_nList_send_e_v, gpu_idx_send_e_v, gpu_bufferOffset_recv_e_v, gpu_nList_recv_e_v,&
-                gpu_idx_recv_e_v, gpu_dimsizes_e_v, gpu_nHaloLayers_e_v,gpu_bufferOffset_send_c_v_s, &
-                gpu_nList_send_c_v_s, gpu_idx_send_c_v_s, gpu_bufferOffset_recv_c_v_s, gpu_nList_recv_c_v_s,&
-                gpu_idx_recv_c_v_s, gpu_dimsizes_c_v_s, gpu_nHaloLayers_c_v_s, gpu_bufferOffset_send_c_2_v, &
-                gpu_nList_send_c_2_v, gpu_idx_send_c_2_v, gpu_bufferOffset_recv_c_2_v, gpu_nList_recv_c_2_v,&
-                gpu_idx_recv_c_2_v, gpu_dimsizes_c_2_v, gpu_nHaloLayers_c_2_v)
-      deallocate(field_3d_ptr % array)
-      deallocate(field_3d_ptr)
+      if (halo_exch_method == MPAS_HALO_ROUTINES) then
+
+         !
+         ! Initialize the mpas_halo module
+         !
+         call mpas_halo_exch_group_init(domain)
+
+         !
+         ! Build halo exchange groups
+         !
+         call mpas_halo_exch_group_create(domain, 'group1')
+         call mpas_halo_exch_group_add_field(domain, 'group1', 'theta_m', timeLevel=1, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_add_field(domain, 'group1', 'scalars', timeLevel=1, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_add_field(domain, 'group1', 'pressure_p', timeLevel=1, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_add_field(domain, 'group1', 'rtheta_p', timeLevel=1, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_complete(domain, 'group1')
+
+         call mpas_halo_exch_group_create(domain, 'group3')
+         call mpas_halo_exch_group_add_field(domain, 'group3', 'rw_p', timeLevel=1, haloLayers=(/1/))
+         call mpas_halo_exch_group_add_field(domain, 'group3', 'ru_p', timeLevel=1, haloLayers=(/2/))
+         call mpas_halo_exch_group_add_field(domain, 'group3', 'rho_pp', timeLevel=1, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_add_field(domain, 'group3', 'rtheta_pp', timeLevel=1, haloLayers=(/2/))
+         call mpas_halo_exch_group_complete(domain, 'group3')
+
+         call mpas_halo_exch_group_create(domain, 'group4a')
+         call mpas_halo_exch_group_add_field(domain, 'group4a', 'w', timeLevel=2, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_add_field(domain, 'group4a', 'pv_edge', timeLevel=1, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_add_field(domain, 'group4a', 'rho_edge', timeLevel=1, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_complete(domain, 'group4a')
+
+         call mpas_halo_exch_group_create(domain, 'group4b')
+         call mpas_halo_exch_group_add_field(domain, 'group4b', 'w', timeLevel=2, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_add_field(domain, 'group4b', 'pv_edge', timeLevel=1, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_add_field(domain, 'group4b', 'rho_edge', timeLevel=1, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_add_field(domain, 'group4b', 'scalars', timeLevel=2, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_complete(domain, 'group4b')
+
+         call mpas_halo_exch_group_create(domain, 'group5')
+         call mpas_halo_exch_group_add_field(domain, 'group5', 'theta_m', timeLevel=2, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_add_field(domain, 'group5', 'pressure_p', timeLevel=1, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_add_field(domain, 'group5', 'rtheta_p', timeLevel=1, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_complete(domain, 'group5')
+
+
+         call mpas_halo_exch_group_create(domain, 'exner')
+         call mpas_halo_exch_group_add_field(domain, 'exner', 'exner', timeLevel=1, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_complete(domain, 'exner')
+
+         call mpas_halo_exch_group_create(domain, 'tend_u')
+         call mpas_halo_exch_group_add_field(domain, 'tend_u', 'tend_u', timeLevel=1, haloLayers=(/1/))
+         call mpas_halo_exch_group_complete(domain, 'tend_u')
+
+         call mpas_halo_exch_group_create(domain, 'rho_pp')
+         call mpas_halo_exch_group_add_field(domain, 'rho_pp', 'rho_pp', timeLevel=1, haloLayers=(/1/))
+         call mpas_halo_exch_group_complete(domain, 'rho_pp')
+
+         call mpas_halo_exch_group_create(domain, 'rtheta_pp')
+         call mpas_halo_exch_group_add_field(domain, 'rtheta_pp', 'rtheta_pp', timeLevel=1, haloLayers=(/1/))
+         call mpas_halo_exch_group_complete(domain, 'rtheta_pp')
+
+         call mpas_halo_exch_group_create(domain, 'u_123')
+         call mpas_halo_exch_group_add_field(domain, 'u_123', 'u', timeLevel=2, haloLayers=(/1,2,3/))
+         call mpas_halo_exch_group_complete(domain, 'u_123')
+
+         call mpas_halo_exch_group_create(domain, 'u_3')
+         call mpas_halo_exch_group_add_field(domain, 'u_3', 'u', timeLevel=2, haloLayers=(/3/))
+         call mpas_halo_exch_group_complete(domain, 'u_3')
+
+         call mpas_halo_exch_group_create(domain, 'scalars')
+         call mpas_halo_exch_group_add_field(domain, 'scalars', 'scalars', timeLevel=2, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_complete(domain, 'scalars')
+
+         call mpas_halo_exch_group_create(domain, 'scalars_old')
+         call mpas_halo_exch_group_add_field(domain, 'scalars_old', 'scalars', timeLevel=1, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_complete(domain, 'scalars_old')
+
+         call mpas_halo_exch_group_create(domain, 'w')
+         call mpas_halo_exch_group_add_field(domain, 'w', 'w', timeLevel=2, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_complete(domain, 'w')
+
+         call mpas_halo_exch_group_create(domain, 'scale')
+         call mpas_halo_exch_group_add_field(domain, 'scale', 'scale', timeLevel=1, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_complete(domain, 'scale')
+
+         call mpas_halo_exch_group_create(domain, 'bltend')
+         call mpas_halo_exch_group_add_field(domain, 'bltend', 'rublten', timeLevel=1, haloLayers=(/1/))
+         call mpas_halo_exch_group_add_field(domain, 'bltend', 'rvblten', timeLevel=1, haloLayers=(/1/))
+         call mpas_halo_exch_group_complete(domain, 'bltend')
+
+         call mpas_halo_exch_group_create(domain, 'cutend')
+         call mpas_halo_exch_group_add_field(domain, 'cutend', 'rucuten', timeLevel=1, haloLayers=(/1/))
+         call mpas_halo_exch_group_add_field(domain, 'cutend', 'rvcuten', timeLevel=1, haloLayers=(/1/))
+         call mpas_halo_exch_group_complete(domain, 'cutend')
+
+      else
+
+         !
+         ! Set up compacted halo info arrays. The exact fields used here do not matter, so long
+         !   as they have the correct dimensions.
+         !
+         call mpas_pool_get_subpool(domain % blocklist % structs, 'state', state)
+
+         call mpas_pool_get_field(state, 'rho_zz', field_2d_ptr, 1)
+         call mpas_dmpar_compact_halo_info(field_2d_ptr, compactHaloInfo_c_v)
+         call mpas_dmpar_gpu_init_2d_real_acc(field_2d_ptr%array, compactHaloInfo_c_v,sendList_c_v, recvList_c_v, gpu_bufferOffset_send_c_v, &
+                                                 gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
+                                                 gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v )
+         gpu_send_size_c_v = size(gpu_nList_send_c_v)
+         gpu_recv_size_c_v = size(gpu_nList_recv_c_v)
+         gpu_compactHaloInfoSize_c_v = size(compactHaloInfo_c_v)
+         call mpas_pool_get_field(state, 'w', field_2d_ptr, 1)
+         call mpas_dmpar_compact_halo_info(field_2d_ptr, compactHaloInfo_c_vP1)
+         call mpas_dmpar_gpu_init_2d_real_acc(field_2d_ptr%array, compactHaloInfo_c_vP1,sendList_c_vP1, recvList_c_vP1, gpu_bufferOffset_send_c_vP1, &
+                                                 gpu_nList_send_c_vP1, gpu_idx_send_c_vP1, gpu_bufferOffset_recv_c_vP1, gpu_nList_recv_c_vP1,&
+                                                 gpu_idx_recv_c_vP1, gpu_dimsizes_c_vP1, gpu_nHaloLayers_c_vP1 )
+         gpu_send_size_c_vP1 = size(gpu_nList_send_c_vP1)
+         gpu_recv_size_c_vP1 = size(gpu_nList_recv_c_vP1)
+         gpu_compactHaloInfoSize_c_vP1 = size(compactHaloInfo_c_vP1)
+         call mpas_pool_get_field(state, 'scalars', field_3d_ptr, 1)
+         call mpas_dmpar_compact_halo_info(field_3d_ptr, compactHaloInfo_c_v_s)
+
+         call mpas_dmpar_gpu_init_3d_real_acc(field_3d_ptr%array, compactHaloInfo_c_v_s,sendList_c_v_s, recvList_c_v_s, gpu_bufferOffset_send_c_v_s, &
+                                                 gpu_nList_send_c_v_s, gpu_idx_send_c_v_s, gpu_bufferOffset_recv_c_v_s, gpu_nList_recv_c_v_s,&
+                                                 gpu_idx_recv_c_v_s, gpu_dimsizes_c_v_s, gpu_nHaloLayers_c_v_s )
+         gpu_send_size_c_v_s = size(gpu_nList_send_c_v_s)
+         gpu_recv_size_c_v_s = size(gpu_nList_recv_c_v_s)
+         gpu_compactHaloInfoSize_c_v_s = size(compactHaloInfo_c_v_s)
+         call mpas_pool_get_field(state, 'u', field_2d_ptr, 1)
+         call mpas_dmpar_compact_halo_info(field_2d_ptr, compactHaloInfo_e_v)
+         call mpas_dmpar_gpu_init_2d_real_acc(field_2d_ptr%array, compactHaloInfo_e_v,sendList_e_v, recvList_e_v, gpu_bufferOffset_send_e_v, &
+                                                 gpu_nList_send_e_v, gpu_idx_send_e_v, gpu_bufferOffset_recv_e_v, gpu_nList_recv_e_v,&
+                                                 gpu_idx_recv_e_v, gpu_dimsizes_e_v, gpu_nHaloLayers_e_v )
+         gpu_send_size_e_v = size(gpu_nList_send_e_v)
+         gpu_recv_size_e_v = size(gpu_nList_recv_e_v)
+         gpu_compactHaloInfoSize_e_v = size(compactHaloInfo_e_v)
+         allocate(field_3d_ptr)
+         call mpas_pool_get_dimension(state, 'nCells', nCells)
+         call mpas_pool_get_dimension(state, 'nVertLevels', nVertLevels)
+         field_3d_ptr % block => domain % blocklist
+         field_3d_ptr % dimSizes(1) = nVertLevels
+         field_3d_ptr % dimSizes(2) = 2
+         field_3d_ptr % dimSizes(3) = nCells
+         field_3d_ptr % sendList => domain % blocklist % parinfo % cellsToSend
+         field_3d_ptr % recvList => domain % blocklist % parinfo % cellsToRecv
+         field_3d_ptr % copyList => domain % blocklist % parinfo % cellsToCopy
+         field_3d_ptr % prev => null()
+         field_3d_ptr % next => null()
+         field_3d_ptr % isActive = .true.
+         allocate(field_3d_ptr % array(nVertLevels, 2, nCells+1))
+         call mpas_dmpar_compact_halo_info(field_3d_ptr, compactHaloInfo_c_2_v)
+         call mpas_dmpar_gpu_init_3d_real_acc(field_3d_ptr%array, compactHaloInfo_c_2_v,sendList_c_2_v, recvList_c_2_v, gpu_bufferOffset_send_c_2_v, &
+                                                 gpu_nList_send_c_2_v, gpu_idx_send_c_2_v, gpu_bufferOffset_recv_c_2_v, gpu_nList_recv_c_2_v,&
+                                                 gpu_idx_recv_c_2_v, gpu_dimsizes_c_2_v, gpu_nHaloLayers_c_2_v)
+         gpu_send_size_c_2_v = size(gpu_nList_send_c_2_v)
+         gpu_recv_size_c_2_v = size(gpu_nList_recv_c_2_v)
+         gpu_compactHaloInfoSize_c_2_v = size(compactHaloInfo_c_2_v)
+
+         call mpas_gpu_halo_init(domain, compactHaloInfo_c_v, compactHaloInfo_c_vP1, &
+                   compactHaloInfo_c_v_s, compactHaloInfo_e_v, compactHaloInfo_c_2_v, gpu_bufferOffset_send_c_v, &
+                   gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
+                   gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_bufferOffset_send_c_vP1, &
+                   gpu_nList_send_c_vP1, gpu_idx_send_c_vP1, gpu_bufferOffset_recv_c_vP1, gpu_nList_recv_c_vP1,&
+                   gpu_idx_recv_c_vP1, gpu_dimsizes_c_vP1, gpu_nHaloLayers_c_vP1, gpu_bufferOffset_send_e_v, &
+                   gpu_nList_send_e_v, gpu_idx_send_e_v, gpu_bufferOffset_recv_e_v, gpu_nList_recv_e_v,&
+                   gpu_idx_recv_e_v, gpu_dimsizes_e_v, gpu_nHaloLayers_e_v,gpu_bufferOffset_send_c_v_s, &
+                   gpu_nList_send_c_v_s, gpu_idx_send_c_v_s, gpu_bufferOffset_recv_c_v_s, gpu_nList_recv_c_v_s,&
+                   gpu_idx_recv_c_v_s, gpu_dimsizes_c_v_s, gpu_nHaloLayers_c_v_s, gpu_bufferOffset_send_c_2_v, &
+                   gpu_nList_send_c_2_v, gpu_idx_send_c_2_v, gpu_bufferOffset_recv_c_2_v, gpu_nList_recv_c_2_v,&
+                   gpu_idx_recv_c_2_v, gpu_dimsizes_c_2_v, gpu_nHaloLayers_c_2_v)
+         deallocate(field_3d_ptr % array)
+         deallocate(field_3d_ptr)
+
+      end if
+
    end subroutine mpas_atm_dynamics_init
 
    subroutine mpas_gpu_halo_init(domain, compactHaloInfo_c_v,compactHaloInfo_c_vP1,&
@@ -301,33 +427,66 @@ module atm_time_integration
    !-----------------------------------------------------------------------
    subroutine mpas_atm_dynamics_finalize(domain)
 
+      use mpas_halo, only : mpas_halo_exch_group_finalize, mpas_halo_exch_group_destroy
+
       implicit none
 
       type (domain_type), intent(inout) :: domain
 
 
-      !
-      ! Free memory used by compacted halo info arrays.
-      !
-      deallocate(compactHaloInfo_c_v)
-      deallocate(compactHaloInfo_c_vP1)
-      deallocate(compactHaloInfo_c_v_s)
-      deallocate(compactHaloInfo_e_v)
-      deallocate(compactHaloInfo_c_2_v)
+      if (halo_exch_method == MPAS_HALO_ROUTINES) then
 
-      !
-      ! Free memory used by communication lists.
-      !
-      call mpas_dmpar_destroy_communication_list(sendList_c_v)
-      call mpas_dmpar_destroy_communication_list(recvList_c_v)
-      call mpas_dmpar_destroy_communication_list(sendList_c_vP1)
-      call mpas_dmpar_destroy_communication_list(recvList_c_vP1)
-      call mpas_dmpar_destroy_communication_list(sendList_e_v)
-      call mpas_dmpar_destroy_communication_list(recvList_e_v)
-      call mpas_dmpar_destroy_communication_list(sendList_c_v_s)
-      call mpas_dmpar_destroy_communication_list(recvList_c_v_s)
-      call mpas_dmpar_destroy_communication_list(sendList_c_2_v)
-      call mpas_dmpar_destroy_communication_list(recvList_c_2_v)
+         !
+         ! Destroy halo exchange groups
+         !
+         call mpas_halo_exch_group_destroy(domain, 'group1')
+         call mpas_halo_exch_group_destroy(domain, 'group3')
+         call mpas_halo_exch_group_destroy(domain, 'group4a')
+         call mpas_halo_exch_group_destroy(domain, 'group4b')
+         call mpas_halo_exch_group_destroy(domain, 'group5')
+
+         call mpas_halo_exch_group_destroy(domain, 'exner')
+         call mpas_halo_exch_group_destroy(domain, 'tend_u')
+         call mpas_halo_exch_group_destroy(domain, 'rho_pp')
+         call mpas_halo_exch_group_destroy(domain, 'rtheta_pp')
+         call mpas_halo_exch_group_destroy(domain, 'u_123')
+         call mpas_halo_exch_group_destroy(domain, 'u_3')
+         call mpas_halo_exch_group_destroy(domain, 'scalars')
+         call mpas_halo_exch_group_destroy(domain, 'scalars_old')
+         call mpas_halo_exch_group_destroy(domain, 'w')
+         call mpas_halo_exch_group_destroy(domain, 'scale')
+
+         !
+         ! Finalize the mpas_halo module
+         !
+         call mpas_halo_exch_group_finalize(domain)
+
+      else
+
+         !
+         ! Free memory used by compacted halo info arrays.
+         !
+         deallocate(compactHaloInfo_c_v)
+         deallocate(compactHaloInfo_c_vP1)
+         deallocate(compactHaloInfo_c_v_s)
+         deallocate(compactHaloInfo_e_v)
+         deallocate(compactHaloInfo_c_2_v)
+
+         !
+         ! Free memory used by communication lists.
+         !
+         call mpas_dmpar_destroy_communication_list(sendList_c_v)
+         call mpas_dmpar_destroy_communication_list(recvList_c_v)
+         call mpas_dmpar_destroy_communication_list(sendList_c_vP1)
+         call mpas_dmpar_destroy_communication_list(recvList_c_vP1)
+         call mpas_dmpar_destroy_communication_list(sendList_e_v)
+         call mpas_dmpar_destroy_communication_list(recvList_e_v)
+         call mpas_dmpar_destroy_communication_list(sendList_c_v_s)
+         call mpas_dmpar_destroy_communication_list(recvList_c_v_s)
+         call mpas_dmpar_destroy_communication_list(sendList_c_2_v)
+         call mpas_dmpar_destroy_communication_list(recvList_c_2_v)
+
+      end if
 
    end subroutine mpas_atm_dynamics_finalize
 
@@ -402,7 +561,10 @@ module atm_time_integration
    !                  model state advanced forward in time by dt seconds,
    !                  and some diagnostics in diag 
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+
       use mpas_atm_dimensions, only: maxEdges
+      use mpas_halo, only : mpas_halo_exch_group_full_halo_exch
+
       implicit none
 
       type (domain_type), intent(inout) :: domain
@@ -452,6 +614,7 @@ module atm_time_integration
       type (mpas_pool_type), pointer :: diag
       type (mpas_pool_type), pointer :: diag_physics
       type (mpas_pool_type), pointer :: mesh
+      type (mpas_pool_type), pointer :: halo_scratch
       type (mpas_pool_type), pointer :: tend
       type (mpas_pool_type), pointer :: tend_physics => null()
       type (mpas_pool_type), pointer :: lbc  ! regional_MPAS addition
@@ -578,36 +741,43 @@ module atm_time_integration
 
       end if
 
-      !halo exchange calls. This works both for CPU and GPU.
-      call mpas_pool_get_array_gpu(state,'theta_m',gpu_theta_m_1,1)
-      call mpas_pool_get_array_gpu(state,'scalars',gpu_scalars_1,1)
-      call mpas_pool_get_array_gpu(diag,'pressure_p',gpu_pressure_p)
-      call mpas_pool_get_array_gpu(diag,'rtheta_p',gpu_rtheta_p)
-      gpuArraySize(1) = size(gpu_theta_m_1,1)
-      gpuArraySize(2) = size(gpu_theta_m_1,2)
-      call mpas_dmpar_exch_halo_acc(gpu_theta_m_1, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
-                                              gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
-                                              gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
-                                              gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
-      gpuArraySize(1) = size(gpu_pressure_p,1)
-      gpuArraySize(2) = size(gpu_pressure_p,2)
-      call mpas_dmpar_exch_halo_acc(gpu_pressure_p, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
-                                              gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
-                                              gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v,gpu_send_size_c_v, gpu_recv_size_c_v,&
-                                              gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
-      gpuArraySize(1) = size(gpu_scalars_1,1)
-      gpuArraySize(2) = size(gpu_scalars_1,2)
-      gpuArraySize(3) = size(gpu_scalars_1,3)      
-      call mpas_dmpar_exch_halo_acc(gpu_scalars_1, compactHaloInfo_c_v_s, sendList_c_v_s, recvList_c_v_s, gpu_bufferOffset_send_c_v_s, &
-                                              gpu_nList_send_c_v_s, gpu_idx_send_c_v_s, gpu_bufferOffset_recv_c_v_s, gpu_nList_recv_c_v_s,&
-                                              gpu_idx_recv_c_v_s, gpu_dimsizes_c_v_s, gpu_nHaloLayers_c_v_s, gpu_send_size_c_v_s, gpu_recv_size_c_v_s,&
-                                              gpu_compactHaloInfoSize_c_v_s, gpuArraySize(1), gpuArraySize(2), gpuArraySize(3))
-      gpuArraySize(1) = size(gpu_rtheta_p,1)
-      gpuArraySize(2) = size(gpu_rtheta_p,2)
-      call mpas_dmpar_exch_halo_acc(gpu_rtheta_p, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
-                                              gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
-                                              gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
-                                              gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+      !
+      ! Communicate halos for theta_m, scalars, pressure_p, and rtheta_p
+      !
+      if (halo_exch_method == MPAS_HALO_ROUTINES) then
+         call mpas_halo_exch_group_full_halo_exch(domain, 'group1')
+      else
+         !halo exchange calls. This works both for CPU and GPU.
+         call mpas_pool_get_array_gpu(state,'theta_m',gpu_theta_m_1,1)
+         call mpas_pool_get_array_gpu(state,'scalars',gpu_scalars_1,1)
+         call mpas_pool_get_array_gpu(diag,'pressure_p',gpu_pressure_p)
+         call mpas_pool_get_array_gpu(diag,'rtheta_p',gpu_rtheta_p)
+         gpuArraySize(1) = size(gpu_theta_m_1,1)
+         gpuArraySize(2) = size(gpu_theta_m_1,2)
+         call mpas_dmpar_exch_halo_acc(gpu_theta_m_1, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
+                                                 gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
+                                                 gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
+                                                 gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+         gpuArraySize(1) = size(gpu_pressure_p,1)
+         gpuArraySize(2) = size(gpu_pressure_p,2)
+         call mpas_dmpar_exch_halo_acc(gpu_pressure_p, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
+                                                 gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
+                                                 gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v,gpu_send_size_c_v, gpu_recv_size_c_v,&
+                                                 gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+         gpuArraySize(1) = size(gpu_scalars_1,1)
+         gpuArraySize(2) = size(gpu_scalars_1,2)
+         gpuArraySize(3) = size(gpu_scalars_1,3)      
+         call mpas_dmpar_exch_halo_acc(gpu_scalars_1, compactHaloInfo_c_v_s, sendList_c_v_s, recvList_c_v_s, gpu_bufferOffset_send_c_v_s, &
+                                                 gpu_nList_send_c_v_s, gpu_idx_send_c_v_s, gpu_bufferOffset_recv_c_v_s, gpu_nList_recv_c_v_s,&
+                                                 gpu_idx_recv_c_v_s, gpu_dimsizes_c_v_s, gpu_nHaloLayers_c_v_s, gpu_send_size_c_v_s, gpu_recv_size_c_v_s,&
+                                                 gpu_compactHaloInfoSize_c_v_s, gpuArraySize(1), gpuArraySize(2), gpuArraySize(3))
+         gpuArraySize(1) = size(gpu_rtheta_p,1)
+         gpuArraySize(2) = size(gpu_rtheta_p,2)
+         call mpas_dmpar_exch_halo_acc(gpu_rtheta_p, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
+                                                 gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
+                                                 gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
+                                                 gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+      end if
 
       call mpas_timer_start('atm_rk_integration_setup')
 
@@ -801,13 +971,17 @@ module atm_time_integration
          end do
          call mpas_timer_stop('atm_compute_vert_imp_coefs')
 
-         call mpas_pool_get_array_gpu(diag,'exner',gpu_exner)
-         gpuArraySize(1) = size(gpu_exner,1)
-         gpuArraySize(2) = size(gpu_exner,2)
-         call mpas_dmpar_exch_halo_acc(gpu_exner, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
-                                              gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
-                                              gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
-                                              gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+         if (halo_exch_method == MPAS_HALO_ROUTINES) then
+            call mpas_halo_exch_group_full_halo_exch(domain, 'exner')
+         else
+            call mpas_pool_get_array_gpu(diag,'exner',gpu_exner)
+            gpuArraySize(1) = size(gpu_exner,1)
+            gpuArraySize(2) = size(gpu_exner,2)
+            call mpas_dmpar_exch_halo_acc(gpu_exner, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
+                                                 gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
+                                                 gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
+                                                 gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+         end if
 
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
@@ -928,15 +1102,19 @@ module atm_time_integration
             !***********************************
 
 ! tend_u
-            call mpas_pool_get_subpool(domain % blocklist % structs, 'tend', tend)
-            call mpas_pool_get_array_gpu(tend,'u',gpu_tend_u)
+            if (halo_exch_method == MPAS_HALO_ROUTINES) then
+               call mpas_halo_exch_group_full_halo_exch(domain, 'tend_u')
+            else
+               call mpas_pool_get_subpool(domain % blocklist % structs, 'tend', tend)
+               call mpas_pool_get_array_gpu(tend,'u',gpu_tend_u)
 !MGD FIX LATER            call mpas_dmpar_exch_halo_acc(gpu_tend_u, compactHaloInfo_e_v, (/ 1 /))
-            gpuArraySize(1) = size(gpu_tend_u,1)
-            gpuArraySize(2) = size(gpu_tend_u,2)
-            call mpas_dmpar_exch_halo_acc(gpu_tend_u, compactHaloInfo_e_v, sendList_e_v, recvList_e_v,gpu_bufferOffset_send_e_v, &
-                                              gpu_nList_send_e_v, gpu_idx_send_e_v, gpu_bufferOffset_recv_e_v, gpu_nList_recv_e_v,&
-                                              gpu_idx_recv_e_v, gpu_dimsizes_e_v, gpu_nHaloLayers_e_v, gpu_send_size_e_v, gpu_recv_size_e_v,&
-                                              gpu_compactHaloInfoSize_e_v, gpuArraySize(1), gpuArraySize(2))
+               gpuArraySize(1) = size(gpu_tend_u,1)
+               gpuArraySize(2) = size(gpu_tend_u,2)
+               call mpas_dmpar_exch_halo_acc(gpu_tend_u, compactHaloInfo_e_v, sendList_e_v, recvList_e_v,gpu_bufferOffset_send_e_v, &
+                                                 gpu_nList_send_e_v, gpu_idx_send_e_v, gpu_bufferOffset_recv_e_v, gpu_nList_recv_e_v,&
+                                                 gpu_idx_recv_e_v, gpu_dimsizes_e_v, gpu_nHaloLayers_e_v, gpu_send_size_e_v, gpu_recv_size_e_v,&
+                                                 gpu_compactHaloInfoSize_e_v, gpuArraySize(1), gpuArraySize(2))
+            end if
 
             call mpas_timer_start('small_step_prep')
 
@@ -1084,15 +1262,19 @@ module atm_time_integration
 
             do small_step = 1, number_sub_steps(rk_step)
 
-               call mpas_pool_get_subpool(domain % blocklist % structs, 'diag', diag)
-               call mpas_pool_get_array_gpu(diag, 'rho_pp',gpu_rho_pp)
+               if (halo_exch_method == MPAS_HALO_ROUTINES) then
+                  call mpas_halo_exch_group_full_halo_exch(domain, 'rho_pp')
+               else
+                  call mpas_pool_get_subpool(domain % blocklist % structs, 'diag', diag)
+                  call mpas_pool_get_array_gpu(diag, 'rho_pp',gpu_rho_pp)
 !MGD FIX LATER               call mpas_dmpar_exch_halo_acc(gpu_rho_pp, compactHaloInfo_c_v, (/ 1 /))
-               gpuArraySize(1) = size(gpu_rho_pp,1)
-               gpuArraySize(2) = size(gpu_rho_pp,2)
-               call mpas_dmpar_exch_halo_acc(gpu_rho_pp, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
-                                              gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
-                                              gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
-                                              gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+                  gpuArraySize(1) = size(gpu_rho_pp,1)
+                  gpuArraySize(2) = size(gpu_rho_pp,2)
+                  call mpas_dmpar_exch_halo_acc(gpu_rho_pp, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
+                                                 gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
+                                                 gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
+                                                 gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+               end if
 
                call mpas_timer_start('atm_advance_acoustic_step')
                block => domain % blocklist
@@ -1143,15 +1325,19 @@ module atm_time_integration
 ! rtheta_pp
 ! This is the only communications needed during the acoustic steps because we solve for u on all edges of owned cells
 
-               call mpas_pool_get_subpool(domain % blocklist % structs, 'diag', diag)
-               call mpas_pool_get_array_gpu(diag,'rtheta_pp',gpu_rtheta_pp)
+               if (halo_exch_method == MPAS_HALO_ROUTINES) then
+                  call mpas_halo_exch_group_full_halo_exch(domain, 'rtheta_pp')
+               else
+                  call mpas_pool_get_subpool(domain % blocklist % structs, 'diag', diag)
+                  call mpas_pool_get_array_gpu(diag,'rtheta_pp',gpu_rtheta_pp)
 !MGD FIX LATER               call mpas_dmpar_exch_halo_acc(gpu_rtheta_pp, compactHaloInfo_c_v, (/ 1 /))
-               gpuArraySize(1) = size(gpu_rtheta_pp,1)
-               gpuArraySize(2) = size(gpu_rtheta_pp,2)
-               call mpas_dmpar_exch_halo_acc(gpu_rtheta_pp, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
-                                              gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
-                                              gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
-                                              gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+                  gpuArraySize(1) = size(gpu_rtheta_pp,1)
+                  gpuArraySize(2) = size(gpu_rtheta_pp,2)
+                  call mpas_dmpar_exch_halo_acc(gpu_rtheta_pp, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
+                                                 gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
+                                                 gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
+                                                 gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+               end if
 
 !  complete update of horizontal momentum by including 3d divergence damping at
 !  the end of the acoustic step
@@ -1182,41 +1368,48 @@ module atm_time_integration
 
             call mpas_pool_get_subpool(domain % blocklist % structs, 'diag', diag)
 
-            !CR: SMALLER STENCIL?: call mpas_dmpar_exch_halo_field(block % diag % rw_p, (/ 1 /))
-            call mpas_pool_get_array_gpu(diag,'rw_p',gpu_rw_p)
-            gpuArraySize(1) = size(gpu_rw_p,1)
-            gpuArraySize(2) = size(gpu_rw_p,2)
-            call mpas_dmpar_exch_halo_acc(gpu_rw_p, compactHaloInfo_c_vP1, sendList_c_vP1, recvList_c_vP1,gpu_bufferOffset_send_c_vP1, &
-                                              gpu_nList_send_c_vP1, gpu_idx_send_c_vP1, gpu_bufferOffset_recv_c_vP1, gpu_nList_recv_c_vP1,&
-                                              gpu_idx_recv_c_vP1, gpu_dimsizes_c_vP1, gpu_nHaloLayers_c_vP1, gpu_send_size_c_vP1, gpu_recv_size_c_vP1,&
-                                              gpu_compactHaloInfoSize_c_vP1, gpuArraySize(1), gpuArraySize(2))
+            !
+            ! Communicate halos for rw_p[1,2], ru_p[1,2], rho_pp[1,2], rtheta_pp[2]
+            !
+            if (halo_exch_method == MPAS_HALO_ROUTINES) then
+               call mpas_halo_exch_group_full_halo_exch(domain, 'group3')
+            else
+               !CR: SMALLER STENCIL?: call mpas_dmpar_exch_halo_field(block % diag % rw_p, (/ 1 /))
+               call mpas_pool_get_array_gpu(diag,'rw_p',gpu_rw_p)
+               gpuArraySize(1) = size(gpu_rw_p,1)
+               gpuArraySize(2) = size(gpu_rw_p,2)
+               call mpas_dmpar_exch_halo_acc(gpu_rw_p, compactHaloInfo_c_vP1, sendList_c_vP1, recvList_c_vP1,gpu_bufferOffset_send_c_vP1, &
+                                                 gpu_nList_send_c_vP1, gpu_idx_send_c_vP1, gpu_bufferOffset_recv_c_vP1, gpu_nList_recv_c_vP1,&
+                                                 gpu_idx_recv_c_vP1, gpu_dimsizes_c_vP1, gpu_nHaloLayers_c_vP1, gpu_send_size_c_vP1, gpu_recv_size_c_vP1,&
+                                                 gpu_compactHaloInfoSize_c_vP1, gpuArraySize(1), gpuArraySize(2))
 
-            call mpas_pool_get_array_gpu(diag,'ru_p',gpu_ru_p)
-            gpuArraySize(1) = size(gpu_ru_p,1)
-            gpuArraySize(2) = size(gpu_ru_p,2)
-            call mpas_dmpar_exch_halo_acc(gpu_ru_p, compactHaloInfo_e_v, sendList_e_v, recvList_e_v,gpu_bufferOffset_send_e_v, &
-                                              gpu_nList_send_e_v, gpu_idx_send_e_v, gpu_bufferOffset_recv_e_v, gpu_nList_recv_e_v,&
-                                              gpu_idx_recv_e_v, gpu_dimsizes_e_v, gpu_nHaloLayers_e_v, gpu_send_size_e_v, gpu_recv_size_e_v,&
-                                              gpu_compactHaloInfoSize_e_v, gpuArraySize(1), gpuArraySize(2))
+               call mpas_pool_get_array_gpu(diag,'ru_p',gpu_ru_p)
+               gpuArraySize(1) = size(gpu_ru_p,1)
+               gpuArraySize(2) = size(gpu_ru_p,2)
+               call mpas_dmpar_exch_halo_acc(gpu_ru_p, compactHaloInfo_e_v, sendList_e_v, recvList_e_v,gpu_bufferOffset_send_e_v, &
+                                                 gpu_nList_send_e_v, gpu_idx_send_e_v, gpu_bufferOffset_recv_e_v, gpu_nList_recv_e_v,&
+                                                 gpu_idx_recv_e_v, gpu_dimsizes_e_v, gpu_nHaloLayers_e_v, gpu_send_size_e_v, gpu_recv_size_e_v,&
+                                                 gpu_compactHaloInfoSize_e_v, gpuArraySize(1), gpuArraySize(2))
 
-            call mpas_pool_get_array_gpu(diag, 'rho_pp',gpu_rho_pp)
-            gpuArraySize(1) = size(gpu_rho_pp,1)
-            gpuArraySize(2) = size(gpu_rho_pp,2)
-            call mpas_dmpar_exch_halo_acc(gpu_rho_pp, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
-                                              gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
-                                              gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
-                                              gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+               call mpas_pool_get_array_gpu(diag, 'rho_pp',gpu_rho_pp)
+               gpuArraySize(1) = size(gpu_rho_pp,1)
+               gpuArraySize(2) = size(gpu_rho_pp,2)
+               call mpas_dmpar_exch_halo_acc(gpu_rho_pp, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
+                                                 gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
+                                                 gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
+                                                 gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
 
-            ! the second layer of halo cells must be exchanged before calling
-            ! atm_recover_large_step_variables
-            call mpas_pool_get_array_gpu(diag,'rtheta_pp',gpu_rtheta_pp)
-            gpuArraySize(1) = size(gpu_rtheta_pp,1)
-            gpuArraySize(2) = size(gpu_rtheta_pp,2)
+               ! the second layer of halo cells must be exchanged before calling
+               ! atm_recover_large_step_variables
+               call mpas_pool_get_array_gpu(diag,'rtheta_pp',gpu_rtheta_pp)
+               gpuArraySize(1) = size(gpu_rtheta_pp,1)
+               gpuArraySize(2) = size(gpu_rtheta_pp,2)
 !MGD FIX LATER            call mpas_dmpar_exch_halo_acc(gpu_rtheta_pp, compactHaloInfo_c_v, (/ 2 /))
-            call mpas_dmpar_exch_halo_acc(gpu_rtheta_pp, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
-                                              gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
-                                              gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
-                                              gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+               call mpas_dmpar_exch_halo_acc(gpu_rtheta_pp, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
+                                                 gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
+                                                 gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
+                                                 gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+            end if
 
             call mpas_timer_start('atm_recover_large_step_variables')
             block => domain % blocklist
@@ -1314,16 +1507,37 @@ module atm_time_integration
 !-------------------------------------------------------------------
             
             ! u
-            call mpas_pool_get_subpool(domain % blocklist % structs, 'state', state)
+            if (config_apply_lbcs) then
+               if (halo_exch_method == MPAS_HALO_ROUTINES) then
+                  call mpas_halo_exch_group_full_halo_exch(domain, 'u_123')
+               else
+                  call mpas_pool_get_subpool(domain % blocklist % structs, 'state', state)
 
-            call mpas_pool_get_array_gpu(state, 'u',gpu_u_2, 2)
-            gpuArraySize(1) = size(gpu_u_2,1)
-            gpuArraySize(2) = size(gpu_u_2,2)
-            !CR: SMALLER STENCIL?: call mpas_dmpar_exch_halo_field(block % state % time_levs(2) % state % u, (/ 3 /))
-            call mpas_dmpar_exch_halo_acc(gpu_u_2, compactHaloInfo_e_v, sendList_e_v, recvList_e_v,gpu_bufferOffset_send_e_v, &
-                                              gpu_nList_send_e_v, gpu_idx_send_e_v, gpu_bufferOffset_recv_e_v, gpu_nList_recv_e_v,&
-                                              gpu_idx_recv_e_v, gpu_dimsizes_e_v, gpu_nHaloLayers_e_v, gpu_send_size_e_v, gpu_recv_size_e_v,&
-                                              gpu_compactHaloInfoSize_e_v, gpuArraySize(1), gpuArraySize(2))
+                  call mpas_pool_get_array_gpu(state, 'u',gpu_u_2, 2)
+                  gpuArraySize(1) = size(gpu_u_2,1)
+                  gpuArraySize(2) = size(gpu_u_2,2)
+                  !CR: SMALLER STENCIL?: call mpas_dmpar_exch_halo_field(block % state % time_levs(2) % state % u, (/ 3 /))
+                  call mpas_dmpar_exch_halo_acc(gpu_u_2, compactHaloInfo_e_v, sendList_e_v, recvList_e_v,gpu_bufferOffset_send_e_v, &
+                                                    gpu_nList_send_e_v, gpu_idx_send_e_v, gpu_bufferOffset_recv_e_v, gpu_nList_recv_e_v,&
+                                                    gpu_idx_recv_e_v, gpu_dimsizes_e_v, gpu_nHaloLayers_e_v, gpu_send_size_e_v, gpu_recv_size_e_v,&
+                                                    gpu_compactHaloInfoSize_e_v, gpuArraySize(1), gpuArraySize(2))
+               end if
+            else
+               if (halo_exch_method == MPAS_HALO_ROUTINES) then
+                  call mpas_halo_exch_group_full_halo_exch(domain, 'u_3')
+               else
+                  call mpas_pool_get_subpool(domain % blocklist % structs, 'state', state)
+
+                  call mpas_pool_get_array_gpu(state, 'u',gpu_u_2, 2)
+                  gpuArraySize(1) = size(gpu_u_2,1)
+                  gpuArraySize(2) = size(gpu_u_2,2)
+                  !CR: SMALLER STENCIL?: call mpas_dmpar_exch_halo_field(block % state % time_levs(2) % state % u, (/ 3 /))
+                  call mpas_dmpar_exch_halo_acc(gpu_u_2, compactHaloInfo_e_v, sendList_e_v, recvList_e_v,gpu_bufferOffset_send_e_v, &
+                                                    gpu_nList_send_e_v, gpu_idx_send_e_v, gpu_bufferOffset_recv_e_v, gpu_nList_recv_e_v,&
+                                                    gpu_idx_recv_e_v, gpu_dimsizes_e_v, gpu_nHaloLayers_e_v, gpu_send_size_e_v, gpu_recv_size_e_v,&
+                                                    gpu_compactHaloInfoSize_e_v, gpuArraySize(1), gpuArraySize(2))
+               end if
+            end if
 
 
             ! scalar advection: RK3 scheme of Skamarock and Gassmann (2011). 
@@ -1342,6 +1556,7 @@ module atm_time_integration
                   call mpas_pool_get_subpool(block % structs, 'state', state)
                   call mpas_pool_get_subpool(block % structs, 'diag', diag)
                   call mpas_pool_get_subpool(block % structs, 'mesh', mesh)
+                  call mpas_pool_get_subpool(block % structs, 'halo_scratch', halo_scratch)
 
                   call mpas_pool_get_dimension(mesh, 'nCells', nCells)
                   call mpas_pool_get_dimension(mesh, 'nEdges', nEdges)
@@ -1377,8 +1592,6 @@ module atm_time_integration
                   !s_max_arr(:,nCells+1) = 0.0_RKIND
                   allocate(s_min_arr(nVertLevels,nCells+1))
                   !s_min_arr(:,nCells+1) = 0.0_RKIND
-                  allocate(scale_array(nVertLevels,2,nCells+1))
-                  !scale_array(:,:,nCells+1) = 0.0_RKIND
                   allocate(flux_array(nVertLevels,nEdges+1))
                   !flux_array(:,nEdges+1) = 0.0_RKIND
                   allocate(wdtn_arr(nVertLevels+1,nCells+1))
@@ -1400,8 +1613,6 @@ module atm_time_integration
                      scalar_new_arr(levelsIdx,tmpnCells+1) = 0.0_RKIND
                      s_max_arr(levelsIdx,tmpnCells+1) = 0.0_RKIND
                      s_min_arr(levelsIdx,tmpnCells+1) = 0.0_RKIND
-                     scale_array(levelsIdx,1,tmpnCells+1) = 0.0_RKIND
-                     scale_array(levelsIdx,2,tmpnCells+1) = 0.0_RKIND
                      flux_array(levelsIdx,tmpnEdges+1) = 0.0_RKIND
                      wdtn_arr(levelsIdx,tmpnCells+1) = 0.0_RKIND
                   enddo
@@ -1448,7 +1659,7 @@ module atm_time_integration
                      else
          
                         block % domain = domain 
-                        call atm_advance_scalars_mono( block, tend, state, diag, mesh, block % configs, nCells, nEdges, nVertLevels, rk_timestep(rk_step), &
+                        call atm_advance_scalars_mono( block, tend, state, diag, mesh, halo_scratch, block % configs, nCells, nEdges, nVertLevels, rk_timestep(rk_step), &
                                                 cellThreadStart(thread), cellThreadEnd(thread), &
                                                 vertexThreadStart(thread), vertexThreadEnd(thread), &
                                                 edgeThreadStart(thread), edgeThreadEnd(thread), &
@@ -1456,7 +1667,7 @@ module atm_time_integration
                                                 vertexSolveThreadStart(thread), vertexSolveThreadEnd(thread), &
                                                 edgeSolveThreadStart(thread), edgeSolveThreadEnd(thread), &
                                                 scalar_old_arr, scalar_new_arr, s_max_arr, s_min_arr, wdtn_arr, &
-                                                scale_array, flux_array, flux_upwind_tmp_arr, flux_tmp_arr, &
+                                                flux_array, flux_upwind_tmp_arr, flux_tmp_arr, &
                                                 advance_density=.false.)
                      end if
                   end do
@@ -1466,7 +1677,6 @@ module atm_time_integration
                   deallocate(scalar_new_arr)
                   deallocate(s_max_arr)
                   deallocate(s_min_arr)
-                  deallocate(scale_array)
                   deallocate(flux_array)
                   deallocate(wdtn_arr)
                   if (rk_step < 3 .or. (.not. config_monotonic .and. .not. config_positive_definite)) then
@@ -1486,8 +1696,12 @@ module atm_time_integration
 
                if (config_apply_lbcs) then  ! adjust boundary tendencies for regional_MPAS scalar transport
 
-                  call mpas_pool_get_field(state, 'scalars', scalars_field, 2)  ! need to fill halo for horizontal filter
-                  call mpas_dmpar_exch_halo_field(scalars_field)
+                  if (halo_exch_method == MPAS_HALO_ROUTINES) then
+                     call mpas_halo_exch_group_full_halo_exch(domain, 'scalars')
+                  else
+                     call mpas_pool_get_field(state, 'scalars', scalars_field, 2)  ! need to fill halo for horizontal filter
+                     call mpas_dmpar_exch_halo_field(scalars_field)
+                  end if
 
                   block => domain % blocklist
                   do while (associated(block))
@@ -1600,48 +1814,63 @@ module atm_time_integration
             call mpas_timer_stop('atm_compute_solve_diagnostics')
 
 
-            call mpas_pool_get_subpool(domain % blocklist % structs, 'state', state)
+            if (halo_exch_method == MPAS_DMPAR_ROUTINES) then
+               call mpas_pool_get_subpool(domain % blocklist % structs, 'state', state)
 
-            ! w
-            call mpas_pool_get_array_gpu(state, 'w', gpu_w_2, 2)
-            gpuArraySize(1) = size(gpu_w_2,1)
-            gpuArraySize(2) = size(gpu_w_2,2)
-            call mpas_dmpar_exch_halo_acc(gpu_w_2, compactHaloInfo_c_vP1, sendList_c_vP1, recvList_c_vP1,gpu_bufferOffset_send_c_vP1, &
-                                              gpu_nList_send_c_vP1, gpu_idx_send_c_vP1, gpu_bufferOffset_recv_c_vP1, gpu_nList_recv_c_vP1,&
-                                              gpu_idx_recv_c_vP1, gpu_dimsizes_c_vP1, gpu_nHaloLayers_c_vP1, gpu_send_size_c_vP1, gpu_recv_size_c_vP1,&
-                                              gpu_compactHaloInfoSize_c_vP1, gpuArraySize(1), gpuArraySize(2))
+               ! w
+               call mpas_pool_get_array_gpu(state, 'w', gpu_w_2, 2)
+               gpuArraySize(1) = size(gpu_w_2,1)
+               gpuArraySize(2) = size(gpu_w_2,2)
+               call mpas_dmpar_exch_halo_acc(gpu_w_2, compactHaloInfo_c_vP1, sendList_c_vP1, recvList_c_vP1,gpu_bufferOffset_send_c_vP1, &
+                                                 gpu_nList_send_c_vP1, gpu_idx_send_c_vP1, gpu_bufferOffset_recv_c_vP1, gpu_nList_recv_c_vP1,&
+                                                 gpu_idx_recv_c_vP1, gpu_dimsizes_c_vP1, gpu_nHaloLayers_c_vP1, gpu_send_size_c_vP1, gpu_recv_size_c_vP1,&
+                                                 gpu_compactHaloInfoSize_c_vP1, gpuArraySize(1), gpuArraySize(2))
 
-            ! pv_edge
-            call mpas_pool_get_subpool(domain % blocklist % structs, 'diag', diag)
-            call mpas_pool_get_array_gpu(diag, 'pv_edge', gpu_pv_edge)
-            gpuArraySize(1) = size(gpu_pv_edge,1)
-            gpuArraySize(2) = size(gpu_pv_edge,2)
-            call mpas_dmpar_exch_halo_acc(gpu_pv_edge, compactHaloInfo_e_v, sendList_e_v, recvList_e_v,gpu_bufferOffset_send_e_v, &
-                                              gpu_nList_send_e_v, gpu_idx_send_e_v, gpu_bufferOffset_recv_e_v, gpu_nList_recv_e_v,&
-                                              gpu_idx_recv_e_v, gpu_dimsizes_e_v, gpu_nHaloLayers_e_v, gpu_send_size_e_v, gpu_recv_size_e_v,&
-                                              gpu_compactHaloInfoSize_e_v, gpuArraySize(1), gpuArraySize(2))
+               ! pv_edge
+               call mpas_pool_get_subpool(domain % blocklist % structs, 'diag', diag)
+               call mpas_pool_get_array_gpu(diag, 'pv_edge', gpu_pv_edge)
+               gpuArraySize(1) = size(gpu_pv_edge,1)
+               gpuArraySize(2) = size(gpu_pv_edge,2)
+               call mpas_dmpar_exch_halo_acc(gpu_pv_edge, compactHaloInfo_e_v, sendList_e_v, recvList_e_v,gpu_bufferOffset_send_e_v, &
+                                                 gpu_nList_send_e_v, gpu_idx_send_e_v, gpu_bufferOffset_recv_e_v, gpu_nList_recv_e_v,&
+                                                 gpu_idx_recv_e_v, gpu_dimsizes_e_v, gpu_nHaloLayers_e_v, gpu_send_size_e_v, gpu_recv_size_e_v,&
+                                                 gpu_compactHaloInfoSize_e_v, gpuArraySize(1), gpuArraySize(2))
 
-            ! rho_edge
-            call mpas_pool_get_array_gpu(diag, 'rho_edge', gpu_rho_edge)
-            gpuArraySize(1) = size(gpu_rho_edge,1)
-            gpuArraySize(2) = size(gpu_rho_edge,2)
-            call mpas_dmpar_exch_halo_acc(gpu_rho_edge, compactHaloInfo_e_v, sendList_e_v, recvList_e_v,gpu_bufferOffset_send_e_v, &
-                                              gpu_nList_send_e_v, gpu_idx_send_e_v, gpu_bufferOffset_recv_e_v, gpu_nList_recv_e_v,&
-                                              gpu_idx_recv_e_v, gpu_dimsizes_e_v, gpu_nHaloLayers_e_v,gpu_send_size_e_v, gpu_recv_size_e_v,&
-                                              gpu_compactHaloInfoSize_e_v, gpuArraySize(1), gpuArraySize(2))
+               ! rho_edge
+               call mpas_pool_get_array_gpu(diag, 'rho_edge', gpu_rho_edge)
+               gpuArraySize(1) = size(gpu_rho_edge,1)
+               gpuArraySize(2) = size(gpu_rho_edge,2)
+               call mpas_dmpar_exch_halo_acc(gpu_rho_edge, compactHaloInfo_e_v, sendList_e_v, recvList_e_v,gpu_bufferOffset_send_e_v, &
+                                                 gpu_nList_send_e_v, gpu_idx_send_e_v, gpu_bufferOffset_recv_e_v, gpu_nList_recv_e_v,&
+                                                 gpu_idx_recv_e_v, gpu_dimsizes_e_v, gpu_nHaloLayers_e_v,gpu_send_size_e_v, gpu_recv_size_e_v,&
+                                                 gpu_compactHaloInfoSize_e_v, gpuArraySize(1), gpuArraySize(2))
+            end if
 
 
             ! scalars
             if (config_scalar_advection .and. (.not. config_split_dynamics_transport) ) then
-
-               call mpas_pool_get_array_gpu(state, 'scalars', gpu_scalars_2, 2)
-               gpuArraySize(1) = size(gpu_scalars_2,1)
-               gpuArraySize(2) = size(gpu_scalars_2,2)
-               gpuArraySize(3) = size(gpu_scalars_2,3)
-               call mpas_dmpar_exch_halo_acc(gpu_scalars_2, compactHaloInfo_c_v_s, sendList_c_v_s, recvList_c_v_s, gpu_bufferOffset_send_c_v_s, &
-                                              gpu_nList_send_c_v_s, gpu_idx_send_c_v_s, gpu_bufferOffset_recv_c_v_s, gpu_nList_recv_c_v_s,&
-                                              gpu_idx_recv_c_v_s, gpu_dimsizes_c_v_s, gpu_nHaloLayers_c_v_s, gpu_send_size_c_v_s, gpu_recv_size_c_v_s,&
-                                              gpu_compactHaloInfoSize_c_v_s, gpuArraySize(1), gpuArraySize(2), gpuArraySize(3))
+               !
+               ! Communicate halos for w[1,2], pv_edge[1,2], rho_edge[1,2], scalars[1,2]
+               !
+               if (halo_exch_method == MPAS_HALO_ROUTINES) then
+                  call mpas_halo_exch_group_full_halo_exch(domain, 'group4b')
+               else
+                  call mpas_pool_get_array_gpu(state, 'scalars', gpu_scalars_2, 2)
+                  gpuArraySize(1) = size(gpu_scalars_2,1)
+                  gpuArraySize(2) = size(gpu_scalars_2,2)
+                  gpuArraySize(3) = size(gpu_scalars_2,3)
+                  call mpas_dmpar_exch_halo_acc(gpu_scalars_2, compactHaloInfo_c_v_s, sendList_c_v_s, recvList_c_v_s, gpu_bufferOffset_send_c_v_s, &
+                                                 gpu_nList_send_c_v_s, gpu_idx_send_c_v_s, gpu_bufferOffset_recv_c_v_s, gpu_nList_recv_c_v_s,&
+                                                 gpu_idx_recv_c_v_s, gpu_dimsizes_c_v_s, gpu_nHaloLayers_c_v_s, gpu_send_size_c_v_s, gpu_recv_size_c_v_s,&
+                                                 gpu_compactHaloInfoSize_c_v_s, gpuArraySize(1), gpuArraySize(2), gpuArraySize(3))
+               end if
+            else
+               !
+               ! Communicate halos for w[1,2], pv_edge[1,2], rho_edge[1,2]
+               !
+               if (halo_exch_method == MPAS_HALO_ROUTINES) then
+                  call mpas_halo_exch_group_full_halo_exch(domain, 'group4a')
+               end if
             end if
 
             ! set the zero-gradient condition on w for regional_MPAS
@@ -1667,39 +1896,51 @@ module atm_time_integration
               end do
 
               ! w halo values needs resetting after regional boundary update
-              call mpas_pool_get_subpool(domain % blocklist % structs, 'state', state)
-              call mpas_pool_get_field(state, 'w', w_field, 2)
-              call mpas_dmpar_exch_halo_field(w_field)
+              if (halo_exch_method == MPAS_HALO_ROUTINES) then
+                 call mpas_halo_exch_group_full_halo_exch(domain, 'w')
+              else
+                 call mpas_pool_get_subpool(domain % blocklist % structs, 'state', state)
+                 call mpas_pool_get_field(state, 'w', w_field, 2)
+                 call mpas_dmpar_exch_halo_field(w_field)
+              end if
 
             end if ! end of regional_MPAS addition 
 
          end do RK3_DYNAMICS
 
          if (dynamics_substep < dynamics_split) then
-            call mpas_pool_get_subpool(domain % blocklist % structs, 'state', state)
-            call mpas_pool_get_array_gpu(state, 'theta_m', gpu_theta_m_2, 2)
-            gpuArraySize(1) = size(gpu_theta_m_2,1)
-            gpuArraySize(2) = size(gpu_theta_m_2,2)
-            call mpas_dmpar_exch_halo_acc(gpu_theta_m_2, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
-                                              gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
-                                              gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
-                                              gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+            !
+            ! Communicate halos for theta_m[1,2], pressure_p[1,2], and rtheta_p[1,2]
+            !
+            if (halo_exch_method == MPAS_HALO_ROUTINES) then
+               call mpas_halo_exch_group_full_halo_exch(domain, 'group5')
+            else
 
-            call mpas_pool_get_array_gpu(diag, 'pressure_p', gpu_pressure_p)
-            gpuArraySize(1) = size(gpu_pressure_p,1)
-            gpuArraySize(2) = size(gpu_pressure_p,2)
-            call mpas_dmpar_exch_halo_acc(gpu_pressure_p, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
-                                              gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
-                                              gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
-                                              gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+               call mpas_pool_get_subpool(domain % blocklist % structs, 'state', state)
+               call mpas_pool_get_array_gpu(state, 'theta_m', gpu_theta_m_2, 2)
+               gpuArraySize(1) = size(gpu_theta_m_2,1)
+               gpuArraySize(2) = size(gpu_theta_m_2,2)
+               call mpas_dmpar_exch_halo_acc(gpu_theta_m_2, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
+                                                 gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
+                                                 gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
+                                                 gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
 
-            call mpas_pool_get_array_gpu(diag, 'rtheta_p', gpu_rtheta_p)
-            gpuArraySize(1) = size(gpu_rtheta_p,1)
-            gpuArraySize(2) = size(gpu_rtheta_p,2)
-            call mpas_dmpar_exch_halo_acc(gpu_rtheta_p, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
-                                              gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
-                                              gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
-                                              gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+               call mpas_pool_get_array_gpu(diag, 'pressure_p', gpu_pressure_p)
+               gpuArraySize(1) = size(gpu_pressure_p,1)
+               gpuArraySize(2) = size(gpu_pressure_p,2)
+               call mpas_dmpar_exch_halo_acc(gpu_pressure_p, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
+                                                 gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
+                                                 gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
+                                                 gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+
+               call mpas_pool_get_array_gpu(diag, 'rtheta_p', gpu_rtheta_p)
+               gpuArraySize(1) = size(gpu_rtheta_p,1)
+               gpuArraySize(2) = size(gpu_rtheta_p,2)
+               call mpas_dmpar_exch_halo_acc(gpu_rtheta_p, compactHaloInfo_c_v, sendList_c_v, recvList_c_v,gpu_bufferOffset_send_c_v, &
+                                                 gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v,&
+                                                 gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v,&
+                                                 gpu_compactHaloInfoSize_c_v, gpuArraySize(1), gpuArraySize(2))
+            end if
 
 
             !
@@ -1800,6 +2041,7 @@ module atm_time_integration
                call mpas_pool_get_subpool(block % structs, 'state', state)
                call mpas_pool_get_subpool(block % structs, 'diag', diag)
                call mpas_pool_get_subpool(block % structs, 'mesh', mesh)
+               call mpas_pool_get_subpool(block % structs, 'halo_scratch', halo_scratch)
 
                call mpas_pool_get_dimension(mesh, 'nCells', nCells)
                call mpas_pool_get_dimension(mesh, 'nEdges', nEdges)
@@ -1835,8 +2077,6 @@ module atm_time_integration
                !s_max_arr(:,nCells+1) = 0.0_RKIND
                allocate(s_min_arr(nVertLevels,nCells+1))
                !s_min_arr(:,nCells+1) = 0.0_RKIND
-               allocate(scale_array(nVertLevels,2,nCells+1))
-               !scale_array(:,:,nCells+1) = 0.0_RKIND
                allocate(flux_array(nVertLevels,nEdges+1))
                !flux_array(:,nEdges+1) = 0.0_RKIND
                allocate(wdtn_arr(nVertLevels+1,nCells+1))
@@ -1862,8 +2102,6 @@ module atm_time_integration
                      scalar_new_arr(levelsIdx,tmpnCells+1) = 0.0_RKIND
                      s_max_arr(levelsIdx,tmpnCells+1) = 0.0_RKIND
                      s_min_arr(levelsIdx,tmpnCells+1) = 0.0_RKIND
-                     scale_array(levelsIdx,1,tmpnCells+1) = 0.0_RKIND
-                     scale_array(levelsIdx,2,tmpnCells+1) = 0.0_RKIND
                      flux_array(levelsIdx,tmpnEdges+1) = 0.0_RKIND
                      wdtn_arr(levelsIdx,tmpnCells+1) = 0.0_RKIND
                      rho_zz_int(levelsIdx,tmpnCells+1) = 0.0_RKIND
@@ -1919,7 +2157,7 @@ module atm_time_integration
                   else
       
                      block % domain = domain 
-                     call atm_advance_scalars_mono( block, tend, state, diag, mesh, block % configs, nCells, nEdges, nVertLevels, rk_timestep(rk_step), &
+                     call atm_advance_scalars_mono( block, tend, state, diag, mesh, halo_scratch, block % configs, nCells, nEdges, nVertLevels, rk_timestep(rk_step), &
                                              cellThreadStart(thread), cellThreadEnd(thread), &
                                              vertexThreadStart(thread), vertexThreadEnd(thread), &
                                              edgeThreadStart(thread), edgeThreadEnd(thread), &
@@ -1927,7 +2165,7 @@ module atm_time_integration
                                              vertexSolveThreadStart(thread), vertexSolveThreadEnd(thread), &
                                              edgeSolveThreadStart(thread), edgeSolveThreadEnd(thread), &
                                              scalar_old_arr, scalar_new_arr, s_max_arr, s_min_arr, wdtn_arr, &
-                                             scale_array, flux_array, flux_upwind_tmp_arr, flux_tmp_arr, &
+                                             flux_array, flux_upwind_tmp_arr, flux_tmp_arr, &
                                              advance_density=.true., rho_zz_int=rho_zz_int)
                   end if
                end do
@@ -1937,7 +2175,6 @@ module atm_time_integration
                deallocate(scalar_new_arr)
                deallocate(s_max_arr)
                deallocate(s_min_arr)
-               deallocate(scale_array)
                deallocate(flux_array)
                deallocate(wdtn_arr)
                deallocate(rho_zz_int)
@@ -1961,8 +2198,13 @@ module atm_time_integration
 
             if (config_apply_lbcs) then  ! adjust boundary tendencies for regional_MPAS scalar transport
 
-               call mpas_pool_get_field(state, 'scalars', scalars_field, 2)  ! need to fill halo for horizontal filter
-               call mpas_dmpar_exch_halo_field(scalars_field)
+               ! need to fill halo for horizontal filter
+               if (halo_exch_method == MPAS_HALO_ROUTINES) then
+                  call mpas_halo_exch_group_full_halo_exch(domain, 'scalars')
+               else
+                  call mpas_pool_get_field(state, 'scalars', scalars_field, 2)  ! need to fill halo for horizontal filter
+                  call mpas_dmpar_exch_halo_field(scalars_field)
+               end if
 
                block => domain % blocklist
                do while (associated(block))
@@ -2038,14 +2280,18 @@ module atm_time_integration
 !------------------------------------------------------------------------------------------------------------------------
 
             if (rk_step < 3) then
-               call mpas_pool_get_array_gpu(state, 'scalars', gpu_scalars_2, 2)
-               gpuArraySize(1) = size(gpu_scalars_2,1)
-               gpuArraySize(2) = size(gpu_scalars_2,2)
-               gpuArraySize(3) = size(gpu_scalars_2,3)
-               call mpas_dmpar_exch_halo_acc(gpu_scalars_2, compactHaloInfo_c_v_s, sendList_c_v_s, recvList_c_v_s, gpu_bufferOffset_send_c_v_s, &
-                                              gpu_nList_send_c_v_s, gpu_idx_send_c_v_s, gpu_bufferOffset_recv_c_v_s, gpu_nList_recv_c_v_s,&
-                                              gpu_idx_recv_c_v_s, gpu_dimsizes_c_v_s, gpu_nHaloLayers_c_v_s, gpu_send_size_c_v_s, gpu_recv_size_c_v_s,&
-                                              gpu_compactHaloInfoSize_c_v_s, gpuArraySize(1), gpuArraySize(2), gpuArraySize(3))
+               if (halo_exch_method == MPAS_HALO_ROUTINES) then
+                  call mpas_halo_exch_group_full_halo_exch(domain, 'scalars')
+               else
+                  call mpas_pool_get_array_gpu(state, 'scalars', gpu_scalars_2, 2)
+                  gpuArraySize(1) = size(gpu_scalars_2,1)
+                  gpuArraySize(2) = size(gpu_scalars_2,2)
+                  gpuArraySize(3) = size(gpu_scalars_2,3)
+                  call mpas_dmpar_exch_halo_acc(gpu_scalars_2, compactHaloInfo_c_v_s, sendList_c_v_s, recvList_c_v_s, gpu_bufferOffset_send_c_v_s, &
+                                                 gpu_nList_send_c_v_s, gpu_idx_send_c_v_s, gpu_bufferOffset_recv_c_v_s, gpu_nList_recv_c_v_s,&
+                                                 gpu_idx_recv_c_v_s, gpu_dimsizes_c_v_s, gpu_nHaloLayers_c_v_s, gpu_send_size_c_v_s, gpu_recv_size_c_v_s,&
+                                                 gpu_compactHaloInfoSize_c_v_s, gpuArraySize(1), gpuArraySize(2), gpuArraySize(3))
+               end if
             end if
 
          end do RK3_SPLIT_TRANSPORT
@@ -2238,8 +2484,13 @@ module atm_time_integration
 
       if (config_apply_lbcs) then  ! adjust boundary values for regional_MPAS scalar transport
 
-         call mpas_pool_get_field(state, 'scalars', scalars_field, 2)  ! need to fill halo for horizontal filter
-         call mpas_dmpar_exch_halo_field(scalars_field)
+         ! need to fill halo for horizontal filter
+         if (halo_exch_method == MPAS_HALO_ROUTINES) then
+            call mpas_halo_exch_group_full_halo_exch(domain, 'scalars')
+         else
+            call mpas_pool_get_field(state, 'scalars', scalars_field, 2)
+            call mpas_dmpar_exch_halo_field(scalars_field)
+         end if
 
          block => domain % blocklist
          do while (associated(block))
@@ -4329,10 +4580,10 @@ module atm_time_integration
    end subroutine atm_advance_scalars_work
 
 
-   subroutine atm_advance_scalars_mono(block, tend, state, diag, mesh, configs, nCells, nEdges, nVertLevels_dummy, dt, &
+   subroutine atm_advance_scalars_mono(block, tend, state, diag, mesh, halo_scratch, configs, nCells, nEdges, nVertLevels_dummy, dt, &
                                    cellStart, cellEnd, vertexStart, vertexEnd, edgeStart, edgeEnd, &
                                    cellSolveStart, cellSolveEnd, vertexSolveStart, vertexSolveEnd, edgeSolveStart, edgeSolveEnd, &
-                                   scalar_old, scalar_new, s_max, s_min, wdtn, scale_arr, flux_arr, &
+                                   scalar_old, scalar_new, s_max, s_min, wdtn, flux_arr, &
                                    flux_upwind_tmp, flux_tmp, advance_density, rho_zz_int)
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
    !
@@ -4351,6 +4602,7 @@ module atm_time_integration
       type (mpas_pool_type), intent(inout) :: state
       type (mpas_pool_type), intent(in)    :: diag
       type (mpas_pool_type), intent(in)    :: mesh
+      type (mpas_pool_type), intent(in)    :: halo_scratch
       type (mpas_pool_type), intent(in)    :: configs
       integer, intent(in)                  :: nCells           ! for allocating stack variables
       integer, intent(in)                  :: nEdges           ! for allocating stack variables
@@ -4361,7 +4613,6 @@ module atm_time_integration
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(inout) :: scalar_old, scalar_new
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(inout) :: s_max, s_min
       real (kind=RKIND), dimension(nVertLevels+1,nCells+1), intent(inout) :: wdtn
-      real (kind=RKIND), dimension(nVertLevels,2,nCells+1), intent(inout) :: scale_arr
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(inout) :: flux_arr
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(inout) :: flux_upwind_tmp, flux_tmp
       logical, intent(in), optional :: advance_density
@@ -4385,6 +4636,9 @@ module atm_time_integration
       real (kind=RKIND), dimension(:), pointer :: fnm, fnp, rdnw
       integer, dimension(:), pointer :: nEdgesOnCell
       real (kind=RKIND), pointer :: coef_3rd_order
+
+      type (field3DReal), pointer :: scale
+      real (kind=RKIND), dimension(:,:,:), pointer :: scale_arr
 
       call mpas_pool_get_config(configs, 'config_coef_3rd_order', coef_3rd_order)
 
@@ -4418,6 +4672,10 @@ module atm_time_integration
       call mpas_pool_get_array_gpu(mesh, 'bdyMaskCell', bdyMaskCell)  ! MPAS_regional addition
       call mpas_pool_get_array_gpu(mesh, 'bdyMaskEdge', bdyMaskEdge)  ! MPAS_regional addition
 
+      call mpas_pool_get_field(halo_scratch, 'scale', scale)
+      call mpas_allocate_scratch_field(scale)
+      call mpas_pool_get_array(halo_scratch, 'scale', scale_arr)
+
       call atm_advance_scalars_mono_work(block, state, nCells, nEdges, nVertLevels, dt, &
                                    cellStart, cellEnd, vertexStart, vertexEnd, edgeStart, edgeEnd, &
                                    cellSolveStart, cellSolveEnd, vertexSolveStart, vertexSolveEnd, edgeSolveStart, edgeSolveEnd, &
@@ -4428,6 +4686,8 @@ module atm_time_integration
                                    wdtn, scale_arr, flux_arr, flux_upwind_tmp, flux_tmp, &
                                    bdyMaskCell, bdyMaskEdge, &
                                    advance_density, rho_zz_int)
+
+      call mpas_deallocate_scratch_field(scale)
 
    end subroutine atm_advance_scalars_mono
 
@@ -4473,6 +4733,7 @@ module atm_time_integration
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
 
       use mpas_atm_dimensions
+      use mpas_halo, only : mpas_halo_exch_group_full_halo_exch
 
       implicit none
 
@@ -4510,7 +4771,7 @@ module atm_time_integration
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(inout) :: scalar_old, scalar_new
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(inout) :: s_max, s_min
       real (kind=RKIND), dimension(nVertLevels+1,nCells+1), intent(inout) :: wdtn
-      real (kind=RKIND), dimension(nVertLevels,2,nCells+1), intent(inout), target :: scale_arr
+      real (kind=RKIND), dimension(nVertLevels,2,nCells+1), intent(inout) :: scale_arr
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(inout) :: flux_arr
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(inout) :: flux_upwind_tmp, flux_tmp
       type (field3DReal), pointer :: scalars_old_field
@@ -4589,10 +4850,14 @@ module atm_time_integration
 
 !$OMP BARRIER
 !$OMP MASTER
-      call mpas_dmpar_exch_halo_acc(scalars_old, compactHaloInfo_c_v_s, sendList_c_v_s, recvList_c_v_s, gpu_bufferOffset_send_c_v_s, &
-                                     gpu_nList_send_c_v_s, gpu_idx_send_c_v_s, gpu_bufferOffset_recv_c_v_s, gpu_nList_recv_c_v_s,&
-                                     gpu_idx_recv_c_v_s, gpu_dimsizes_c_v_s, gpu_nHaloLayers_c_v_s, gpu_send_size_c_v_s, gpu_recv_size_c_v_s,&
-                                     gpu_compactHaloInfoSize_c_v_s, num_scalars, nVertLevels, nCells+1)
+      if (halo_exch_method == MPAS_HALO_ROUTINES) then
+         call mpas_halo_exch_group_full_halo_exch(block % domain, 'scalars_old')
+      else
+         call mpas_dmpar_exch_halo_acc(scalars_old, compactHaloInfo_c_v_s, sendList_c_v_s, recvList_c_v_s, gpu_bufferOffset_send_c_v_s, &
+                                        gpu_nList_send_c_v_s, gpu_idx_send_c_v_s, gpu_bufferOffset_recv_c_v_s, gpu_nList_recv_c_v_s,&
+                                        gpu_idx_recv_c_v_s, gpu_dimsizes_c_v_s, gpu_nHaloLayers_c_v_s, gpu_send_size_c_v_s, gpu_recv_size_c_v_s,&
+                                        gpu_compactHaloInfoSize_c_v_s, num_scalars, nVertLevels, nCells+1)
+      end if
 !$OMP END MASTER
 !$OMP BARRIER
 
@@ -4981,11 +5246,14 @@ module atm_time_integration
          !
 !$OMP BARRIER
 !$OMP MASTER
-!MGDHALO         call mpas_dmpar_exch_halo_acc(scale_arr, compactHaloInfo_c_2_v, sendList_c_2_v, recvList_c_2_v, (/ 1 /))
-         call mpas_dmpar_exch_halo_acc(scale_arr, compactHaloInfo_c_2_v, sendList_c_2_v, recvList_c_2_v, gpu_bufferOffset_send_c_2_v, &
-                                       gpu_nList_send_c_2_v, gpu_idx_send_c_2_v, gpu_bufferOffset_recv_c_2_v, gpu_nList_recv_c_2_v,&
-                                       gpu_idx_recv_c_2_v, gpu_dimsizes_c_2_v, gpu_nHaloLayers_c_2_v, gpu_send_size_c_2_v, gpu_recv_size_c_2_v,&
-                                       gpu_compactHaloInfoSize_c_2_v, nVertLevels, 2, nCells+1 )
+         if (halo_exch_method == MPAS_HALO_ROUTINES) then
+            call mpas_halo_exch_group_full_halo_exch(block % domain, 'scale')
+         else
+            call mpas_dmpar_exch_halo_acc(scale_arr, compactHaloInfo_c_2_v, sendList_c_2_v, recvList_c_2_v, gpu_bufferOffset_send_c_2_v, &
+                                          gpu_nList_send_c_2_v, gpu_idx_send_c_2_v, gpu_bufferOffset_recv_c_2_v, gpu_nList_recv_c_2_v,&
+                                          gpu_idx_recv_c_2_v, gpu_dimsizes_c_2_v, gpu_nHaloLayers_c_2_v, gpu_send_size_c_2_v, gpu_recv_size_c_2_v,&
+                                          gpu_compactHaloInfoSize_c_2_v, nVertLevels, 2, nCells+1 )
+         end if
 !$OMP END MASTER
 !$OMP BARRIER
 

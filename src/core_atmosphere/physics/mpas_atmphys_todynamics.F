@@ -52,6 +52,12 @@
 !   Laura D. Fowler (laura@ucar.edu) / 2016-10-28.
 
 
+ integer, parameter, private :: MPAS_DMPAR_ROUTINES = 1, &
+                                MPAS_HALO_ROUTINES = 2
+
+ integer, private :: halo_exch_method
+
+
  contains
 
  
@@ -102,6 +108,7 @@
 !local variables:
  character(len=StrKIND), pointer :: config_pbl_scheme, config_convection_scheme, &
                                     config_radt_lw_scheme, config_radt_sw_scheme
+ character(len=StrKIND), pointer :: config_halo_exch_method
 
  integer:: i,iCell,k,n,j
  integer,pointer:: index_qv, index_qc, index_qr, index_qi, index_qs, index_qg
@@ -148,6 +155,14 @@
  call mpas_pool_get_config(configs, 'config_convection_scheme', config_convection_scheme)
  call mpas_pool_get_config(configs, 'config_radt_lw_scheme', config_radt_lw_scheme)
  call mpas_pool_get_config(configs, 'config_radt_sw_scheme', config_radt_sw_scheme)
+
+ call mpas_pool_get_config(configs, 'config_halo_exch_method', config_halo_exch_method)
+
+ if (trim(config_halo_exch_method) == 'mpas_halo') then
+    halo_exch_method = MPAS_HALO_ROUTINES
+ else
+    halo_exch_method = MPAS_DMPAR_ROUTINES
+ end if
 
  call mpas_pool_get_array_gpu(state, 'theta_m', theta_m, 1)
  call mpas_pool_get_array_gpu(state, 'scalars', scalars, 1)
@@ -371,6 +386,7 @@
 !==================================================================================================
 
     use mpas_atm_dimensions
+    use mpas_halo, only : mpas_halo_exch_group_full_halo_exch
  
     implicit none
 
@@ -442,6 +458,9 @@
     !add coupled tendencies due to PBL processes:
     if (config_pbl_scheme .ne. 'off') then
        if (rk_step == 1 .and. dynamics_substep == 1) then
+          if (halo_exch_method == MPAS_HALO_ROUTINES) then
+             call mpas_halo_exch_group_full_halo_exch(block % domain, 'bltend')
+          end if
           call tend_toEdges_gpu(block,mesh,rublten,rvblten,rublten_Edge, &
                                 compactHaloInfo_c_v, &
                                 sendList_c_v, recvList_c_v, &
@@ -547,6 +566,9 @@
     
            case('cu_tiedtke','cu_ntiedtke')
               if (rk_step == 1 .and. dynamics_substep == 1) then
+                 if (halo_exch_method == MPAS_HALO_ROUTINES) then
+                    call mpas_halo_exch_group_full_halo_exch(block % domain, 'cutend')
+                 end if
                  call tend_toEdges_gpu(block,mesh,rucuten,rvcuten,rucuten_Edge, &
                                        compactHaloInfo_c_v, &
                                        sendList_c_v, recvList_c_v, &
@@ -691,16 +713,18 @@
 
  call mpas_pool_get_array_gpu(mesh, 'cellsOnEdge', cellsOnEdge)
 
- !$acc data present(Ux_tend, Uy_tend, U_tend, east, north, edgeNormalVectors, cellsOnEdge)
- call mpas_dmpar_exch_halo_acc(Ux_tend, compactHaloInfo_c_v, sendList_c_v, recvList_c_v, gpu_bufferOffset_send_c_v, &
-                               gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v, &
-                               gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v, &
-                               gpu_compactHaloInfoSize_c_v, size(Ux_tend,1), size(Ux_tend,2))
+ if (halo_exch_method == MPAS_DMPAR_ROUTINES) then
+    !$acc data present(Ux_tend, Uy_tend, U_tend, east, north, edgeNormalVectors, cellsOnEdge)
+    call mpas_dmpar_exch_halo_acc(Ux_tend, compactHaloInfo_c_v, sendList_c_v, recvList_c_v, gpu_bufferOffset_send_c_v, &
+                                  gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v, &
+                                  gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v, &
+                                  gpu_compactHaloInfoSize_c_v, size(Ux_tend,1), size(Ux_tend,2))
 
- call mpas_dmpar_exch_halo_acc(Uy_tend, compactHaloInfo_c_v, sendList_c_v, recvList_c_v, gpu_bufferOffset_send_c_v, &
-                               gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v, &
-                               gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v, &
-                               gpu_compactHaloInfoSize_c_v, size(Uy_tend,1), size(Uy_tend,2))
+    call mpas_dmpar_exch_halo_acc(Uy_tend, compactHaloInfo_c_v, sendList_c_v, recvList_c_v, gpu_bufferOffset_send_c_v, &
+                                  gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v, &
+                                  gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v, &
+                                  gpu_compactHaloInfoSize_c_v, size(Uy_tend,1), size(Uy_tend,2))
+ end if
 
 !!!
  !$acc parallel vector_length(32)
