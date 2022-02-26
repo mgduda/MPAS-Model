@@ -269,13 +269,17 @@ module atm_time_integration
          call mpas_halo_exch_group_complete(domain, 'scale')
 
          call mpas_halo_exch_group_create(domain, 'bltend')
+#ifdef DO_PHYSICS
          call mpas_halo_exch_group_add_field(domain, 'bltend', 'rublten', timeLevel=1, haloLayers=(/1/))
          call mpas_halo_exch_group_add_field(domain, 'bltend', 'rvblten', timeLevel=1, haloLayers=(/1/))
+#endif
          call mpas_halo_exch_group_complete(domain, 'bltend')
 
          call mpas_halo_exch_group_create(domain, 'cutend')
+#ifdef DO_PHYSICS
          call mpas_halo_exch_group_add_field(domain, 'cutend', 'rucuten', timeLevel=1, haloLayers=(/1/))
          call mpas_halo_exch_group_add_field(domain, 'cutend', 'rvcuten', timeLevel=1, haloLayers=(/1/))
+#endif
          call mpas_halo_exch_group_complete(domain, 'cutend')
 
       else
