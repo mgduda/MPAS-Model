@@ -578,6 +578,7 @@ cray:   # BUILDTARGET (untested) Cray Programming Environment
 	"LDFLAGS_DEBUG = -eD -O0 -hbyteswapio" \
 	"FFLAGS_OMP = -homp" \
 	"CFLAGS_OMP = -fopenmp" \
+	"BUILD_TARGET = $(@)" \
 	"CORE = $(CORE)" \
 	"DEBUG = $(DEBUG)" \
 	"USE_PAPI = $(USE_PAPI)" \
