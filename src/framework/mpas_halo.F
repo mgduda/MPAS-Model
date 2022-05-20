@@ -1,3 +1,5 @@
+#define CONTIGUOUS contiguous,
+
 ! Copyright (c) 2021,  Los Alamos National Security, LLC (LANS)
 ! and the University Corporation for Atmospheric Research (UCAR).
 !
@@ -269,6 +271,8 @@ module mpas_halo
         call mpas_pool_destroy_pool(completedGroup)
         call mpas_pool_remove_subpool(domain % haloGroupPool, groupName)
 
+        call refactor_lists(domain, groupName, iErr)
+
     end subroutine mpas_halo_exch_group_complete
 
 
@@ -338,6 +342,14 @@ module mpas_halo
             deallocate(cursor % fields(i) % compactHaloInfo)
             deallocate(cursor % fields(i) % compactSendLists)
             deallocate(cursor % fields(i) % compactRecvLists)
+            deallocate(cursor % fields(i) % nSendLists)
+            deallocate(cursor % fields(i) % sendListSrc)
+            deallocate(cursor % fields(i) % sendListDst)
+            deallocate(cursor % fields(i) % packOffsets)
+            deallocate(cursor % fields(i) % nRecvLists)
+            deallocate(cursor % fields(i) % recvListSrc)
+            deallocate(cursor % fields(i) % recvListDst)
+            deallocate(cursor % fields(i) % unpackOffsets)
         end do
         deallocate(cursor % fields)
         deallocate(cursor % groupPackOffsets)
@@ -495,16 +507,23 @@ module mpas_halo
         ! Local variables
         integer :: i, bufstart, bufend
         integer :: dim1, dim2
-        integer :: i1, i2, iNeighbor, j
-        integer :: iHalo, iEndp, iOffset
+        integer :: i1, i2, j
+        integer :: iHalo, iEndp
         integer :: nHalos, nSendEndpts, nRecvEndpts
-        integer :: idx, nList
         integer :: mpi_rank, mpi_comm
         integer :: mpi_ierr
         type (mpas_halo_group), pointer :: group
         integer, dimension(:), pointer :: compactHaloInfo
         integer, dimension(:), pointer :: compactSendLists
         integer, dimension(:), pointer :: compactRecvLists
+        integer, dimension(:,:), CONTIGUOUS pointer :: nSendLists
+        integer :: maxNSendList
+        integer, dimension(:,:,:), CONTIGUOUS pointer :: sendListSrc, sendListDst
+        integer, dimension(:), CONTIGUOUS pointer :: packOffsets
+        integer, dimension(:,:), CONTIGUOUS pointer :: nRecvLists
+        integer :: maxNRecvList
+        integer, dimension(:,:,:), CONTIGUOUS pointer :: recvListSrc, recvListDst
+        integer, dimension(:), CONTIGUOUS pointer :: unpackOffsets
 
 
         if (present(iErr)) then
@@ -568,7 +587,12 @@ module mpas_halo
 
                 nHalos = compactHaloInfo(9)
                 nSendEndpts = compactHaloInfo(10)
-                idx = 1
+
+                sendListSrc => group % fields(i) % sendListSrc
+                sendListDst => group % fields(i) % sendListDst
+                nSendLists => group % fields(i) % nSendLists
+                packOffsets => group % fields(i) % packOffsets
+                maxNSendList = group % fields(i) % maxNSendList
 
                 select case (group % fields(i) % nDims)
 
@@ -579,28 +603,19 @@ module mpas_halo
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r2arr, timeLevel=group % fields(i) % timeLevel)
 
+                    !
+                    ! Pack send buffer for all neighbors for current field
+                    !
                     do iEndp = 1, nSendEndpts
-
-                        ! Find this endpoint in the list of neighbors
-                        do iNeighbor = 1, group % nGroupSendNeighbors
-                            if (group % groupSendNeighbors(iNeighbor) == compactSendLists(idx)) exit
-                        end do
-                        idx = idx + 1
-
-                        iOffset = group % groupPackOffsets(iNeighbor, i)
-
                         do iHalo = 1, nHalos
-                            nList = compactSendLists(idx)
-                            idx = idx + 1
-
-                            do j = 1, nList
+                            do j = 1, maxNSendList
                                 do i1 = 1, dim1
-                                    group % sendBuf(iOffset + dim1 * (compactSendLists(idx + nList) - 1) + i1) = &
-                                        group % fields(i) % r2arr(i1, compactSendLists(idx))
+                                    if (j <= nSendLists(iHalo,iEndp)) then
+                                        group % sendBuf(packOffsets(iEndp) + dim1 * (sendListDst(j,iHalo,iEndp) - 1) + i1) = &
+                                            group % fields(i) % r2arr(i1, sendListSrc(j,iHalo,iEndp))
+                                    end if
                                 end do
-                                idx = idx + 1
                             end do
-                            idx = idx + nList
                         end do
                     end do
 
@@ -608,36 +623,28 @@ module mpas_halo
                 ! Packing code for 3-d real-valued fields
                 !
                 case (3)
-
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r3arr, group % fields(i) % timeLevel)
 
+                    !
+                    ! Pack send buffer for all neighbors for current field
+                    !
                     do iEndp = 1, nSendEndpts
-
-                        ! Find this endpoint in the list of neighbors
-                        do iNeighbor = 1, group % nGroupSendNeighbors
-                            if (group % groupSendNeighbors(iNeighbor) == compactSendLists(idx)) exit
-                        end do
-                        idx = idx + 1
-
-                        iOffset = group % groupPackOffsets(iNeighbor, i)
-
                         do iHalo = 1, nHalos
-                            nList = compactSendLists(idx)
-                            idx = idx + 1
-
-                            do j = 1, nList
+                            do j = 1, maxNSendList
                                 do i2 = 1, dim2
                                 do i1 = 1, dim1
-                                    group % sendBuf(iOffset + dim1*dim2*(compactSendLists(idx+nList) - 1) + dim1*(i2-1) + i1) = &
-                                        group % fields(i) % r3arr(i1, i2, compactSendLists(idx))
+                                    if (j <= nSendLists(iHalo,iEndp)) then
+                                        group % sendBuf(packOffsets(iEndp) + dim1*dim2*(sendListDst(j,iHalo,iEndp) - 1) &
+                                                        + dim1*(i2-1) + i1) = &
+                                            group % fields(i) % r3arr(i1, i2, sendListSrc(j,iHalo,iEndp))
+                                    end if
                                 end do
                                 end do
-                                idx = idx + 1
                             end do
-                            idx = idx + nList
                         end do
                     end do
+
                 end select
             end if
         end do
@@ -682,7 +689,12 @@ module mpas_halo
 
                 nHalos = compactHaloInfo(9)
                 nRecvEndpts = compactHaloInfo(11)
-                idx = 1
+
+                recvListSrc => group % fields(i) % recvListSrc
+                recvListDst => group % fields(i) % recvListDst
+                nRecvLists => group % fields(i) % nRecvLists
+                unpackOffsets => group % fields(i) % unpackOffsets
+                maxNRecvList = group % fields(i) % maxNRecvList
 
                 select case (group % fields(i) % nDims)
 
@@ -690,28 +702,19 @@ module mpas_halo
                 ! Unpacking code for 2-d real-valued fields
                 !
                 case (2)
+                    !
+                    ! Unpack recv buffer from all neighbors for current field
+                    !
                     do iEndp = 1, nRecvEndpts
-
-                        ! Find this endpoint in the list of neighbors
-                        do iNeighbor = 1, group % nGroupRecvNeighbors
-                            if (group % groupRecvNeighbors(iNeighbor) == compactRecvLists(idx)) exit
-                        end do
-                        idx = idx + 1
-
-                        iOffset = group % groupUnpackOffsets(iNeighbor, i)
-
                         do iHalo = 1, nHalos
-                            nList = compactRecvLists(idx)
-                            idx = idx + 1
-
-                            do j = 1, nList
+                            do j = 1, maxNRecvList
                                 do i1 = 1, dim1
-                                    group % fields(i) % r2arr(i1, compactRecvLists(idx + nList)) = &
-                                        group % recvBuf(iOffset + dim1 * (compactRecvLists(idx) - 1) + i1)
+                                    if (j <= nRecvLists(iHalo,iEndp)) then
+                                        group % fields(i) % r2arr(i1, recvListDst(j,iHalo,iEndp)) = &
+                                            group % recvBuf(unpackOffsets(iEndp) + dim1 * (recvListSrc(j,iHalo,iEndp) - 1) + i1)
+                                    end if
                                 end do
-                                idx = idx + 1
                             end do
-                            idx = idx + nList
                         end do
                     end do
 
@@ -721,30 +724,22 @@ module mpas_halo
                 ! Unpacking code for 3-d real-valued fields
                 !
                 case (3)
+                    !
+                    ! Unpack recv buffer from all neighbors for current field
+                    !
                     do iEndp = 1, nRecvEndpts
-
-                        ! Find this endpoint in the list of neighbors
-                        do iNeighbor = 1, group % nGroupRecvNeighbors
-                            if (group % groupRecvNeighbors(iNeighbor) == compactRecvLists(idx)) exit
-                        end do
-                        idx = idx + 1
-
-                        iOffset = group % groupUnpackOffsets(iNeighbor, i)
-
                         do iHalo = 1, nHalos
-                            nList = compactRecvLists(idx)
-                            idx = idx + 1
-
-                            do j = 1, nList
+                            do j = 1, maxNRecvList
                                 do i2 = 1, dim2
                                 do i1 = 1, dim1
-                                    group % fields(i) % r3arr(i1, i2, compactRecvLists(idx+nList)) = &
-                                        group % recvBuf(iOffset + dim1*dim2*(compactRecvLists(idx) - 1) + dim1*(i2-1) + i1)
+                                    if (j <= nRecvLists(iHalo,iEndp)) then
+                                        group % fields(i) % r3arr(i1, i2, recvListDst(j,iHalo,iEndp)) = &
+                                            group % recvBuf(unpackOffsets(iEndp) + dim1*dim2*(recvListSrc(j,iHalo,iEndp) - 1) &
+                                                            + dim1*(i2-1) + i1)
+                                    end if
                                 end do
                                 end do
-                                idx = idx + 1
                             end do
-                            idx = idx + nList
                         end do
                     end do
 
@@ -1400,5 +1395,248 @@ module mpas_halo
         deallocate(recvCounts)
 
     end subroutine mpas_halo_aggregate_group_info
+
+
+    !-----------------------------------------------------------------------
+    !  routine refactor_lists
+    !
+    !> \brief Convert compact{Send,Recv}Lists into multi-dimensional arrays
+    !> \author Michael Duda
+    !> \date   25 May 2022
+    !> \details
+    !>  For each field in the halo exchange group identified by groupName,
+    !>  convert the compact{Send,Recv}Lists 1-d arrays into multi-dimensional
+    !>  arrays that allow for more optimal pack and unpack loops in the
+    !>  mpas_halo_exch_group_full_halo_exch routine.
+    !>
+    !>  The following members in the mpas_halo_field type are allocated and
+    !>  set by this routine:
+    !>
+    !>    nSendLists
+    !>    maxNSendList
+    !>    sendListSrc
+    !>    sendListDst
+    !>    packOffsets
+    !>
+    !>    nRecvLists
+    !>    maxNRecvList
+    !>    recvListSrc
+    !>    recvListDst
+    !>    unpackOffsets
+    !
+    !-----------------------------------------------------------------------
+    subroutine refactor_lists(domain, groupName, iErr)
+
+        use mpas_derived_types, only : domain_type, mpas_halo_group, MPAS_HALO_REAL, MPAS_LOG_CRIT
+        use mpas_pool_routines, only : mpas_pool_get_array
+        use mpas_log, only : mpas_log_write
+        use mpi, only : MPI_Irecv, MPI_Wait, MPI_STATUS_IGNORE, MPI_SUCCESS
+#ifdef SINGLE_PRECISION
+        use mpi, only : MPI_REAL
+
+        integer, parameter :: MPI_REALKIND = MPI_REAL
+#else
+        use mpi, only : MPI_DOUBLE_PRECISION
+
+        integer, parameter :: MPI_REALKIND = MPI_DOUBLE_PRECISION
+#endif
+
+        ! Arguments
+        type (domain_type), intent(inout) :: domain
+        character (len=*), intent(in) :: groupName
+        integer, optional, intent(out) :: iErr
+
+        ! Local variables
+        integer :: i
+        integer :: iNeighbor, j
+        integer :: iHalo, iEndp
+        integer :: nHalos, nSendEndpts, nRecvEndpts
+        integer :: idx, idx_local
+        type (mpas_halo_group), pointer :: group
+        integer, dimension(:), pointer :: compactHaloInfo
+        integer, dimension(:), pointer :: compactSendLists
+        integer, dimension(:), pointer :: compactRecvLists
+        integer :: maxNSendList
+        integer, dimension(:,:), CONTIGUOUS pointer :: nSendLists
+        integer, dimension(:,:,:), CONTIGUOUS pointer :: sendListSrc, sendListDst
+        integer, dimension(:), CONTIGUOUS pointer :: packOffsets
+        integer :: maxNRecvList
+        integer, dimension(:,:), CONTIGUOUS pointer :: nRecvLists
+        integer, dimension(:,:,:), CONTIGUOUS pointer :: recvListSrc, recvListDst
+        integer, dimension(:), CONTIGUOUS pointer :: unpackOffsets
+
+
+        if (present(iErr)) then
+           iErr = 0
+        end if
+
+        !
+        ! Find this halo exhange group in the list of groups
+        !
+        group => domain % haloGroups
+        do while (associated(group))
+            if (trim(group % groupName) == trim(groupName)) then
+                exit
+            end if
+           
+            group => group % next
+        end do
+
+        if (.not. associated(group)) then
+            call mpas_log_write('Halo exchange group '//trim(groupName)//' not found in refactor_lists.', &
+                                messageType=MPAS_LOG_CRIT)
+        end if
+
+
+        !
+        ! Pack the segmented send buffer with elements from all fields and for all neighbors
+        !
+        do i = 1, group % nFields
+
+            compactHaloInfo => group % fields(i) % compactHaloInfo
+            compactSendLists => group % fields(i) % compactSendLists
+
+            !
+            ! Packing code for real-valued fields
+            !
+            if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
+                nHalos = compactHaloInfo(9)
+                nSendEndpts = compactHaloInfo(10)
+                idx = 1
+
+                allocate(group % fields(i) % nSendLists(3,nSendEndpts))    ! MGD fix hard-coded 3 later...
+                allocate(group % fields(i) % packOffsets(nSendEndpts))
+
+                nSendLists => group % fields(i) % nSendLists
+                packOffsets => group % fields(i) % packOffsets
+
+                nSendLists(:,:) = 0
+                packOffsets(:) = 0
+
+                idx_local = idx
+
+                do iEndp = 1, nSendEndpts
+                    ! Find this endpoint in the list of neighbors
+                    do iNeighbor = 1, group % nGroupSendNeighbors
+                        if (group % groupSendNeighbors(iNeighbor) == compactSendLists(idx)) exit
+                    end do
+                    idx = idx + 1
+
+                    packOffsets(iEndp) = group % groupPackOffsets(iNeighbor, i)
+
+                    do iHalo = 1, nHalos
+                        nSendLists(iHalo,iEndp) = compactSendLists(idx)
+                        idx = idx + 1
+                        idx = idx + 2*nSendLists(iHalo,iEndp)
+                    end do
+                end do
+
+                maxNSendList = maxval(nSendLists)
+                group % fields(i) % maxNSendList = maxNSendList
+
+                allocate(group % fields(i) % sendListSrc(maxNSendList,nHalos,nSendEndpts))
+                allocate(group % fields(i) % sendListDst(maxNSendList,nHalos,nSendEndpts))
+
+                sendListSrc => group % fields(i) % sendListSrc
+                sendListDst => group % fields(i) % sendListDst
+
+                sendListSrc(:,:,:) = 0
+                sendListDst(:,:,:) = 0
+
+                idx = idx_local
+
+                do iEndp = 1, nSendEndpts
+                    idx = idx + 1
+
+                    do iHalo = 1, nHalos
+                        idx = idx + 1
+                        do j = 1, nSendLists(iHalo,iEndp)
+                            sendListSrc(j,iHalo,iEndp) = compactSendLists(idx + j - 1)
+                            sendListDst(j,iHalo,iEndp) = compactSendLists(idx + nSendLists(iHalo,iEndp) + j - 1)
+                        end do
+                        idx = idx + 2*nSendLists(iHalo,iEndp)
+                    end do
+                end do
+
+            end if
+        end do
+
+
+        !
+        ! Unpack the segmented recv buffer with elements for all fields and from all neighbors
+        !
+        do i = 1, group % nFields
+
+            compactHaloInfo => group % fields(i) % compactHaloInfo
+            compactRecvLists => group % fields(i) % compactRecvLists
+
+            idx = 1
+
+            !
+            ! Unpacking code for real-valued fields
+            !
+            if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
+                nHalos = compactHaloInfo(9)
+                nRecvEndpts = compactHaloInfo(10)
+                idx = 1
+
+                allocate(group % fields(i) % nRecvLists(3,nRecvEndpts))    ! MGD fix hard-coded 3 later...
+                allocate(group % fields(i) % unpackOffsets(nRecvEndpts))
+
+                nRecvLists => group % fields(i) % nRecvLists
+                unpackOffsets => group % fields(i) % unpackOffsets
+
+                nRecvLists(:,:) = 0
+                unpackOffsets(:) = 0
+
+                idx_local = idx
+
+                do iEndp = 1, nRecvEndpts
+                    ! Find this endpoint in the list of neighbors
+                    do iNeighbor = 1, group % nGroupRecvNeighbors
+                        if (group % groupRecvNeighbors(iNeighbor) == compactRecvLists(idx)) exit
+                    end do
+                    idx = idx + 1
+
+                    unpackOffsets(iEndp) = group % groupUnpackOffsets(iNeighbor, i)
+
+                    do iHalo = 1, nHalos
+                        nRecvLists(iHalo,iEndp) = compactRecvLists(idx)
+                        idx = idx + 1
+                        idx = idx + 2*nRecvLists(iHalo,iEndp)
+                    end do
+                end do
+
+                maxNRecvList = maxval(nRecvLists)
+                group % fields(i) % maxNRecvList = maxNRecvList
+
+                allocate(group % fields(i) % recvListSrc(maxNRecvList,nHalos,nRecvEndpts))
+                allocate(group % fields(i) % recvListDst(maxNRecvList,nHalos,nRecvEndpts))
+
+                recvListSrc => group % fields(i) % recvListSrc
+                recvListDst => group % fields(i) % recvListDst
+
+                recvListSrc(:,:,:) = 0
+                recvListDst(:,:,:) = 0
+
+                idx = idx_local
+
+                do iEndp = 1, nRecvEndpts
+                    idx = idx + 1
+
+                    do iHalo = 1, nHalos
+                        idx = idx + 1
+                        do j = 1, nRecvLists(iHalo,iEndp)
+                            recvListSrc(j,iHalo,iEndp) = compactRecvLists(idx + j - 1)
+                            recvListDst(j,iHalo,iEndp) = compactRecvLists(idx + nRecvLists(iHalo,iEndp) + j - 1)
+                        end do
+                        idx = idx + 2*nRecvLists(iHalo,iEndp)
+                    end do
+                end do
+
+            end if
+        end do
+
+    end subroutine refactor_lists
 
 end module mpas_halo
