@@ -1342,5 +1342,12 @@ module atm_core
    end function max_cfl
 
 
+   subroutine compute_dt(target_cfl, max_dt_adj, dt)
+
+      real :: target_cfl
+
+   end subroutine compute_dt
+
+
 end module atm_core
 
