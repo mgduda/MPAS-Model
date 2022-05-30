@@ -1336,5 +1336,11 @@ module atm_core
    end subroutine mpas_atm_run_compatibility
 
 
+   real(kind=RKIND) function max_cfl()
+
+      max_cfl = 3.141
+   end function max_cfl
+
+
 end module atm_core
 
