@@ -54,6 +54,13 @@
 <!-- **************************************************************************************** -->
 
         <nml_record name="nhyd_model" in_defaults="true">
+                <nml_option name="config_target_cfl" type="real" default_value="1.2" in_defaults="false"
+                     units="-"
+                     description="Target CFL used by adaptive timestep"
+                     possible_values="Real values \in [0,2]. The maximum stable CFL number for the solver is 1.2."/>
+        </nml_record>
+
+        <nml_record name="nhyd_model" in_defaults="true">
                 <nml_option name="config_time_integration" type="character" default_value="SRK3" in_defaults="false"
                      units="-"
                      description="Time integration scheme"
