@@ -110,6 +110,7 @@ module atm_time_integration
       type (mpas_pool_type), pointer :: state
       character (len=StrKIND), pointer :: config_time_integration
 
+! Here we should use compute_dt rather than the provided dt argument
 
       clock => domain % clock
       blocklist => domain % blocklist
