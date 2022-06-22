@@ -15,7 +15,7 @@ module mpas_atm_dissipation_models
   use mpas_derived_types, only : MPAS_LOG_CRIT
 
   logical, parameter :: debug_dissipation = .false.
-  logical, parameter :: les_test = .false., les_sas_test = .true.
+  logical, parameter :: les_test = .true., les_sas_test = .false.
   !! real (kind=RKIND), parameter :: tke_heat_flux = 0.03  ! shear case from Moeng et al., first hour
   real (kind=RKIND), parameter :: tke_heat_flux = 0.0
   !! real (kind=RKIND), parameter :: tke_drag_coefficient = 0.0013 ! ocean roughness length
@@ -1874,10 +1874,14 @@ module mpas_atm_dissipation_models
                   moisture_flux = 0.
                   heat_flux = tke_heat_flux
 
+                  qv_cell = scalars(index_qv,1,iCell)
+                  theta_m_cell = theta_m(1,iCell)
+                  theta_cell = theta_m_cell/(1.0+(rv/rgas)*qv_cell)
                   ! bulk formulation will go here.
 
-                  theta_m_flux = heat_flux*(1.0+(rv/rgas)*scalars(index_qv,1,iCell))  &
-                                    +(rv/rgas)*theta_m(1,iCell)*moisture_flux/rho_zz(k,iCell)
+!                 theta_m_flux = heat_flux*(1.0+(rv/rgas)*scalars(index_qv,1,iCell))  &
+!                                   +(rv/rgas)*theta_m(1,iCell)*moisture_flux/rho_zz(k,iCell)
+                  theta_m_flux = heat_flux*(1.0+(rv/rgas)*qv_cell)+(rv/rgas)*theta_cell*moisture_flux
                   ! turb_vflux(1) = tke_heat_flux*rho_zz(1,iCell)  ! this is correct for DRY CASE ONLY
                   turb_vflux(1) = theta_m_flux*rho_zz(1,iCell)
                   turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
