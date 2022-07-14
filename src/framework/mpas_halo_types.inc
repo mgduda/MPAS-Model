@@ -1,3 +1,5 @@
+#define CONTIGUOUS contiguous,
+
     integer, parameter :: MPAS_HALO_INVALID   = -1
 
     integer, parameter :: MPAS_HALO_REAL      = 5001, &
@@ -16,6 +18,19 @@
         integer, dimension(:), pointer :: compactHaloInfo => null()      ! Information about halo communication for this field
         integer, dimension(:), pointer :: compactSendLists => null()     ! Elements sent to each neighbor
         integer, dimension(:), pointer :: compactRecvLists => null()     ! Elements received from each neighbor
+
+        integer, dimension(:,:), CONTIGUOUS pointer :: nSendLists => null()     ! (3,nSendEndpoints) 3 is assumed max halos
+        integer :: maxNSendList                                                 ! maxval(nSendLists)
+        integer, dimension(:,:,:), CONTIGUOUS pointer :: sendListSrc => null()  ! (maxNSendList,nHalos,nSendEndpts)
+        integer, dimension(:,:,:), CONTIGUOUS pointer :: sendListDst => null()  ! (maxNSendList,nHalos,nSendEndpts)
+        integer, dimension(:), CONTIGUOUS pointer :: packOffsets => null()      ! (nSendEndpts)
+
+        integer, dimension(:,:), CONTIGUOUS pointer :: nRecvLists => null()     ! (3,nRecvEndpoints) 3 is assumed max halos
+        integer :: maxNRecvList                                                 ! maxval(nRecvLists)
+        integer, dimension(:,:,:), CONTIGUOUS pointer :: recvListSrc => null()  ! (maxNRecvList,nHalos,nRecvEndpts)
+        integer, dimension(:,:,:), CONTIGUOUS pointer :: recvListDst => null()  ! (maxNRecvList,nHalos,nRecvEndpts)
+        integer, dimension(:), CONTIGUOUS pointer :: unpackOffsets => null()    ! (nRecvEndpts)
+
         real (kind=RKIND), dimension(:,:), pointer :: r2arr => null()    ! Pointer to field array, only used internally
         real (kind=RKIND), dimension(:,:,:), pointer :: r3arr => null()  ! Pointer to field array, only used internally
     end type mpas_halo_field
