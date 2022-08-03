@@ -60,6 +60,9 @@
 ! * modified the call to subroutine gwdo following the update of module_gwdo.F to that
 !   of WRF version 4.0.2.
 !   Laura D. Fowler (laura@ucar.edu) / 2019-01-30.
+! * added the flags errmsg and errflg in the call to subroutine gwdo for compliance with the CCPP framework.
+!   Laura D. Fowler (laura@ucar.edu) / 2022-07-01.
+
 
 
  contains
@@ -264,7 +267,8 @@
  end subroutine gwdo_to_MPAS
  
 !=================================================================================================================
- subroutine driver_gwdo(itimestep,configs,mesh,sfc_input,diag_physics,tend_physics,its,ite)
+ subroutine driver_gwdo(itimestep,configs,mesh,sfc_input,diag_physics,tend_physics,its,ite, &
+                        errmsg,errflg)
 !=================================================================================================================
 
 !input arguments:
@@ -278,6 +282,10 @@
 !inout arguments:
  type(mpas_pool_type),intent(inout):: diag_physics
  type(mpas_pool_type),intent(inout):: tend_physics
+
+!out arguments:
+ character(len=*),intent(out):: errmsg
+ integer,intent(out):: errflg
 
 !local variables:
  character(len=StrKIND),pointer:: gwdo_scheme
@@ -311,6 +319,7 @@
                   oa2d2     = oa2_p       , oa2d3     = oa3_p        , oa2d4   = oa4_p     , &
                   ol2d1     = ol1_p       , ol2d2     = ol2_p        , ol2d3   = ol3_p     , & 
                   ol2d4     = ol4_p       , sina      = sina_p       , cosa    = cosa_p    , &
+                  errmsg    = errmsg      , errflg    = errflg       ,                       &
                   ids = ids , ide = ide , jds = jds , jde = jde , kds = kds , kde = kde ,    &
                   ims = ims , ime = ime , jms = jms , jme = jme , kms = kms , kme = kme ,    &
                   its = its , ite = ite , jts = jts , jte = jte , kts = kts , kte = kte      &

@@ -851,6 +851,9 @@ module atm_core
       real (kind=RKIND) :: xtime_s
       integer :: ierr
 
+      character(len=StrKIND) :: errmsg
+      integer :: errflg
+
       clock => domain % clock
       mpas_log_info => domain % logInfo
 
@@ -866,7 +869,10 @@ module atm_core
       !proceed with physics if moist_physics is set to true:
       if(moist_physics) then
          call physics_timetracker(domain,dt,clock,itimestep,xtime_s)
-         call physics_driver(domain,itimestep,xtime_s)
+         call physics_driver(domain,itimestep,xtime_s,errmsg,errflg)
+         if ( errflg /= 0 ) then
+            call mpas_log_write('Physics failed: '//trim(errmsg), messageType=MPAS_LOG_CRIT)
+         end if
       endif
 #endif
 
