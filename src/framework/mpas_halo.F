@@ -488,7 +488,7 @@ module mpas_halo
         use mpas_derived_types, only : domain_type, mpas_halo_group, MPAS_HALO_REAL, MPAS_LOG_CRIT
         use mpas_pool_routines, only : mpas_pool_get_array
         use mpas_log, only : mpas_log_write
-        use mpi, only : MPI_Irecv, MPI_Wait, MPI_STATUS_IGNORE, MPI_SUCCESS
+        use mpi, only : MPI_Irecv, MPI_Isend, MPI_Waitall, MPI_REQUEST_NULL, MPI_STATUSES_IGNORE, MPI_SUCCESS
 #ifdef SINGLE_PRECISION
         use mpi, only : MPI_REAL
 
@@ -567,6 +567,8 @@ module mpas_halo
                 call MPI_Irecv(group % recvBuf(bufstart:bufend), group % groupRecvCounts(i), MPI_REALKIND, &
                                group % groupRecvNeighbors(i), group % groupRecvNeighbors(i), mpi_comm, &
                                group % recvRequests(i), mpi_ierr)
+            else
+                group % recvRequests(i) = MPI_REQUEST_NULL
             end if
         end do
 
@@ -660,17 +662,20 @@ module mpas_halo
                 call MPI_Isend(group % sendBuf(bufstart:bufend), group % groupSendCounts(i), MPI_REALKIND, &
                                group % groupSendNeighbors(i), mpi_rank, mpi_comm, &
                                group % sendRequests(i), mpi_ierr)
+            else
+                group % sendRequests(i) = MPI_REQUEST_NULL
             end if
         end do
 
         !
         ! Wait for receives from all neighbors to complete before unpacking buffers
         !
-        do i = 1, group % nGroupRecvNeighbors
-            if (group % groupRecvCounts(i) > 0) then
-                call MPI_Wait(group % recvRequests(i), MPI_STATUS_IGNORE, mpi_ierr)
-            end if
-        end do
+!        do i = 1, group % nGroupRecvNeighbors
+!            if (group % groupRecvCounts(i) > 0) then
+!                call MPI_Wait(group % recvRequests(i), MPI_STATUS_IGNORE, mpi_ierr)
+!            end if
+!        end do
+        call MPI_Waitall(group % nGroupRecvNeighbors, group % recvRequests, MPI_STATUSES_IGNORE, mpi_ierr)
 
         !
         ! Unpack the segmented recv buffer with elements for all fields and from all neighbors
@@ -752,11 +757,12 @@ module mpas_halo
         !
         ! Wait for all sends to complete before returning
         !
-        do i = 1, group % nGroupSendNeighbors
-            if (group % groupSendCounts(i) > 0) then
-                call MPI_Wait(group % sendRequests(i), MPI_STATUS_IGNORE, mpi_ierr)
-            end if
-        end do
+!        do i = 1, group % nGroupSendNeighbors
+!            if (group % groupSendCounts(i) > 0) then
+!                call MPI_Wait(group % sendRequests(i), MPI_STATUS_IGNORE, mpi_ierr)
+!            end if
+!        end do
+        call MPI_Waitall(group % nGroupSendNeighbors, group % sendRequests, MPI_STATUSES_IGNORE, mpi_ierr)
 
     end subroutine mpas_halo_exch_group_full_halo_exch
 
@@ -1430,16 +1436,6 @@ module mpas_halo
         use mpas_derived_types, only : domain_type, mpas_halo_group, MPAS_HALO_REAL, MPAS_LOG_CRIT
         use mpas_pool_routines, only : mpas_pool_get_array
         use mpas_log, only : mpas_log_write
-        use mpi, only : MPI_Irecv, MPI_Wait, MPI_STATUS_IGNORE, MPI_SUCCESS
-#ifdef SINGLE_PRECISION
-        use mpi, only : MPI_REAL
-
-        integer, parameter :: MPI_REALKIND = MPI_REAL
-#else
-        use mpi, only : MPI_DOUBLE_PRECISION
-
-        integer, parameter :: MPI_REALKIND = MPI_DOUBLE_PRECISION
-#endif
 
         ! Arguments
         type (domain_type), intent(inout) :: domain
