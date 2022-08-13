@@ -1577,7 +1577,7 @@ module mpas_halo
             !
             if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
                 nHalos = compactHaloInfo(9)
-                nRecvEndpts = compactHaloInfo(10)
+                nRecvEndpts = compactHaloInfo(11)
                 idx = 1
 
                 allocate(group % fields(i) % nRecvLists(3,nRecvEndpts))    ! MGD fix hard-coded 3 later...
