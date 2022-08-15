@@ -1,11 +1,11 @@
 #define CONTIGUOUS contiguous,
 
-! Copyright (c) 2021,  Los Alamos National Security, LLC (LANS)
+! Copyright (c) 2021, 2022  Los Alamos National Security, LLC (LANS)
 ! and the University Corporation for Atmospheric Research (UCAR).
 !
 ! Unless noted otherwise source code is licensed under the BSD license.
 ! Additional copyright and license information can be found in the LICENSE file
-! distributed with this code, or at http://mpas-dev.github.com/license.html
+! distributed with this code, or at https://mpas-dev.github.io/license.html .
 !
 !-----------------------------------------------------------------------
 !  mpas_halo
@@ -358,6 +358,7 @@ module mpas_halo
         deallocate(cursor % groupSendCounts)
         deallocate(cursor % groupUnpackOffsets)
         deallocate(cursor % groupRecvNeighbors)
+        deallocate(cursor % groupToFieldRecvIdx)
         deallocate(cursor % groupRecvOffsets)
         deallocate(cursor % groupRecvCounts)
         deallocate(cursor % sendBuf)
@@ -477,7 +478,7 @@ module mpas_halo
     !
     !> \brief Communicate halos for all fields in a group
     !> \author Michael Duda
-    !> \date   17 November 2021
+    !> \date   15 August 2022
     !> \details
     !>  This routine exchanges the halos for all fields in the named halo
     !>  exchange group.
@@ -488,7 +489,8 @@ module mpas_halo
         use mpas_derived_types, only : domain_type, mpas_halo_group, MPAS_HALO_REAL, MPAS_LOG_CRIT
         use mpas_pool_routines, only : mpas_pool_get_array
         use mpas_log, only : mpas_log_write
-        use mpi, only : MPI_Irecv, MPI_Isend, MPI_Waitall, MPI_REQUEST_NULL, MPI_STATUSES_IGNORE, MPI_SUCCESS
+        use mpi, only : MPI_Irecv, MPI_Isend, MPI_Waitall, MPI_Waitany, &
+                        MPI_REQUEST_NULL, MPI_STATUS_IGNORE, MPI_STATUSES_IGNORE, MPI_SUCCESS
 #ifdef SINGLE_PRECISION
         use mpi, only : MPI_REAL
 
@@ -507,7 +509,7 @@ module mpas_halo
         ! Local variables
         integer :: i, bufstart, bufend
         integer :: dim1, dim2
-        integer :: i1, i2, j
+        integer :: i1, i2, j, iNeighbor, iReq
         integer :: iHalo, iEndp
         integer :: nHalos, nSendEndpts, nRecvEndpts
         integer :: mpi_rank, mpi_comm
@@ -668,29 +670,27 @@ module mpas_halo
         end do
 
         !
-        ! Wait for receives from all neighbors to complete before unpacking buffers
+        ! Unpack messages as they are received
         !
-!        do i = 1, group % nGroupRecvNeighbors
-!            if (group % groupRecvCounts(i) > 0) then
-!                call MPI_Wait(group % recvRequests(i), MPI_STATUS_IGNORE, mpi_ierr)
-!            end if
-!        end do
-        call MPI_Waitall(group % nGroupRecvNeighbors, group % recvRequests, MPI_STATUSES_IGNORE, mpi_ierr)
+        do iNeighbor = 1, group % nGroupRecvNeighbors
 
-        !
-        ! Unpack the segmented recv buffer with elements for all fields and from all neighbors
-        !
-        do i = 1, group % nFields
-
-            compactHaloInfo => group % fields(i) % compactHaloInfo
-            compactRecvLists => group % fields(i) % compactRecvLists
+            call MPI_Waitany(group % nGroupRecvNeighbors, group % recvRequests, iReq, MPI_STATUS_IGNORE, mpi_ierr)
 
             !
-            ! Unpacking code for real-valued fields
+            ! Unpack the segmented recv buffer with elements for all fields and from all neighbors
             !
-            if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
-                dim1 = compactHaloInfo(2)
-                dim2 = compactHaloInfo(3)
+            do i = 1, group % nFields
+
+                ! Find field-local neighbor index corresponding to the neighbor for which we
+                ! just received a message. If iEndp == 0, then field i does not receive any
+                ! values from neighbor iReq
+                iEndp = group % groupToFieldRecvIdx(iReq, i)
+
+                if (iEndp == 0) cycle     ! No unpacking needed from this neighbor for this field
+
+
+                compactHaloInfo => group % fields(i) % compactHaloInfo
+                compactRecvLists => group % fields(i) % compactRecvLists
 
                 nHalos = compactHaloInfo(9)
                 nRecvEndpts = compactHaloInfo(11)
@@ -701,16 +701,23 @@ module mpas_halo
                 unpackOffsets => group % fields(i) % unpackOffsets
                 maxNRecvList = group % fields(i) % maxNRecvList
 
-                select case (group % fields(i) % nDims)
 
                 !
-                ! Unpacking code for 2-d real-valued fields
+                ! Unpacking code for real-valued fields
                 !
-                case (2)
+                if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
+                    dim1 = compactHaloInfo(2)
+                    dim2 = compactHaloInfo(3)
+
+                    select case (group % fields(i) % nDims)
+
                     !
-                    ! Unpack recv buffer from all neighbors for current field
+                    ! Unpacking code for 2-d real-valued fields
                     !
-                    do iEndp = 1, nRecvEndpts
+                    case (2)
+                        !
+                        ! Unpack recv buffer from all neighbors for current field
+                        !
                         do iHalo = 1, nHalos
                             do j = 1, maxNRecvList
                                 do i1 = 1, dim1
@@ -721,18 +728,14 @@ module mpas_halo
                                 end do
                             end do
                         end do
-                    end do
 
-                    nullify(group % fields(i) % r2arr)
-
-                !
-                ! Unpacking code for 3-d real-valued fields
-                !
-                case (3)
                     !
-                    ! Unpack recv buffer from all neighbors for current field
+                    ! Unpacking code for 3-d real-valued fields
                     !
-                    do iEndp = 1, nRecvEndpts
+                    case (3)
+                        !
+                        ! Unpack recv buffer from all neighbors for current field
+                        !
                         do iHalo = 1, nHalos
                             do j = 1, maxNRecvList
                                 do i2 = 1, dim2
@@ -746,22 +749,27 @@ module mpas_halo
                                 end do
                             end do
                         end do
-                    end do
 
-                    nullify(group % fields(i) % r3arr)
+                    end select
+                end if
+            end do
+        end do
 
-                end select
+        !
+        ! Nullify array pointers - not necessary for correctness, but helpful when debugging
+        ! to not leave pointers to what might later be incorrect targets
+        !
+        do i = 1, group % nFields
+            if (group % fields(i) % nDims == 2) then
+                nullify(group % fields(i) % r2arr)
+            else if (group % fields(i) % nDims == 3) then
+                nullify(group % fields(i) % r3arr)
             end if
         end do
 
         !
         ! Wait for all sends to complete before returning
         !
-!        do i = 1, group % nGroupSendNeighbors
-!            if (group % groupSendCounts(i) > 0) then
-!                call MPI_Wait(group % sendRequests(i), MPI_STATUS_IGNORE, mpi_ierr)
-!            end if
-!        end do
         call MPI_Waitall(group % nGroupSendNeighbors, group % sendRequests, MPI_STATUSES_IGNORE, mpi_ierr)
 
     end subroutine mpas_halo_exch_group_full_halo_exch
@@ -1122,6 +1130,7 @@ module mpas_halo
     !>    groupRecvBufSize
     !>    groupUnpackOffsets
     !>    groupRecvNeighbors
+    !>    groupToFieldRecvEndpt
     !>    groupRecvOffsets
     !>    groupRecvCounts
     !
@@ -1228,6 +1237,9 @@ module mpas_halo
         allocate(group % groupRecvNeighbors(group % nGroupRecvNeighbors))
         group % groupRecvNeighbors(:) = recvNeighbors(1:group % nGroupRecvNeighbors)
 
+        allocate(group % groupToFieldRecvIdx(group % nGroupRecvNeighbors, group % nFields))
+        group % groupToFieldRecvIdx(:,:) = 0
+
         deallocate(sendNeighbors)
         deallocate(recvNeighbors)
 
@@ -1332,6 +1344,7 @@ module mpas_halo
                 ! Find neighbor in groupRecvNeighbors
                 do j = 1, group % nGroupRecvNeighbors
                     if (group % fields(i) % compactRecvLists(idx) == group % groupRecvNeighbors(j)) then
+                        group % groupToFieldRecvIdx(j, i) = iendp
                         exit
                     end if
                 end do

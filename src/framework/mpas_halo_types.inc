@@ -65,6 +65,9 @@
                                                                           !     dimensioned (nGroupRecvNeighbors, nFields)
         integer, dimension(:), pointer :: groupRecvNeighbors => null()    ! List of neighbors we recv from
                                                                           !     dimensioned (nGroupRecvNeighbors)
+        integer, dimension(:,:), pointer :: groupToFieldRecvIdx => null() ! Convert from group-wide neighbor indices to
+                                                                          !     field-local indices
+                                                                          !     dimensioned (nGroupRecvNeighbors, nFields)
         integer, dimension(:), pointer :: groupRecvOffsets => null()      ! Offset in recvBuf of segment to recv from each neighbor
                                                                           !     dimensioned (nGroupRecvNeighbors)
         integer, dimension(:), pointer :: groupRecvCounts => null()       ! Size of recvBuf segment to recv from each neighbor
