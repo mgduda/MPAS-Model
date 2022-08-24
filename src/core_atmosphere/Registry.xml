@@ -373,6 +373,13 @@
                      possible_values=".true. or .false."/>
         </nml_record>
 
+        <nml_record name="initial_perturbation" in_defaults="true">
+                <nml_option name="config_pertlim" type="real" default_value="0.0"
+                     units="-"
+                     description="Absolute value of scale factor used to perturb initial values. A value of 0.0 implies no initial perturbation."
+                     possible_values="Non-negative real values"/>
+        </nml_record>
+
 <!-- **************************************************************************************** -->
 <!-- **************************************  Packages  ************************************** -->
 <!-- **************************************************************************************** -->

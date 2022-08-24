@@ -15,6 +15,8 @@ module atm_core
 
    type (MPAS_Clock_type), pointer :: clock
 
+   private :: initial_pert   ! Local routine for adding perturbations to initial state
+
 
    contains
 
@@ -52,6 +54,8 @@ module atm_core
       integer, pointer :: nVertLevels, maxEdges, maxEdges2, num_scalars
       character (len=ShortStrKIND) :: init_stream_name
       real (kind=R8KIND) :: input_start_time, input_stop_time
+
+      real (kind=RKIND), pointer :: config_pertlim
 
 
       ierr = 0
@@ -205,6 +209,37 @@ module atm_core
 
       call mpas_atm_diag_setup(domain % streamManager, domain % blocklist % configs, &
                                domain % blocklist % structs, domain % clock, domain % dminfo)
+
+
+      !
+      ! If requested in the namelist, add a perturbation to initial state
+      !
+      nullify(config_pertlim)
+      call mpas_pool_get_config(domain % blocklist % configs, 'config_pertlim', config_pertlim)
+      if (.not. associated(config_pertlim)) then
+         ierr = 1
+         call mpas_log_write('Unable to obtain namelist option ''config_pertlim''.', messageType=MPAS_LOG_ERR)
+         return
+      end if
+
+      if (config_pertlim /= 0.0_RKIND) then
+         nullify(mesh)
+         call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', mesh)
+
+         nullify(state)
+         call mpas_pool_get_subpool(domain % blocklist % structs, 'state', state)
+
+         call initial_pert(config_pertlim, mesh, state, ierr)
+         if (ierr /= 0) then
+            call mpas_log_write('Perturbation of initial state failed.', messageType=MPAS_LOG_ERR)
+            return
+         end if
+      else
+         call mpas_log_write('')
+         call mpas_log_write('config_pertlim = 0.0 => no perturbation will be added to initial state')
+         call mpas_log_write('')
+      end if
+
 
       !
       ! Prepare the dynamics for integration
@@ -1391,6 +1426,120 @@ module atm_core
 
    end subroutine mpas_atm_run_compatibility
 
+
+   !-----------------------------------------------------------------------
+   !  routine initial_pert
+   !
+   !> \brief Add a perturbation to the initial model state (currently just theta_m)
+   !> \author Michael Duda
+   !> \date   22 August 2022
+   !> \details
+   !>  This routine adds a perturbation to the initial model state. At present,
+   !>  the only field to which perturbations are added is the theta_m field.
+   !>  Since temperature can be obtained from theta_m through multiplication
+   !>  with other factors, and since the perturbation is introduced through
+   !>  multiplcation by (1 + x), with x as a random value in the interval
+   !>  (-pertlim, pertlim], perturbing the initial theta_m field is equivalent
+   !>  to perturbing the initial temperature field.
+   !>
+   !>  The general method implemented here follows what is done in the Community
+   !>  Atmosphere Model (CAM).
+   !>
+   !>  Time level 1 of the theta_m field is obtained from the 'state' pool,
+   !>  and the 'mesh' pool is used to provide the indexToCellID field,
+   !>  which is used to seed a pseudo-random number generator in a way that
+   !>  ensures that the pertubation field is independent of the horizontal
+   !>  domain decomposition.
+   !>
+   !>  A value of 0 is returned if the perturbation was successfully added,
+   !>  and a non-zero value is returned otherwise.
+   !
+   !-----------------------------------------------------------------------
+   subroutine initial_pert(pertlim, mesh, state, ierr)
+
+      use mpas_log, only : mpas_log_write
+
+      implicit none
+
+      ! Arguments
+      real (kind=RKIND), intent(in) :: pertlim
+      type (mpas_pool_type), intent(inout) :: mesh, state
+      integer, intent(out) :: ierr
+
+      ! Local variables
+      integer, dimension(:), pointer :: indexToCellID
+      real (kind=RKIND), dimension(:,:), pointer :: theta_m
+      integer :: iCell, k
+      integer, pointer :: nCells, nVertLevels
+      integer :: seed_size
+      integer, dimension(:), allocatable :: seed
+      real (kind=RKIND), dimension(:), allocatable :: pertval
+
+
+      ierr = 0
+
+      call mpas_log_write('')
+      call mpas_log_write('Adding perturbation to initial model state...')
+      call mpas_log_write('    pertlim = $r', realArgs=[pertlim])
+      call mpas_log_write('')
+
+      !
+      ! Allocate correct size for random seed
+      !
+      call random_seed(size=seed_size)
+      allocate(seed(seed_size))
+
+
+      !
+      ! Get pointers to dimensions and variables
+      !
+      nullify(nCells)
+      call mpas_pool_get_dimension(mesh, 'nCells', nCells)
+
+      nullify(nVertLevels)
+      call mpas_pool_get_dimension(mesh, 'nVertLevels', nVertLevels)
+
+      nullify(indexToCellID)
+      call mpas_pool_get_array(mesh, 'indexToCellID', indexToCellID)
+
+      nullify(theta_m)
+      call mpas_pool_get_array(state, 'theta_m', theta_m, timeLevel=1)
+
+      if (.not. (associated(nCells) .and. &
+                 associated(nVertLevels) .and. &
+                 associated(indexToCellID) .and. &
+                 associated(theta_m))) then
+
+         call mpas_log_write('One or more of nCells, nVertLevels, indexToCellID, or theta_m', messageType=MPAS_LOG_ERR)
+         call mpas_log_write('  could not be obtained in initial_pert().', messageType=MPAS_LOG_ERR)
+         ierr = 1
+         return
+      end if
+
+
+      allocate(pertval(nVertLevels))
+
+      !
+      ! Add perturbation to theta_m field for all cells
+      !
+      do iCell = 1, nCells
+         seed(:) = indexToCellID(iCell)
+         call random_seed(put=seed)
+         call random_number(pertval(:))
+
+         do k = 1, nVertLevels
+            pertval(k) = 2.0_RKIND * pertlim * (0.5_RKIND - pertval(k))
+            theta_m(k,iCell) = theta_m(k,iCell) * (1.0_RKIND + pertval(k))
+         end do
+      end do
+
+      deallocate(seed)
+      deallocate(pertval)
+
+      call mpas_log_write('----- done adding initial perturbation -----')
+      call mpas_log_write('')
+
+   end subroutine initial_pert
 
 end module atm_core
 
