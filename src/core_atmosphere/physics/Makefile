@@ -199,7 +199,6 @@ mpas_atmphys_update.o: \
 
 clean:
 	$(RM) *.o *.mod *.f90 libphys.a
-	( cd physics_mmm; $(MAKE) clean )
 	( cd physics_wrf; $(MAKE) clean )
 	@# Certain systems with intel compilers generate *.i files
 	@# This removes them during the clean process
