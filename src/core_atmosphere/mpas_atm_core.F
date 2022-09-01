@@ -46,6 +46,7 @@ module atm_core
       character (len=StrKIND), pointer :: xtime
       character (len=StrKIND), pointer :: initial_time1, initial_time2
       type (MPAS_Time_Type) :: startTime
+      character (len=StrKIND), pointer :: config_static_stream_name
 
       integer, pointer :: nVertLevels, maxEdges, maxEdges2, num_scalars
 
@@ -80,6 +81,13 @@ module atm_core
 
       call mpas_pool_get_config(domain % blocklist % configs, 'config_do_restart', config_do_restart)
       call mpas_pool_get_config(domain % blocklist % configs, 'config_dt', dt)
+      call mpas_pool_get_config(domain % blocklist % configs, 'config_static_stream_name', config_static_stream_name)
+
+
+      if (len_trim(config_static_stream_name) > 0) then
+         call MPAS_stream_mgr_read(domain % streamManager, streamID='invariant', whence=MPAS_STREAM_NEAREST, ierr=ierr)
+      end if
+      call MPAS_stream_mgr_reset_alarms(domain % streamManager, streamID='invariant', direction=MPAS_STREAM_INPUT, ierr=ierr)
 
 
       !

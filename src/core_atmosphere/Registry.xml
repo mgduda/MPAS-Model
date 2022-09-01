@@ -285,6 +285,11 @@
 	</nml_record>
 
         <nml_record name="io" in_defaults="true">
+                <nml_option name="config_static_stream_name" type="character" default_value="" in_defaults="false"
+                     units="-"
+                     description="The name of the stream from which all time-invariant fields will be read. If given as an empty string (the default), static fields will be read and written from the normal input and restart streams. Specifying a non-empty static stream name will also cause time-invariant fields to not be written to restart files, since those fields will be read from the static stream upon model restart."
+                     possible_values="Any string that may be used as a stream name in a streams XML file"/>
+
                 <nml_option name="config_restart_timestamp_name" type="character" default_value="restart_timestamp" in_defaults="false"
                      units="-"
                      description="Filename used to store most recent restart time stamp"
@@ -387,6 +392,7 @@
                 <package name="iau" description="Incremental Analysis Update"/>
                 <package name="limited_area" description="Limited-area simulations, which have lateral boundaries"/>
                 <package name="jedi_da" description="Data Assimilation in JEDI framework"/>
+                <package name="not_static_stream" description="No separate static I/O stream is defined"/>
         </packages>
 
 
@@ -395,9 +401,9 @@
 <!-- **************************************************************************************** -->
 
 	<streams>
-		<stream name="input" 
+		<stream name="invariant" 
                         type="input" 
-                        filename_template="x1.40962.init.nc" 
+                        filename_template="invariant.nc" 
                         input_interval="initial_only"
                         immutable="true">
 
@@ -459,14 +465,23 @@
 			<var name="zb"/>
 			<var name="zb3"/>
 			<var name="dss"/>
-			<var name="u_init"/>
-			<var name="v_init"/>
-			<var name="t_init"/>
-			<var name="qv_init"/>
 			<var name="deriv_two"/>
 			<var name="defc_a"/>
 			<var name="defc_b"/>
 			<var name="coeffs_reconstruct"/>
+
+                </stream>
+
+		<stream name="input" 
+                        type="input" 
+                        filename_template="x1.40962.init.nc" 
+                        input_interval="initial_only"
+                        immutable="true">
+
+			<stream name="invariant" packages="not_static_stream"/>
+			<var name="u_init"/>
+			<var name="v_init"/>
+			<var name="t_init"/>
 			<var_array name="scalars"/>
 			<var name="initial_time"/>
 			<var name="xtime"/>
@@ -529,76 +544,13 @@
                         output_interval="1_00:00:00" 
                         immutable="true">
 
-			<var name="latCell"/>
-			<var name="lonCell"/>
-			<var name="xCell"/>
-			<var name="yCell"/>
-			<var name="zCell"/>
-			<var name="indexToCellID"/>
-			<var name="latEdge"/>
-			<var name="lonEdge"/>
-			<var name="xEdge"/>
-			<var name="yEdge"/>
-			<var name="zEdge"/>
-			<var name="indexToEdgeID"/>
-			<var name="latVertex"/>
-			<var name="lonVertex"/>
-			<var name="xVertex"/>
-			<var name="yVertex"/>
-			<var name="zVertex"/>
-			<var name="indexToVertexID"/>
-			<var name="cellsOnEdge"/>
-			<var name="nEdgesOnCell"/>
-			<var name="nEdgesOnEdge"/>
-			<var name="edgesOnCell"/>
-			<var name="edgesOnEdge"/>
-			<var name="weightsOnEdge"/>
-			<var name="dvEdge"/>
-			<var name="dcEdge"/>
-			<var name="angleEdge"/>
-			<var name="areaCell"/>
-			<var name="areaTriangle"/>
-			<var name="edgeNormalVectors"/>
-			<var name="localVerticalUnitVectors"/>
-			<var name="cellTangentPlane"/>
-			<var name="cellsOnCell"/>
-			<var name="verticesOnCell"/>
-			<var name="verticesOnEdge"/>
-			<var name="edgesOnVertex"/>
-			<var name="cellsOnVertex"/>
-			<var name="kiteAreasOnVertex"/>
-			<var name="fEdge"/>
-			<var name="fVertex"/>
-			<var name="meshDensity"/>
-			<var name="meshScalingDel2"/>
-			<var name="meshScalingDel4"/>
+			<stream name="invariant" packages="not_static_stream"/>
 			<var name="meshScalingRegionalCell"/>
 			<var name="meshScalingRegionalEdge"/>
-			<var name="bdyMaskCell"/>
-			<var name="bdyMaskEdge"/>
-			<var name="bdyMaskVertex"/>
-			<var name="cf1"/>
-			<var name="cf2"/>
-			<var name="cf3"/>
-			<var name="zgrid"/>
-			<var name="rdzw"/>
-			<var name="dzu"/>
-			<var name="rdzu"/>
-			<var name="fzm"/>
-			<var name="fzp"/>
-			<var name="zxu"/>
-			<var name="zz"/>
-			<var name="zb"/>
-			<var name="zb3"/>
-			<var name="dss"/>
 			<var name="u_init"/>
 			<var name="v_init"/>
 			<var name="t_init"/>
 			<var name="qv_init"/>
-			<var name="deriv_two"/>
-			<var name="defc_a"/>
-			<var name="defc_b"/>
-			<var name="coeffs_reconstruct"/>
 			<var name="east"/>
 			<var name="north"/>
 			<var_array name="scalars"/>
