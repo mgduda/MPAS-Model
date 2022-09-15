@@ -103,7 +103,8 @@ int generate_streams(ezxml_t registry, FILE* fd, char *stream_file_prefix, int o
 	ezxml_t streams_xml, stream_xml;
 	ezxml_t member_xml;
 
-	const char *name, *type, *immutable, *filename_template, *filename_interval, *packages, *record_interval;
+	const char *name, *type, *immutable, *filename_template, *filename_interval,
+	           *packages, *record_interval, *in_defaults;
 	const char *varpackages;
 	const char *reference_time, *clobber_mode, *precision, *input_interval, *output_interval;
 
@@ -123,8 +124,16 @@ int generate_streams(ezxml_t registry, FILE* fd, char *stream_file_prefix, int o
 			// First pass, only pull out immutable streams. Put these at the top of the file. Since they *have* to be defined.
 			for (stream_xml = ezxml_child(streams_xml, "stream"); stream_xml; stream_xml = stream_xml->next){
 				immutable = ezxml_attr(stream_xml, "immutable");
+				in_defaults = ezxml_attr(stream_xml, "in_defaults");
 
 				write_stream = is_structure_writable(stream_xml, pairs, keys, values);
+
+				/*
+				 * If in_defaults was specified and is not "true", do not write the stream
+				 */
+				if ( in_defaults != NULL && strcmp(in_defaults, "true") ) {
+					write_stream = 0;
+				}
 
 				if ( write_stream == -1 ) write_stream = 1; // If key is missing, make stream writable
 
@@ -146,8 +155,16 @@ int generate_streams(ezxml_t registry, FILE* fd, char *stream_file_prefix, int o
 			runtime = ezxml_attr(stream_xml, "runtime_format");
 
 			immutable = ezxml_attr(stream_xml, "immutable");
+			in_defaults = ezxml_attr(stream_xml, "in_defaults");
 
 			write_stream = is_structure_writable(stream_xml, pairs, keys, values);
+
+			/*
+			 * If in_defaults was specified and is not "true", do not write the stream
+			 */
+			if ( in_defaults != NULL && strcmp(in_defaults, "true") ) {
+				write_stream = 0;
+			}
 
 			if ( write_stream == -1 ) write_stream = 1; // If key is missing, make stream writable
 
@@ -178,6 +195,13 @@ int generate_streams(ezxml_t registry, FILE* fd, char *stream_file_prefix, int o
 
 				write_stream = is_structure_writable(stream_xml, pairs, keys, values);
 
+				/*
+				 * If in_defaults was specified and is not "true", do not write the stream
+				 */
+				if ( in_defaults != NULL && strcmp(in_defaults, "true") ) {
+					write_stream = 0;
+				}
+
 				// If stream doesn't contain the key, make it writable anyway.
 				if ( write_stream == -1 ) write_stream = 1;
 
@@ -194,7 +218,7 @@ int generate_streams(ezxml_t registry, FILE* fd, char *stream_file_prefix, int o
 				for (member_xml = ezxml_child(stream_xml, "stream"); member_xml; member_xml = member_xml->next){
 					write_member = is_structure_writable(member_xml, pairs, keys, values);
 
-					if ( write_member == 1 || (write_member == -1 && write_stream) ) {
+					if ( write_member != 0 && write_stream ) {
 						if ( !stream_written ) {
 							write_stream_header(stream_xml, fd);
 							stream_written = 1;
@@ -219,7 +243,7 @@ int generate_streams(ezxml_t registry, FILE* fd, char *stream_file_prefix, int o
 				for (member_xml = ezxml_child(stream_xml, "var_struct"); member_xml; member_xml = member_xml->next){
 					write_member = is_structure_writable(member_xml, pairs, keys, values);
 
-					if ( write_member == 1 || (write_member == -1 && write_stream) ) {
+					if ( write_member != 0 && write_stream ) {
 						if ( !stream_written ) {
 							write_stream_header(stream_xml, fd);
 							stream_written = 1;
@@ -244,7 +268,7 @@ int generate_streams(ezxml_t registry, FILE* fd, char *stream_file_prefix, int o
 				for (member_xml = ezxml_child(stream_xml, "var_array"); member_xml; member_xml = member_xml->next){
 					write_member = is_structure_writable(member_xml, pairs, keys, values);
 
-					if ( write_member == 1 || (write_member == -1 && write_stream) ) {
+					if ( write_member != 0 && write_stream ) {
 						if ( !stream_written ) {
 							write_stream_header(stream_xml, fd);
 							stream_written = 1;
@@ -276,7 +300,7 @@ int generate_streams(ezxml_t registry, FILE* fd, char *stream_file_prefix, int o
 				for (member_xml = ezxml_child(stream_xml, "var"); member_xml; member_xml = member_xml->next){
 					write_member = is_structure_writable(member_xml, pairs, keys, values);
 
-					if ( write_member == 1 || (write_member == -1 && write_stream) ) {
+					if ( write_member != 0 && write_stream ) {
 						if ( !stream_written ) {
 							write_stream_header(stream_xml, fd);
 							stream_written = 1;
