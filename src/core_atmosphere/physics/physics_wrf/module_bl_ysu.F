@@ -1,6 +1,7 @@
 #define NEED_B4B_DURING_CCPP_TESTING 1
 !=================================================================================================================
  module module_bl_ysu
+ use mpas_log
  use mpas_kind_types,only: kind_phys => RKIND
  use bl_ysu
 
@@ -27,13 +28,20 @@
                   uoce,voce,                                                   &
                   rthraten,ysu_topdown_pblmix,                                 &
                   ctopo,ctopo2,                                                &
+                  idiff,flag_bep,frc_urb2d,                                    &
+                  a_u_bep,a_v_bep,a_t_bep,                                     &
+                  a_q_bep,                                                     &
+                  a_e_bep,b_u_bep,b_v_bep,                                     &
+                  b_t_bep,b_q_bep,                                             &
+                  b_e_bep,dlg_bep,                                             &
+                  dl_u_bep,sf_bep,vl_bep,                                      &
                   ids,ide, jds,jde, kds,kde,                                   &
                   ims,ime, jms,jme, kms,kme,                                   &
                   its,ite, jts,jte, kts,kte,                                   &
                   errmsg,errflg                                                &
                  )
 !-------------------------------------------------------------------------------
-   implicit none
+  implicit none
 !-------------------------------------------------------------------------------
 !-- u3d         3d u-velocity interpolated to theta points (m/s)
 !-- v3d         3d v-velocity interpolated to theta points (m/s)
@@ -87,6 +95,23 @@
 !-- ep1         constant for virtual temperature (r_v/r_d - 1)
 !-- ep2         constant for specific humidity calculation
 !-- karman      von karman constant
+!-- idiff       diff3d BEP/BEM+BEM diffusion flag
+!-- flag_bep    flag to use BEP/BEP+BEM
+!-- frc_urb2d   urban fraction
+!-- a_u_bep     BEP/BEP+BEM implicit component u-mom
+!-- a_v_bep     BEP/BEP+BEM implicit component v-mom
+!-- a_t_bep     BEP/BEP+BEM implicit component pot. temp.
+!-- a_q_bep     BEP/BEP+BEM implicit component vapor mixing ratio
+!-- a_e_bep     BEP/BEP+BEM implicit component TKE
+!-- b_u_bep     BEP/BEP+BEM explicit component u-mom
+!-- b_v_bep     BEP/BEP+BEM explicit component v-mom
+!-- b_t_bep     BEP/BEP+BEM explicit component pot.temp.
+!-- b_q_bep     BEP/BEP+BEM explicit component vapor mixing ratio
+!-- b_e_bep     BEP/BEP+BEM explicit component TKE
+!-- dlg_bep     Height above ground Martilli et al. (2002) Eq. 24
+!-- dl_u_bep    modified length scale Martilli et al. (2002) Eq. 22
+!-- sf_bep      fraction of vertical surface not occupied by buildings
+!-- vl_bep      volume fraction of grid cell not occupied by buildings
 !-- ids         start index for i in domain
 !-- ide         end index for i in domain
 !-- jds         start index for j in domain
@@ -179,6 +204,22 @@
    logical,  intent(in)      ::                                       flag_qc, &
                                                                       flag_qi
 !
+   integer,  intent(in)      ::                                          idiff
+   logical,  intent(in)      ::                                       flag_bep
+   real(kind=kind_phys),     dimension( ims:ime, kms:kme, jms:jme )          , &
+             optional                                                        , &
+             intent(in)      ::                                       a_u_bep, &
+                                                              a_v_bep,a_t_bep, &
+                                                              a_e_bep,b_u_bep, &
+                                                              a_q_bep,b_q_bep, &
+                                                              b_v_bep,b_t_bep, &
+                                                              b_e_bep,dlg_bep, &
+                                                                     dl_u_bep, &
+                                                                vl_bep,sf_bep
+   real(kind=kind_phys),     dimension(ims:ime,jms:jme)                      , &
+             optional                                                        , &
+             intent(in)      ::                                     frc_urb2d
+!
    real(kind=kind_phys),     dimension( ims:ime, jms:jme )                   , &
              optional                                                        , &
              intent(in   )   ::                                         ctopo, &
@@ -222,6 +263,21 @@
                                                              exch_m_hv   , &
                                                              rthraten_hv
 
+   real(kind=kind_phys),   dimension(its:ite,kts:kte)      ::              &
+                                                             a_u_hv      , &
+                                                             a_v_hv      , &
+                                                             a_t_hv      , &
+                                                             a_e_hv      , &
+                                                             b_u_hv      , &
+                                                             a_q_hv      , &
+                                                             b_q_hv      , &
+                                                             b_v_hv      , &
+                                                             b_t_hv      , &
+                                                             b_e_hv      , &
+                                                             dlg_hv      , &
+                                                             dl_u_hv     , &
+                                                             vlk__hv     , &
+                                                             sfk_hv
    real(kind=kind_phys),   dimension(its:ite,kts:kte+1)    ::              &
                                                              p3di_hv
 
@@ -248,6 +304,12 @@
 
    integer,                dimension(its:ite)              ::              &
                                                              kpbl2d_hv
+   integer,                dimension(its:ite)              ::              &
+                                                             frcurb_hv
+
+
+   call mpas_log_write(' ')
+   call mpas_log_write('--- enter subroutine ysu:')
 
    do j = jts,jte
 !
@@ -281,6 +343,34 @@
             rthraten_hv(i,k) = rthraten(i,k,j)
          end do
       end do
+
+      if(present(a_u_bep) .and. present(a_v_bep) .and. present(a_t_bep) .and.  &
+         present(a_q_bep) .and. present(a_e_bep) .and. present(b_u_bep) .and.  &
+         present(b_v_bep) .and. present(b_t_bep) .and. present(b_q_bep) .and.  &
+         present(b_e_bep) .and. present(dlg_bep) .and. present(dl_u_bep) .and. &
+         present(sf_bep)  .and. present(vl_bep)  .and. present(frc_urb2d)) then
+         do k = kts, kte
+            do i = its,ite
+               a_u_hv(i,k)  = a_u_bep(i,k,j)
+               a_v_hv(i,k)  = a_v_bep(i,k,j)
+               a_t_hv(i,k)  = a_t_bep(i,k,j)
+               a_q_hv(i,k)  = a_q_bep(i,k,j)
+               a_e_hv(i,k)  = a_e_bep(i,k,j)
+               b_u_hv(i,k)  = b_u_bep(i,k,j)
+               b_v_hv(i,k)  = b_v_bep(i,k,j)
+               b_t_hv(i,k)  = b_t_bep(i,k,j)
+               b_q_hv(i,k)  = b_q_bep(i,k,j)
+               b_e_hv(i,k)  = b_e_bep(i,k,j)
+               dlg_hv(i,k)  = dlg_bep(i,k,j)
+               dl_u_hv(i,k) = dl_u_bep(i,k,j)
+               vlk__hv(i,k) = vl_bep(i,k,j)
+               sfk_hv(i,k)  = sf_bep(i,k,j)
+            enddo
+         enddo
+         do i = its, ite
+            frcurb_hv(i) = frc_urb2d(i,j)
+         enddo
+      endif
 
       do i = its, ite
          psfc_hv(i) = psfc(i,j)

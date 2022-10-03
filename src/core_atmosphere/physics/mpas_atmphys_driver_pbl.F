@@ -638,7 +638,7 @@
                  exch_m   = kzm_p      , wstar    = wstar_p     , delta    = delta_p    , &
                  uoce     = uoce_p     , voce     = voce_p      , rthraten = rthraten_p , &
                  u10      = u10_p      , v10      = v10_p       , ctopo    = ctopo_p    , &
-                 ctopo2   = ctopo2_p   ,                                                  & 
+                 ctopo2   = ctopo2_p   , flag_bep = flag_bep    , idiff    = idiff      , &
                  ysu_topdown_pblmix = ysu_pblmix ,                                        &
                  errmsg   = errmsg     , errflg   = errflg      ,                         &
                  ids = ids , ide = ide , jds = jds , jde = jde , kds = kds , kde = kde  , &
