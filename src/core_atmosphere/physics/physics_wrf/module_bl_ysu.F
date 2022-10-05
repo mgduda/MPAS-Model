@@ -276,7 +276,7 @@
                                                              b_e_hv      , &
                                                              dlg_hv      , &
                                                              dl_u_hv     , &
-                                                             vlk__hv     , &
+                                                             vlk_hv      , &
                                                              sfk_hv
    real(kind=kind_phys),   dimension(its:ite,kts:kte+1)    ::              &
                                                              p3di_hv
@@ -304,7 +304,7 @@
 
    integer,                dimension(its:ite)              ::              &
                                                              kpbl2d_hv
-   integer,                dimension(its:ite)              ::              &
+   real,                   dimension(its:ite)              ::              &
                                                              frcurb_hv
 
 
@@ -363,7 +363,7 @@
                b_e_hv(i,k)  = b_e_bep(i,k,j)
                dlg_hv(i,k)  = dlg_bep(i,k,j)
                dl_u_hv(i,k) = dl_u_bep(i,k,j)
-               vlk__hv(i,k) = vl_bep(i,k,j)
+               vlk_hv(i,k) = vl_bep(i,k,j)
                sfk_hv(i,k)  = sf_bep(i,k,j)
             enddo
          enddo
@@ -422,6 +422,10 @@
               ,rthraten=rthraten_hv                                            &
               ,ysu_topdown_pblmix=ysu_topdown_pblmix                           &
               ,ctopo=ctopo_hv,ctopo2=ctopo2_hv                                 &
+              ,a_u=a_u_hv,a_v=a_v_hv,a_t=a_t_hv,a_q=a_q_hv,a_e=a_e_hv          &
+              ,b_u=b_u_hv,b_v=b_v_hv,b_t=b_t_hv,b_q=b_q_hv,b_e=b_e_hv          &
+              ,sfk=sfk_hv,vlk=vlk_hv,dlu=dl_u_hv,dlg=dlg_hv,frcurb=frcurb_hv   &
+              ,flag_bep=flag_bep                                               &
               ,its=its,ite=ite,kte=kte,kme=kme                                 &
               ,errmsg=errmsg,errflg=errflg                                     )
 !
