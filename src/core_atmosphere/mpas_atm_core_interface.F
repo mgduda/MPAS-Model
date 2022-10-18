@@ -122,8 +122,8 @@ module atm_core_interface
       logical, pointer :: limited_areaActive
       logical, pointer :: config_apply_lbcs
       logical, pointer :: config_jedi_da, jedi_daActive
-      character(len=StrKIND), pointer :: config_static_stream_name
-      logical, pointer :: not_static_streamActive
+      logical, pointer :: config_use_invariant_stream
+      logical, pointer :: no_invariant_streamActive
       integer :: local_ierr
 
       ierr = 0
@@ -177,20 +177,20 @@ module atm_core_interface
       end if
 
       !
-      ! Separate static I/O stream
+      ! Separate time-invariant stream
       !
-      nullify(config_static_stream_name)
-      call mpas_pool_get_config(configs, 'config_static_stream_name', config_static_stream_name)
+      nullify(config_use_invariant_stream)
+      call mpas_pool_get_config(configs, 'config_use_invariant_stream', config_use_invariant_stream)
 
-      nullify(not_static_streamActive)
-      call mpas_pool_get_package(packages, 'not_static_streamActive', not_static_streamActive)
+      nullify(no_invariant_streamActive)
+      call mpas_pool_get_package(packages, 'no_invariant_streamActive', no_invariant_streamActive)
 
-      if (associated(config_static_stream_name) .and. associated(not_static_streamActive)) then
-         not_static_streamActive = (len_trim(config_static_stream_name) == 0)
+      if (associated(config_use_invariant_stream) .and. associated(no_invariant_streamActive)) then
+         no_invariant_streamActive = .not. config_use_invariant_stream
       else
          ierr = ierr + 1
-         call mpas_log_write('Package setup failed for ''not_static_stream''. '// &
-              'Either ''not_static_stream'' is not a package, or ''config_static_stream_name'' is not a namelist option.', &
+         call mpas_log_write('Package setup failed for ''no_invariant_stream''. '// &
+              'Either ''no_invariant_stream'' is not a package, or ''config_use_invariant_stream'' is not a namelist option.', &
               messageType=MPAS_LOG_ERR)
       end if
 
@@ -369,22 +369,22 @@ module atm_core_interface
       integer :: ierr
 
       logical, pointer :: config_do_restart
-      character(len=StrKIND), pointer :: config_static_stream_name
+      logical, pointer :: config_use_invariant_stream
 
       ierr = 0
 
-      nullify(config_static_stream_name)
-      call mpas_pool_get_config(configs, 'config_static_stream_name', config_static_stream_name)
+      nullify(config_use_invariant_stream)
+      call mpas_pool_get_config(configs, 'config_use_invariant_stream', config_use_invariant_stream)
 
-      if (.not. associated(config_static_stream_name)) then
+      if (.not. associated(config_use_invariant_stream)) then
          ierr = 1
-         call mpas_log_write('Namelist option config_static_stream_name was not found when defining mesh stream.', &
+         call mpas_log_write('Namelist option config_use_invariant_stream was not found when defining mesh stream.', &
                              messageType=MPAS_LOG_ERR)
          return
       end if
 
-      if (len_trim(config_static_stream_name) > 0) then
-         write(stream,'(a)') trim(config_static_stream_name)
+      if (config_use_invariant_stream) then
+         write(stream,'(a)') 'invariant'
 
       else
          call mpas_pool_get_config(configs, 'config_do_restart', config_do_restart)
