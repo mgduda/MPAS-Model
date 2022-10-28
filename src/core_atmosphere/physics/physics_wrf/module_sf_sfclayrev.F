@@ -1,6 +1,13 @@
-!WRF:MODEL_LAYER:PHYSICS
-!
-MODULE module_sf_sfclayrev
+!=================================================================================================================
+ module module_sf_sfclayrev
+ use mpas_log
+ use ccpp_kinds,only: kind_phys
+
+ implicit none
+ private
+ public:: sfclayrev,    &
+          sfclayrevinit
+
 
  REAL    , PARAMETER ::  VCONVC=1.
  REAL    , PARAMETER ::  CZO=0.0185
@@ -8,9 +15,11 @@ MODULE module_sf_sfclayrev
 
  REAL,   DIMENSION(0:1000 ),SAVE :: psim_stab,psim_unstab,psih_stab,psih_unstab
 
-CONTAINS
 
-!-------------------------------------------------------------------
+ contains
+
+
+!=================================================================================================================
    SUBROUTINE SFCLAYREV(U3D,V3D,T3D,QV3D,P3D,dz8w,                    &
                      CP,G,ROVCP,R,XLV,PSFC,CHS,CHS2,CQS2,CPM,      &
                      ZNT,UST,PBLH,MAVAIL,ZOL,MOL,REGIME,PSIM,PSIH, &
@@ -1175,6 +1184,7 @@ CONTAINS
 
    ! Local 
    LOGICAL :: overwrite_water_depth
+   INTEGER :: i,j
 
    overwrite_water_depth = .False.
 
@@ -1214,7 +1224,9 @@ CONTAINS
 
    END SUBROUTINE shalwater_init
 
-      function zolri(ri,z,z0)
+      real(kind=kind_phys) function zolri(ri,z,z0)
+      real(kind=kind_phys),intent(in):: ri,z,z0
+      real(kind=kind_phys):: fx1,fx2,x1,x2
 !
       if (ri.lt.0.)then
         x1=-5.
@@ -1248,7 +1260,10 @@ CONTAINS
 !
 ! -----------------------------------------------------------------------
 !
-      function zolri2(zol2,ri2,z,z0)
+      real(kind=kind_phys) function zolri2(zol2,ri2,z,z0)
+      real(kind=kind_phys),intent(in):: ri2,z,z0
+      real(kind=kind_phys),intent(inout):: zol2
+      real(kind=kind_phys):: psih2,psix2,zol20,zol3
 !
       if(zol2*ri2 .lt. 0.)zol2=0.  ! limit zol2 - must be same sign as ri2
 !
@@ -1270,17 +1285,21 @@ CONTAINS
 !
 ! ... integrated similarity functions ...
 !
-      function psim_stable_full(zolf)
+      real(kind=kind_phys) function psim_stable_full(zolf)
+      real(kind=kind_phys),intent(in):: zolf
         psim_stable_full=-6.1*log(zolf+(1+zolf**2.5)**(1./2.5))
       return
       end function
 
-      function psih_stable_full(zolf)
+      real(kind=kind_phys) function psih_stable_full(zolf)
+      real(kind=kind_phys),intent(in):: zolf
         psih_stable_full=-5.3*log(zolf+(1+zolf**1.1)**(1./1.1))
       return
       end function
       
-      function psim_unstable_full(zolf)
+      real(kind=kind_phys) function psim_unstable_full(zolf)
+      real(kind=kind_phys),intent(in):: zolf
+      real(kind=kind_phys):: psimc,psimk,x,y,ym
         x=(1.-16.*zolf)**.25
         psimk=2*ALOG(0.5*(1+X))+ALOG(0.5*(1+X*X))-2.*ATAN(X)+2.*ATAN(1.)
 !
@@ -1292,7 +1311,9 @@ CONTAINS
       return
       end function
 
-      function psih_unstable_full(zolf)
+      real(kind=kind_phys) function psih_unstable_full(zolf)
+      real(kind=kind_phys),intent(in):: zolf
+      real(kind=kind_phys):: psihc,psihk,y,yh
         y=(1.-16.*zolf)**.5
         psihk=2.*log((1+y)/2.)
 !
@@ -1305,9 +1326,10 @@ CONTAINS
       end function
 
 ! look-up table functions
-      function psim_stable(zolf)
-      integer :: nzol
-      real    :: rzol
+      real(kind=kind_phys) function psim_stable(zolf)
+      real(kind=kind_phys),intent(in):: zolf
+      integer:: nzol
+      real(kind=kind_phys):: rzol
         nzol = int(zolf*100.)
         rzol = zolf*100. - nzol
         if(nzol+1 .lt. 1000)then
@@ -1318,9 +1340,10 @@ CONTAINS
       return
       end function
 
-      function psih_stable(zolf)
-      integer :: nzol
-      real    :: rzol
+      real(kind=kind_phys) function psih_stable(zolf)
+      real(kind=kind_phys),intent(in):: zolf
+      integer:: nzol
+      real(kind=kind_phys):: rzol
         nzol = int(zolf*100.)
         rzol = zolf*100. - nzol
         if(nzol+1 .lt. 1000)then
@@ -1331,9 +1354,10 @@ CONTAINS
       return
       end function
       
-      function psim_unstable(zolf)
-      integer :: nzol
-      real    :: rzol
+      real(kind=kind_phys) function psim_unstable(zolf)
+      real(kind=kind_phys),intent(in):: zolf
+      integer:: nzol
+      real(kind=kind_phys):: rzol
         nzol = int(-zolf*100.)
         rzol = -zolf*100. - nzol
         if(nzol+1 .lt. 1000)then
@@ -1344,9 +1368,10 @@ CONTAINS
       return
       end function
 
-      function psih_unstable(zolf)
-      integer :: nzol
-      real    :: rzol
+      real(kind=kind_phys) function psih_unstable(zolf)
+      real(kind=kind_phys),intent(in):: zolf
+      integer:: nzol
+      real(kind=kind_phys):: rzol
         nzol = int(-zolf*100.)
         rzol = -zolf*100. - nzol
         if(nzol+1 .lt. 1000)then
@@ -1357,9 +1382,10 @@ CONTAINS
       return
       end function
 
-      function depth_dependent_z0(water_depth,z0,UST)
-      real :: depth_b
-      real :: effective_depth
+      real(kind=kind_phys) function depth_dependent_z0(water_depth,z0,ust)
+      real(kind=kind_phys),intent(in):: water_depth,z0,ust
+      real(kind=kind_phys):: depth_b
+      real(kind=kind_phys):: effective_depth
          IF ( water_depth .lt. 10.0 ) THEN
            effective_depth = 10.0
          ELSEIF ( water_depth .gt. 100.0 ) THEN
