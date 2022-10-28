@@ -17,7 +17,7 @@
 !wrf physics:
  use module_sf_mynn
  use module_sf_sfclay
- use module_sf_sfclayrev
+ use module_sf_sfclayrev,only: sfclayrev,sfclayrevinit
 
  implicit none
  private
