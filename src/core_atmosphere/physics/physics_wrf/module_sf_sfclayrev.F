@@ -283,133 +283,140 @@
                      its,ite, jts,jte, kts,kte,                    &
                      isftcflx, iz0tlnd,scm_force_flux,                            &
                      ustm,ck,cka,cd,cda                            )
-!-------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------
       IMPLICIT NONE
-!-------------------------------------------------------------------
-      REAL,     PARAMETER     ::        XKA=2.4E-5
-      REAL,     PARAMETER     ::        PRT=1.
+!-----------------------------------------------------------------------------------------------------------------
 
-      INTEGER,  INTENT(IN )   ::        ids,ide, jds,jde, kds,kde, &
-                                        ims,ime, jms,jme, kms,kme, &
-                                        its,ite, jts,jte, kts,kte, &
-                                        J
-!                                                               
-      INTEGER,  INTENT(IN )   ::        ISFFLX
-      REAL,     INTENT(IN )   ::        SVP1,SVP2,SVP3,SVPT0
-      REAL,     INTENT(IN )   ::        EP1,EP2,KARMAN,EOMEG,STBOLT
-      REAL,     INTENT(IN )   ::        P1000mb
+!--- input arguments:
+ integer,intent(in):: ids,ide, jds,jde, kds,kde, &
+                      ims,ime, jms,jme, kms,kme, &
+                      its,ite, jts,jte, kts,kte
 
-!
-      REAL,     DIMENSION( ims:ime )                             , &
-                INTENT(IN   )               ::             MAVAIL, &
-                                                             PBLH, &
-                                                            XLAND, &
-                                                              TSK
-!
-      REAL,     DIMENSION( ims:ime )                             , &
-                INTENT(IN   )               ::             PSFCPA
+ integer,intent(in):: j
 
-      REAL,     DIMENSION( ims:ime )                             , &
-                INTENT(INOUT)               ::             REGIME, &
-                                                              HFX, &
-                                                              QFX, &
-                                                         MOL,RMOL
-!m the following 5 are changed to memory size---
-!
-      REAL,     DIMENSION( ims:ime )                             , &
-                INTENT(INOUT)   ::                 GZ1OZ0,WSPD,BR, &
-                                                  PSIM,PSIH,FM,FH
+ integer,intent(in):: isfflx
+ integer,intent(in):: shalwater_z0 
+ integer,intent(in),optional:: isftcflx, iz0tlnd
+ integer,intent(in),optional:: scm_force_flux
 
-      REAL,     DIMENSION( ims:ime )                             , &
-                INTENT(INOUT)   ::                            ZNT, &
-                                                              ZOL, &
-                                                              UST, &
-                                                              CPM, &
-                                                             CHS2, &
-                                                             CQS2, &
-                                                              CHS
+ real(kind=kind_phys),intent(in):: svp1,svp2,svp3,svpt0
+ real(kind=kind_phys),intent(in):: ep1,ep2,karman,eomeg,stbolt
+ real(kind=kind_phys),intent(in):: P1000mb
+ real(kind=kind_phys),intent(in):: cp,g,rovcp,r,xlv
+ real(kind=kind_phys),intent(in):: shalwater_depth 
 
-      REAL,     DIMENSION( ims:ime )                             , &
-                INTENT(INOUT)   ::                      FLHC,FLQC
+ real(kind=kind_phys),intent(in),dimension(ims:ime):: &
+    mavail,     &
+    pblh,       &
+    psfcpa,     &
+    tsk,        &
+    xland,      &
+    water_depth
 
-      REAL,     DIMENSION( ims:ime )                             , &
-                INTENT(INOUT)   ::                                 &
-                                                              QGH
+ real(kind=kind_phys),intent(in),dimension(its:ite):: &
+    dx,         &
+    dz8w1d,     &    
+    ux,         &
+    vx,         &
+    qv1d,       &
+    p1d,        &
+    t1d
 
-      REAL,     DIMENSION( ims:ime )                             , &
-                INTENT(OUT)     ::                        U10,V10, &
-                                                TH2,T2,Q2,QSFC,LH
+!--- output arguments:
+ real(kind=kind_phys),intent(out),dimension(ims:ime):: &
+    u10,        &
+    v10,        &
+    th2,        &
+    t2,         &
+    q2,         &
+    qsfc,       &
+    lh
 
-                                    
-      REAL,     INTENT(IN   )               ::   CP,G,ROVCP,R,XLV
+ real(kind=kind_phys),intent(out),dimension(ims:ime),optional:: &
+    ck,         &
+    cka,        &
+    cd,         &
+    cda
 
-      REAL,     DIMENSION( its:ite ),  INTENT(IN   )   ::      DX
+!--- inout arguments:
+ real(kind=kind_phys),intent(inout),dimension(ims:ime):: &
+    regime,     &
+    hfx,        &
+    qfx,        &
+    mol,        &
+    rmol,       &
+    gz1oz0,     &
+    wspd,       &
+    br,         &
+    psim,       &
+    psih,       &
+    fm,         &
+    fh,         &
+    znt,        &
+    zol,        &
+    ust,        &
+    cpm,        &
+    chs2,       &
+    cqs2,       &
+    chs,        &
+    flhc,       &
+    flqc,       &
+    qgh
 
-      INTEGER,  INTENT(IN )   ::     shalwater_z0 
-      REAL,     INTENT(IN )   ::     shalwater_depth 
-      REAL,     DIMENSION( ims:ime ), INTENT(IN)  :: water_depth 
-! MODULE-LOCAL VARIABLES, DEFINED IN SUBROUTINE SFCLAY
-      REAL,     DIMENSION( its:ite ),  INTENT(IN   )   ::  dz8w1d
+ real(kind=kind_phys),intent(inout),dimension(ims:ime),optional:: &
+    ustm
 
-      REAL,     DIMENSION( its:ite ),  INTENT(IN   )   ::      UX, &
-                                                               VX, &
-                                                             QV1D, &
-                                                              P1D, &
-                                                              T1D
- 
-      REAL, OPTIONAL, DIMENSION( ims:ime )                       , &
-                INTENT(OUT)     ::                  ck,cka,cd,cda
-      REAL, OPTIONAL, DIMENSION( ims:ime )                       , &
-                INTENT(INOUT)   ::                           USTM
+!--- local variables:
+ integer:: kl
+ integer:: n,i,k,kk,l,nzol,nk,nzol2,nzol10
 
-      INTEGER,  OPTIONAL,  INTENT(IN )   ::     ISFTCFLX, IZ0TLND
-      INTEGER,  OPTIONAL,  INTENT(IN )   ::     SCM_FORCE_FLUX
+ real(kind=kind_phys),parameter:: xka = 2.4e-5
+ real(kind=kind_phys),parameter:: prt = 1.
 
-! LOCAL VARS
+ real(kind=kind_phys):: pl,thcon,tvcon,e1
+ real(kind=kind_phys):: zl,tskv,dthvdz,dthvm,vconv,rzol,rzol2,rzol10,zol2,zol10
+ real(kind=kind_phys):: dtg,psix,dtthx,psix10,psit,psit2,psiq,psiq2,psiq10
+ real(kind=kind_phys):: fluxc,vsgd,z0q,visc,restar,czil,gz0ozq,gz0ozt
+ real(kind=kind_phys):: zw,zn1,zn2
+ real(kind=kind_phys):: zolzz,zol0
+ real(kind=kind_phys):: zl2,zl10,z0t
 
-      REAL,     DIMENSION( its:ite )        ::                 ZA, &
-                                                        THVX,ZQKL, &
-                                                           ZQKLP1, &
-                                                           THX,QX, &
-                                                            PSIH2, &
-                                                            PSIM2, &
-                                                           PSIH10, &
-                                                           PSIM10, &
-                                                           DENOMQ, &
-                                                          DENOMQ2, &
-                                                          DENOMT2, &
-                                                            WSPDI, &
-                                                           GZ2OZ0, &
-                                                           GZ10OZ0
-!
-      REAL,     DIMENSION( its:ite )        ::                     &
-                                                      RHOX,GOVRTH, &
-                                                            TGDSA
-!
-      REAL,     DIMENSION( its:ite)         ::          SCR3,SCR4
-      REAL,     DIMENSION( its:ite )        ::         THGB, PSFC
-!
-      INTEGER                               ::                 KL
+ real(kind=kind_phys),dimension(its:ite):: &
+    za,         &
+    thvx,       &
+    zqkl,       &
+    zqklp1,     &
+    thx,        &
+    qx,         &
+    psih2,      &
+    psim2,      &
+    psih10,     &
+    psim10,     &
+    denomq,     &
+    denomq2,    &
+    denomt2,    &
+    wspdi,      &
+    gz2oz0,     &
+    gz10oz0,    &
+    rhox,       &
+    govrth,     &
+    tgdsa,      &
+    scr3,       &
+    scr4,       &
+    thgb,       &
+    psfc
 
-      INTEGER ::  N,I,K,KK,L,NZOL,NK,NZOL2,NZOL10
-
-      REAL    ::  PL,THCON,TVCON,E1
-      REAL    ::  ZL,TSKV,DTHVDZ,DTHVM,VCONV,RZOL,RZOL2,RZOL10,ZOL2,ZOL10
-      REAL    ::  DTG,PSIX,DTTHX,PSIX10,PSIT,PSIT2,PSIQ,PSIQ2,PSIQ10
-      REAL    ::  FLUXC,VSGD,Z0Q,VISC,RESTAR,CZIL,GZ0OZQ,GZ0OZT
-      REAL    ::  ZW, ZN1, ZN2
+ real(kind=kind_phys),dimension(its:ite):: &
+    pq,         &
+    pq2,        &
+    pq10
 !
 ! .... paj ...
-!
-      REAL    :: zolzz,zol0
 !     REAL    :: zolri,zolri2
 !     REAL    :: psih_stable,psim_stable,psih_unstable,psim_unstable
 !     REAL    :: psih_stable_full,psim_stable_full,psih_unstable_full,psim_unstable_full
-      REAL    :: zl2,zl10,z0t
-      REAL,     DIMENSION( its:ite )        ::         pq,pq2,pq10
 
-
-!-------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------
       KL=kte
 
       DO i=its,ite
