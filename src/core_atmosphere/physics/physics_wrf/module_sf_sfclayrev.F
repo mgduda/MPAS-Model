@@ -9,11 +9,11 @@
           sfclayrevinit
 
 
- REAL    , PARAMETER ::  VCONVC=1.
- REAL    , PARAMETER ::  CZO=0.0185
- REAL    , PARAMETER ::  OZO=1.59E-5
+ real(kind=kind_phys),parameter:: vconvc= 1.
+ real(kind=kind_phys),parameter:: czo   = 0.0185
+ real(kind=kind_phys),parameter:: ozo   = 1.59e-5
 
- REAL,   DIMENSION(0:1000 ),SAVE :: psim_stab,psim_unstab,psih_stab,psih_unstab
+ real(kind=kind_phys),dimension(0:1000 ),save:: psim_stab,psim_unstab,psih_stab,psih_unstab
 
 
  contains
@@ -124,103 +124,98 @@
 !-- jte         end index for j in tile
 !-- kts         start index for k in tile
 !-- kte         end index for k in tile
-!-------------------------------------------------------------------
-      INTEGER,  INTENT(IN )   ::        ids,ide, jds,jde, kds,kde, &
-                                        ims,ime, jms,jme, kms,kme, &
-                                        its,ite, jts,jte, kts,kte
-!                                                               
-      INTEGER,  INTENT(IN )   ::        ISFFLX
-      REAL,     INTENT(IN )   ::        SVP1,SVP2,SVP3,SVPT0
-      REAL,     INTENT(IN )   ::        EP1,EP2,KARMAN,EOMEG,STBOLT
-      REAL,     INTENT(IN )   ::        P1000mb
-!
-      REAL,     DIMENSION( ims:ime, kms:kme, jms:jme )           , &
-                INTENT(IN   )   ::                           dz8w
-                                        
-      REAL,     DIMENSION( ims:ime, kms:kme, jms:jme )           , &
-                INTENT(IN   )   ::                           QV3D, &
-                                                              P3D, &
-                                                              T3D
+!-----------------------------------------------------------------------------------------------------------------
+                                                               
+!--- input arguments:
+ integer,intent(in):: ids,ide, jds,jde, kds,kde, &
+                      ims,ime, jms,jme, kms,kme, &
+                      its,ite, jts,jte, kts,kte
 
-      REAL,     DIMENSION( ims:ime, jms:jme )                    , &
-                INTENT(IN   )               ::             MAVAIL, &
-                                                             PBLH, &
-                                                            XLAND, &
-                                                              TSK
-      REAL,     DIMENSION( ims:ime, jms:jme )                    , &
-                INTENT(OUT  )               ::                U10, &
-                                                              V10, &
-                                                              TH2, &
-                                                               T2, &
-                                                               Q2, &
-                                                             QSFC
+ integer,intent(in):: isfflx
+ integer,intent(in):: shalwater_z0 
+ integer,intent(in),optional:: isftcflx, iz0tlnd
+ integer,intent(in),optional:: scm_force_flux
 
-!
-      REAL,     DIMENSION( ims:ime, jms:jme )                    , &
-                INTENT(INOUT)               ::             REGIME, &
-                                                              HFX, &
-                                                              QFX, &
-                                                               LH, &
-                                                          MOL,RMOL
-!m the following 5 are change to memory size
-!
-      REAL,     DIMENSION( ims:ime, jms:jme )                    , &
-                INTENT(INOUT)   ::                 GZ1OZ0,WSPD,BR, &
-                                                  PSIM,PSIH,FM,FH
+ real(kind=kind_phys),intent(in):: svp1,svp2,svp3,svpt0
+ real(kind=kind_phys),intent(in):: ep1,ep2,karman,eomeg,stbolt
+ real(kind=kind_phys),intent(in):: P1000mb
+ real(kind=kind_phys),intent(in):: cp,g,rovcp,r,xlv
+ real(kind=kind_phys),intent(in):: shalwater_depth 
 
-      REAL,     DIMENSION( ims:ime, kms:kme, jms:jme )           , &
-                INTENT(IN   )   ::                            U3D, &
-                                                              V3D
-                                        
-      REAL,     DIMENSION( ims:ime, jms:jme )                    , &
-                INTENT(IN   )               ::               PSFC
+ real(kind=kind_phys),intent(in),dimension(ims:ime,jms:jme):: &
+    dx,         &
+    mavail,     &
+    pblh,       &
+    psfc,       &
+    tsk,        &
+    xland,      &
+    water_depth
 
-      REAL,     DIMENSION( ims:ime, jms:jme )                    , &
-                INTENT(INOUT)   ::                            ZNT, &
-                                                              ZOL, &
-                                                              UST, &
-                                                              CPM, &
-                                                             CHS2, &
-                                                             CQS2, &
-                                                              CHS
+ real(kind=kind_phys),intent(in),dimension(ims:ime,kms:kme,jms:jme):: &
+    dz8w,       &
+    qv3d,       &
+    p3d,        &
+    t3d,        &
+    u3d,        &
+    v3d
 
-      REAL,     DIMENSION( ims:ime, jms:jme )                    , &
-                INTENT(INOUT)   ::                      FLHC,FLQC
+!--- output arguments:
+ real(kind=kind_phys),intent(out),dimension(ims:ime,jms:jme):: &
+    u10,        &
+    v10,        &
+    th2,        &
+    t2,         &
+    q2,         &
+    qsfc
 
-      REAL,     DIMENSION( ims:ime, jms:jme )                    , &
-                INTENT(INOUT)   ::                                 &
-                                                              QGH
-                                    
-      REAL,     INTENT(IN   )               ::   CP,G,ROVCP,R,XLV
+ real(kind=kind_phys),intent(out),dimension(ims:ime,jms:jme),optional:: &
+    ck,         &
+    cka,        &
+    cd,         &
+    cda
 
-      REAL,     DIMENSION( ims:ime, jms:jme )                    , &
-                INTENT(IN   )               ::                 DX
- 
-      REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme )              , &
-                INTENT(OUT)     ::                  ck,cka,cd,cda
+!--- inout arguments:
+ real(kind=kind_phys),intent(inout),dimension(ims:ime,jms:jme):: &
+    regime,     &
+    hfx,        &
+    qfx,        &
+    lh,         &
+    mol,        &
+    rmol,       &
+    gz1oz0,     &
+    wspd,       &
+    br,         &
+    psim,       &
+    psih,       &
+    fm,         &
+    fh,         &
+    znt,        &
+    zol,        &
+    ust,        &
+    cpm,        &
+    chs2,       &
+    cqs2,       &
+    chs,        &
+    flhc,       &
+    flqc,       &
+    qgh
 
-      REAL, OPTIONAL, DIMENSION( ims:ime, jms:jme )              , &
-                INTENT(INOUT)   ::                           USTM
+ real(kind=kind_phys),intent(inout),dimension(ims:ime,jms:jme),optional:: &
+    ustm
 
-      INTEGER,  OPTIONAL,  INTENT(IN )   ::     ISFTCFLX, IZ0TLND
-      INTEGER,  OPTIONAL,  INTENT(IN )   ::     SCM_FORCE_FLUX
+!--- local variables:
+ integer:: i,j
 
-      INTEGER,  INTENT(IN )   ::     shalwater_z0 
-      REAL,     INTENT(IN )   ::     shalwater_depth 
-      REAL,     DIMENSION( ims:ime, jms:jme ), INTENT(IN)  :: water_depth 
-! LOCAL VARS
+ real(kind=kind_phys),dimension(its:ite):: &
+    dz8w1d,     &
+    dx2d,       &
+    u1d,        &
+    v1d,        &
+    qv1d,       &
+    p1d,        &
+    t1d
 
-      REAL,     DIMENSION( its:ite ) ::                       U1D, &
-                                                              V1D, &
-                                                             QV1D, &
-                                                              P1D, &
-                                                              T1D
-
-      REAL,     DIMENSION( its:ite ) ::                    dz8w1d
-
-      REAL,     DIMENSION( its:ite ) ::                      DX2D
-
-      INTEGER ::  I,J
+!-----------------------------------------------------------------------------------------------------------------
 
       DO J=jts,jte
 
@@ -272,7 +267,7 @@
    END SUBROUTINE SFCLAYREV
 
 
-!-------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------
    SUBROUTINE SFCLAYREV1D(J,UX,VX,T1D,QV1D,P1D,dz8w1d,                &
                      CP,G,ROVCP,R,XLV,PSFCPA,CHS,CHS2,CQS2,CPM,PBLH,RMOL, &
                      ZNT,UST,MAVAIL,ZOL,MOL,REGIME,PSIM,PSIH,FM,FH,&
