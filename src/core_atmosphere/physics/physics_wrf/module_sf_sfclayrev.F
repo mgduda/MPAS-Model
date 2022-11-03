@@ -161,12 +161,12 @@
 
 !--- output arguments:
  real(kind=kind_phys),intent(out),dimension(ims:ime,jms:jme):: &
+    lh,         &
     u10,        &
     v10,        &
     th2,        &
     t2,         &
-    q2,         &
-    qsfc
+    q2
 
  real(kind=kind_phys),intent(out),dimension(ims:ime,jms:jme),optional:: &
     ck,         &
@@ -179,7 +179,7 @@
     regime,     &
     hfx,        &
     qfx,        &
-    lh,         &
+    qsfc,       &
     mol,        &
     rmol,       &
     gz1oz0,     &
@@ -215,6 +215,12 @@
     p1d,        &
     t1d
 
+ real(kind=kind_phys),dimension(its:ite):: &
+    lh_hv,u10_hv,v10_hv,th2_hv,t2_hv,q2_hv
+
+ real(kind=kind_phys),dimension(its:ite):: &
+    ck_hv,cka_hv,cd_hv,cda_hv
+
 !-----------------------------------------------------------------------------------------------------------------
 
       DO J=jts,jte
@@ -238,29 +244,70 @@
         !  Sending array starting locations of optional variables may cause
         !  troubles, so we explicitly change the call.
 
-        CALL SFCLAYREV1D(J,U1D,V1D,T1D,QV1D,P1D,dz8w1d,               &
-                CP,G,ROVCP,R,XLV,PSFC(ims,j),CHS(ims,j),CHS2(ims,j),&
-                CQS2(ims,j),CPM(ims,j),PBLH(ims,j), RMOL(ims,j),   &
-                ZNT(ims,j),UST(ims,j),MAVAIL(ims,j),ZOL(ims,j),    &
-                MOL(ims,j),REGIME(ims,j),PSIM(ims,j),PSIH(ims,j),  &
-                FM(ims,j),FH(ims,j),                               &
-                XLAND(ims,j),HFX(ims,j),QFX(ims,j),TSK(ims,j),     &
-                U10(ims,j),V10(ims,j),TH2(ims,j),T2(ims,j),        &
-                Q2(ims,j),FLHC(ims,j),FLQC(ims,j),QGH(ims,j),      &
-                QSFC(ims,j),LH(ims,j),                             &
-                GZ1OZ0(ims,j),WSPD(ims,j),BR(ims,j),ISFFLX,DX2D,   &
-                SVP1,SVP2,SVP3,SVPT0,EP1,EP2,KARMAN,EOMEG,STBOLT,  &
-                P1000mb,                                           &
-                shalwater_z0,water_depth(ims,j),shalwater_depth,   & 
-                ids,ide, jds,jde, kds,kde,                         &
-                ims,ime, jms,jme, kms,kme,                         &
-                its,ite, jts,jte, kts,kte                          &
-#if ( EM_CORE == 1 )
-                ,isftcflx,iz0tlnd,scm_force_flux,                               &
-                USTM(ims,j),CK(ims,j),CKA(ims,j),                  &
-                CD(ims,j),CDA(ims,j)                               &
+!       CALL SFCLAYREV1D(J,U1D,V1D,T1D,QV1D,P1D,dz8w1d,               &
+!               CP,G,ROVCP,R,XLV,PSFC(ims,j),CHS(ims,j),CHS2(ims,j),&
+!               CQS2(ims,j),CPM(ims,j),PBLH(ims,j), RMOL(ims,j),   &
+!               ZNT(ims,j),UST(ims,j),MAVAIL(ims,j),ZOL(ims,j),    &
+!               MOL(ims,j),REGIME(ims,j),PSIM(ims,j),PSIH(ims,j),  &
+!               FM(ims,j),FH(ims,j),                               &
+!               XLAND(ims,j),HFX(ims,j),QFX(ims,j),TSK(ims,j),     &
+!               U10(ims,j),V10(ims,j),TH2(ims,j),T2(ims,j),        &
+!               Q2(ims,j),FLHC(ims,j),FLQC(ims,j),QGH(ims,j),      &
+!               QSFC(ims,j),LH(ims,j),                             &
+!               GZ1OZ0(ims,j),WSPD(ims,j),BR(ims,j),ISFFLX,DX2D,   &
+!               SVP1,SVP2,SVP3,SVPT0,EP1,EP2,KARMAN,EOMEG,STBOLT,  &
+!               P1000mb,                                           &
+!               shalwater_z0,water_depth(ims,j),shalwater_depth,   &
+!               ids,ide, jds,jde, kds,kde,                         &
+!               ims,ime, jms,jme, kms,kme,                         &
+!               its,ite, jts,jte, kts,kte                          &
+!#if ( EM_CORE == 1 )
+!               ,isftcflx,iz0tlnd,scm_force_flux,                               &
+!               USTM(ims,j),CK(ims,j),CKA(ims,j),                  &
+!               CD(ims,j),CDA(ims,j)                               &
+!#endif
+!                                                                  )
+ call sfclayrev1d(j,ux=u1d,vx=v1d,t1d=t1d,qv1d=qv1d,p1d=p1d,dz8w1d=dz8w1d,                &
+                cp=cp,g=g,rovcp=rovcp,r=r,xlv=xlv,psfcpa=psfc(ims,j),chs=chs(ims,j),      &
+                chs2=chs2(ims,j),cqs2=cqs2(ims,j),cpm=cpm(ims,j),pblh=pblh(ims,j),        &
+                rmol=rmol(ims,j),znt=znt(ims,j),ust=ust(ims,j),mavail=mavail(ims,j),      &
+                zol=zol(ims,j),mol=mol(ims,j),regime=regime(ims,j),psim=psim(ims,j),      &
+                psih=psih(ims,j),fm=fm(ims,j),fh=fh(ims,j),xland=xland(ims,j),            &
+                hfx=hfx(ims,j),qfx=qfx(ims,j),tsk=tsk(ims,j),u10=u10_hv,                  &
+                v10=v10_hv,th2=th2_hv,t2=t2_hv,q2=q2_hv,flhc=flhc(ims,j),                 &
+                flqc=flqc(ims,j),qgh=qgh(ims,j),qsfc=qsfc(ims,j),lh=lh_hv,                &
+                gz1oz0=gz1oz0(ims,j),wspd=wspd(ims,j),br=br(ims,j),isfflx=isfflx,dx=dx2d, &
+                svp1=svp1,svp2=svp2,svp3=svp3,svpt0=svpt0,ep1=ep1,ep2=ep2,karman=karman,  &
+                eomeg=eomeg,stbolt=stbolt,p1000mb=p1000mb,                                &
+                shalwater_z0=shalwater_z0,water_depth=water_depth(ims,j),                 &
+                shalwater_depth=shalwater_depth,                                          &
+                ids=ids,ide=ide, jds=jds,jde=jde, kds=kds,kde=kde,                        &
+                ims=ims,ime=ime, jms=jms,jme=jme, kms=kms,kme=kme,                        &
+                its=its,ite=ite, jts=jts,jte=jte, kts=kts,kte=kte                         &
+#if ( em_core == 1 )
+                ,isftcflx=isftcflx,iz0tlnd=iz0tlnd,scm_force_flux=scm_force_flux,         &
+                ustm=ustm(ims,j),ck=ck_hv,cka=cka_hv,cd=cd_hv,cda=cda_hv                  &
 #endif
                                                                    )
+
+    do i = its,ite
+       lh(i,j)  = lh_hv(i)
+       u10(i,j) = u10_hv(i)
+       v10(i,j) = v10_hv(i)
+       th2(i,j) = th2_hv(i)
+       t2(i,j)  = t2_hv(i)
+       q2(i,j)  = q2_hv(i)
+    enddo
+
+    if(present(ck) .and. present(cka) .and. present(cd) .and. present(cda)) then
+       do i = its,ite
+          ck(i,j)  = ck_hv(i)
+          cka(i,j) = cka_hv(i)
+          cd(i,j)  = cd_hv(i)
+          cda(i,j) = cda_hv(i)
+       enddo
+    endif
+
       ENDDO
 
 
@@ -323,16 +370,15 @@
     t1d
 
 !--- output arguments:
- real(kind=kind_phys),intent(out),dimension(ims:ime):: &
+ real(kind=kind_phys),intent(out),dimension(its:ite):: &
+    lh,         &
     u10,        &
     v10,        &
     th2,        &
     t2,         &
-    q2,         &
-    qsfc,       &
-    lh
+    q2
 
- real(kind=kind_phys),intent(out),dimension(ims:ime),optional:: &
+ real(kind=kind_phys),intent(out),dimension(its:ite),optional:: &
     ck,         &
     cka,        &
     cd,         &
@@ -343,6 +389,7 @@
     regime,     &
     hfx,        &
     qfx,        &
+    qsfc,       &
     mol,        &
     rmol,       &
     gz1oz0,     &
@@ -560,7 +607,7 @@
         RMOL(I)=-GOVRTH(I)*DTHVDZ*ZA(I)*KARMAN
 !jdf
 
-  260 CONTINUE                                                                   
+  260 CONTINUE
 
 !                                                                                
 !-----DIAGNOSE BASIC PARAMETERS FOR THE APPROPRIATED STABILITY CLASS:            
