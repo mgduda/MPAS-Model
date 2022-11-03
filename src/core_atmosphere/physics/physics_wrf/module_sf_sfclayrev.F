@@ -204,42 +204,44 @@
     ustm
 
 !--- local variables:
- integer:: i,j
+ integer:: i,j,k
+ real(kind=kind_phys),dimension(its:ite):: dz1d,u1d,v1d,qv1d,p1d,t1d
 
  real(kind=kind_phys),dimension(its:ite):: &
-    dz8w1d,     &
-    dx2d,       &
-    u1d,        &
-    v1d,        &
-    qv1d,       &
-    p1d,        &
-    t1d
+    dx_hv,mavail_hv,pblh_hv,psfc_hv,tsk_hv,xland_hv,water_depth_hv
+ real(kind=kind_phys),dimension(its:ite,kts:kte):: &
+    dz_hv,u_hv,v_hv,qv_hv,p_hv,t_hv
 
  real(kind=kind_phys),dimension(its:ite):: &
     lh_hv,u10_hv,v10_hv,th2_hv,t2_hv,q2_hv
-
  real(kind=kind_phys),dimension(its:ite):: &
     ck_hv,cka_hv,cd_hv,cda_hv
 
 !-----------------------------------------------------------------------------------------------------------------
 
-      DO J=jts,jte
+ do j = jts,jte
 
-        DO i=its,ite
-           DX2D(i)=DX(i,j)
-        ENDDO
+    do i = its,ite
+       dx_hv(i) = dx(i,j)
+       mavail_hv(i)      = mavail(i,j)
+       pblh_hv(i)        = pblh(i,j)
+       psfc_hv(i)        = psfc(i,j)
+       tsk_hv(i)         = tsk(i,j)
+       xland_hv(i)       = xland(i,j)
+       water_depth_hv(i) = water_depth(i,j)
 
-        DO i=its,ite
-          dz8w1d(I) = dz8w(i,1,j)
-        ENDDO
-   
-        DO i=its,ite
-           U1D(i) =U3D(i,1,j)
-           V1D(i) =V3D(i,1,j)
-           QV1D(i)=QV3D(i,1,j)
-           P1D(i) =P3D(i,1,j)
-           T1D(i) =T3D(i,1,j)
-        ENDDO
+       do k = kts,kte
+          dz_hv(i,k) = dz8w(i,k,j)
+          u_hv(i,k)  = u3d(i,k,j)
+          v_hv(i,k)  = v3d(i,k,j)
+          qv_hv(i,k) = qv3d(i,k,j)
+          p_hv(i,k)  = p3d(i,k,j)
+          t_hv(i,k)  = t3d(i,k,j)
+       enddo
+    enddo
+
+    call sf_sfclayrev_timestep_init(its,ite,kts,kte,dz_hv,u_hv,v_hv,qv_hv,p_hv,t_hv, &
+                                    dz1d,u1d,v1d,qv1d,p1d,t1d)
 
         !  Sending array starting locations of optional variables may cause
         !  troubles, so we explicitly change the call.
@@ -267,26 +269,26 @@
 !               CD(ims,j),CDA(ims,j)                               &
 !#endif
 !                                                                  )
- call sfclayrev1d(j,ux=u1d,vx=v1d,t1d=t1d,qv1d=qv1d,p1d=p1d,dz8w1d=dz8w1d,                &
-                cp=cp,g=g,rovcp=rovcp,r=r,xlv=xlv,psfcpa=psfc(ims,j),chs=chs(ims,j),      &
-                chs2=chs2(ims,j),cqs2=cqs2(ims,j),cpm=cpm(ims,j),pblh=pblh(ims,j),        &
-                rmol=rmol(ims,j),znt=znt(ims,j),ust=ust(ims,j),mavail=mavail(ims,j),      &
-                zol=zol(ims,j),mol=mol(ims,j),regime=regime(ims,j),psim=psim(ims,j),      &
-                psih=psih(ims,j),fm=fm(ims,j),fh=fh(ims,j),xland=xland(ims,j),            &
-                hfx=hfx(ims,j),qfx=qfx(ims,j),tsk=tsk(ims,j),u10=u10_hv,                  &
-                v10=v10_hv,th2=th2_hv,t2=t2_hv,q2=q2_hv,flhc=flhc(ims,j),                 &
-                flqc=flqc(ims,j),qgh=qgh(ims,j),qsfc=qsfc(ims,j),lh=lh_hv,                &
-                gz1oz0=gz1oz0(ims,j),wspd=wspd(ims,j),br=br(ims,j),isfflx=isfflx,dx=dx2d, &
-                svp1=svp1,svp2=svp2,svp3=svp3,svpt0=svpt0,ep1=ep1,ep2=ep2,karman=karman,  &
-                eomeg=eomeg,stbolt=stbolt,p1000mb=p1000mb,                                &
-                shalwater_z0=shalwater_z0,water_depth=water_depth(ims,j),                 &
-                shalwater_depth=shalwater_depth,                                          &
-                ids=ids,ide=ide, jds=jds,jde=jde, kds=kds,kde=kde,                        &
-                ims=ims,ime=ime, jms=jms,jme=jme, kms=kms,kme=kme,                        &
-                its=its,ite=ite, jts=jts,jte=jte, kts=kts,kte=kte                         &
+ call sfclayrev1d(j,ux=u1d,vx=v1d,t1d=t1d,qv1d=qv1d,p1d=p1d,dz8w1d=dz1d,                   &
+                cp=cp,g=g,rovcp=rovcp,r=r,xlv=xlv,psfcpa=psfc_hv,chs=chs(ims,j),           &
+                chs2=chs2(ims,j),cqs2=cqs2(ims,j),cpm=cpm(ims,j),pblh=pblh_hv,             &
+                rmol=rmol(ims,j),znt=znt(ims,j),ust=ust(ims,j),mavail=mavail_hv,           &
+                zol=zol(ims,j),mol=mol(ims,j),regime=regime(ims,j),psim=psim(ims,j),       &
+                psih=psih(ims,j),fm=fm(ims,j),fh=fh(ims,j),xland=xland_hv,                 &
+                hfx=hfx(ims,j),qfx=qfx(ims,j),tsk=tsk_hv,u10=u10_hv,                       &
+                v10=v10_hv,th2=th2_hv,t2=t2_hv,q2=q2_hv,flhc=flhc(ims,j),                  &
+                flqc=flqc(ims,j),qgh=qgh(ims,j),qsfc=qsfc(ims,j),lh=lh_hv,                 &
+                gz1oz0=gz1oz0(ims,j),wspd=wspd(ims,j),br=br(ims,j),isfflx=isfflx,dx=dx_hv, &
+                svp1=svp1,svp2=svp2,svp3=svp3,svpt0=svpt0,ep1=ep1,ep2=ep2,karman=karman,   &
+                eomeg=eomeg,stbolt=stbolt,p1000mb=p1000mb,                                 &
+                shalwater_z0=shalwater_z0,water_depth=water_depth_hv,                      &
+                shalwater_depth=shalwater_depth,                                           &
+                ids=ids,ide=ide, jds=jds,jde=jde, kds=kds,kde=kde,                         &
+                ims=ims,ime=ime, jms=jms,jme=jme, kms=kms,kme=kme,                         &
+                its=its,ite=ite, jts=jts,jte=jte, kts=kts,kte=kte                          &
 #if ( em_core == 1 )
-                ,isftcflx=isftcflx,iz0tlnd=iz0tlnd,scm_force_flux=scm_force_flux,         &
-                ustm=ustm(ims,j),ck=ck_hv,cka=cka_hv,cd=cd_hv,cda=cda_hv                  &
+                ,isftcflx=isftcflx,iz0tlnd=iz0tlnd,scm_force_flux=scm_force_flux,          &
+                ustm=ustm(ims,j),ck=ck_hv,cka=cka_hv,cd=cd_hv,cda=cda_hv                   &
 #endif
                                                                    )
 
@@ -352,7 +354,7 @@
  real(kind=kind_phys),intent(in):: cp,g,rovcp,r,xlv
  real(kind=kind_phys),intent(in):: shalwater_depth 
 
- real(kind=kind_phys),intent(in),dimension(ims:ime):: &
+ real(kind=kind_phys),intent(in),dimension(its:ite):: &
     mavail,     &
     pblh,       &
     psfcpa,     &
@@ -1448,7 +1450,39 @@
          depth_dependent_z0 = MIN(depth_dependent_z0,0.1)
      return
      end function
-!-------------------------------------------------------------------          
+
+!-----------------------------------------------------------------------------------------------------------------
+ subroutine sf_sfclayrev_timestep_init(its,ite,kts,kte,dz2d,u2d,v2d,qv2d,p2d,t2d, &
+                                       dz1d,u1d,v1d,qv1d,p1d,t1d)
+!-----------------------------------------------------------------------------------------------------------------
+
+!--- input arguments:
+ integer,intent(in):: its,ite,kts,kte
+
+ real(kind=kind_phys),intent(in),dimension(its:ite,kts:kte):: &
+    dz2d,u2d,v2d,qv2d,p2d,t2d
+
+!--- output arguments:
+ real(kind=kind_phys),intent(out),dimension(its:ite):: &
+    dz1d,u1d,v1d,qv1d,p1d,t1d
+
+!--- local variables:
+ integer:: i
+
+!-----------------------------------------------------------------------------------------------------------------
+
+ do i = its,ite
+    dz1d(i) = dz2d(i,kts)
+    u1d(i)  = u2d(i,kts)
+    v1d(i)  = v2d(i,kts)
+    qv1d(i) = qv2d(i,kts)
+    p1d(i)  = p2d(i,kts)
+    t1d(i)  = t2d(i,kts)
+ enddo
+
+ end subroutine sf_sfclayrev_timestep_init
+
+!-----------------------------------------------------------------------------------------------------------------
 
 END MODULE module_sf_sfclayrev
 
