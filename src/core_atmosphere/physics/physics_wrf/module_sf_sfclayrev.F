@@ -203,7 +203,7 @@
  real(kind=kind_phys),intent(inout),dimension(ims:ime,jms:jme),optional:: &
     ustm
 
-!--- local variables:
+!--- local variables and arrays:
  integer:: i,j,k
  real(kind=kind_phys),dimension(its:ite):: dz1d,u1d,v1d,qv1d,p1d,t1d
 
@@ -216,6 +216,13 @@
     lh_hv,u10_hv,v10_hv,th2_hv,t2_hv,q2_hv
  real(kind=kind_phys),dimension(its:ite):: &
     ck_hv,cka_hv,cd_hv,cda_hv
+
+ real(kind=kind_phys),dimension(its:ite):: &
+    regime_hv,hfx_hv,qfx_hv,qsfc_hv,mol_hv,rmol_hv,gz1oz0_hv,wspd_hv, &
+    br_hv,psim_hv,psih_hv,fm_hv,fh_hv,znt_hv,zol_hv,ust_hv,cpm_hv,    &
+    chs2_hv,cqs2_hv,chs_hv,flhc_hv,flqc_hv,qgh_hv
+ real(kind=kind_phys),dimension(its:ite):: &
+    ustm_hv
 
 !-----------------------------------------------------------------------------------------------------------------
 
@@ -238,6 +245,30 @@
           p_hv(i,k)  = p3d(i,k,j)
           t_hv(i,k)  = t3d(i,k,j)
        enddo
+
+       regime_hv(i) = regime(i,j)
+       hfx_hv(i)    = hfx(i,j)
+       qfx_hv(i)    = qfx(i,j)
+       qsfc_hv(i)   = qsfc(i,j)
+       mol_hv(i)    = mol(i,j)
+       rmol_hv(i)   = rmol(i,j)
+       gz1oz0_hv(i) = gz1oz0(i,j)
+       wspd_hv(i)   = wspd(i,j)
+       br_hv(i)     = br(i,j)
+       psim_hv(i)   = psim(i,j)
+       psih_hv(i)   = psih(i,j)
+       fm_hv(i)     = fm(i,j)
+       fh_hv(i)     = fh(i,j)
+       znt_hv(i)    = znt(i,j)
+       zol_hv(i)    = zol(i,j)
+       ust_hv(i)    = ust(i,j)
+       cpm_hv(i)    = cpm(i,j)
+       chs2_hv(i)   = chs2(i,j)
+       cqs2_hv(i)   = cqs2(i,j)
+       chs_hv(i)    = chs(i,j)
+       flhc_hv(i)   = flhc(i,j)
+       flqc_hv(i)   = flqc(i,j)
+       qgh_hv(i)    = qgh(i,j)
     enddo
 
     call sf_sfclayrev_timestep_init(its,ite,kts,kte,dz_hv,u_hv,v_hv,qv_hv,p_hv,t_hv, &
@@ -270,15 +301,15 @@
 !#endif
 !                                                                  )
  call sfclayrev1d(j,ux=u1d,vx=v1d,t1d=t1d,qv1d=qv1d,p1d=p1d,dz8w1d=dz1d,                   &
-                cp=cp,g=g,rovcp=rovcp,r=r,xlv=xlv,psfcpa=psfc_hv,chs=chs(ims,j),           &
-                chs2=chs2(ims,j),cqs2=cqs2(ims,j),cpm=cpm(ims,j),pblh=pblh_hv,             &
-                rmol=rmol(ims,j),znt=znt(ims,j),ust=ust(ims,j),mavail=mavail_hv,           &
-                zol=zol(ims,j),mol=mol(ims,j),regime=regime(ims,j),psim=psim(ims,j),       &
-                psih=psih(ims,j),fm=fm(ims,j),fh=fh(ims,j),xland=xland_hv,                 &
-                hfx=hfx(ims,j),qfx=qfx(ims,j),tsk=tsk_hv,u10=u10_hv,                       &
-                v10=v10_hv,th2=th2_hv,t2=t2_hv,q2=q2_hv,flhc=flhc(ims,j),                  &
-                flqc=flqc(ims,j),qgh=qgh(ims,j),qsfc=qsfc(ims,j),lh=lh_hv,                 &
-                gz1oz0=gz1oz0(ims,j),wspd=wspd(ims,j),br=br(ims,j),isfflx=isfflx,dx=dx_hv, &
+                cp=cp,g=g,rovcp=rovcp,r=r,xlv=xlv,psfcpa=psfc_hv,chs=chs_hv,               &
+                chs2=chs2_hv,cqs2=cqs2_hv,cpm=cpm_hv,pblh=pblh_hv,                         &
+                rmol=rmol_hv,znt=znt_hv,ust=ust_hv,mavail=mavail_hv,                       &
+                zol=zol_hv,mol=mol_hv,regime=regime_hv,psim=psim_hv,                       &
+                psih=psih_hv,fm=fm_hv,fh=fh_hv,xland=xland_hv,                             &
+                hfx=hfx_hv,qfx=qfx_hv,tsk=tsk_hv,u10=u10_hv,                               &
+                v10=v10_hv,th2=th2_hv,t2=t2_hv,q2=q2_hv,flhc=flhc_hv,                      &
+                flqc=flqc_hv,qgh=qgh_hv,qsfc=qsfc_hv,lh=lh_hv,                             &
+                gz1oz0=gz1oz0_hv,wspd=wspd_hv,br=br_hv,isfflx=isfflx,dx=dx_hv,             &
                 svp1=svp1,svp2=svp2,svp3=svp3,svpt0=svpt0,ep1=ep1,ep2=ep2,karman=karman,   &
                 eomeg=eomeg,stbolt=stbolt,p1000mb=p1000mb,                                 &
                 shalwater_z0=shalwater_z0,water_depth=water_depth_hv,                      &
@@ -288,7 +319,7 @@
                 its=its,ite=ite, jts=jts,jte=jte, kts=kts,kte=kte                          &
 #if ( em_core == 1 )
                 ,isftcflx=isftcflx,iz0tlnd=iz0tlnd,scm_force_flux=scm_force_flux,          &
-                ustm=ustm(ims,j),ck=ck_hv,cka=cka_hv,cd=cd_hv,cda=cda_hv                   &
+                ustm=ustm_hv,ck=ck_hv,cka=cka_hv,cd=cd_hv,cda=cda_hv                       &
 #endif
                                                                    )
 
@@ -307,6 +338,38 @@
           cka(i,j) = cka_hv(i)
           cd(i,j)  = cd_hv(i)
           cda(i,j) = cda_hv(i)
+       enddo
+    endif
+
+    do i = its,ite
+       regime(i,j) = regime_hv(i)
+       hfx(i,j)    = hfx_hv(i)
+       qfx(i,j)    = qfx_hv(i)
+       qsfc(i,j)   = qsfc_hv(i)
+       mol(i,j)    = mol_hv(i)
+       rmol(i,j)   = rmol_hv(i)
+       gz1oz0(i,j) = gz1oz0_hv(i)
+       wspd(i,j)   = wspd_hv(i)
+       br(i,j)     = br_hv(i)
+       psim(i,j)   = psim_hv(i)
+       psih(i,j)   = psih_hv(i)
+       fm(i,j)     = fm_hv(i)
+       fh(i,j)     = fh_hv(i)
+       znt(i,j)    = znt_hv(i)
+       zol(i,j)    = zol_hv(i)
+       ust(i,j)    = ust_hv(i)
+       cpm(i,j)    = cpm_hv(i)
+       chs2(i,j)   = chs2_hv(i)
+       cqs2(i,j)   = cqs2_hv(i)
+       chs(i,j)    = chs_hv(i)
+       flhc(i,j)   = flhc_hv(i)
+       flqc(i,j)   = flqc_hv(i)
+       qgh(i,j)    = qgh_hv(i)
+    enddo
+
+    if(present(ustm)) then
+       do i = its,ite
+          ustm(i,j) = ustm_hv(i)
        enddo
     endif
 
@@ -387,7 +450,7 @@
     cda
 
 !--- inout arguments:
- real(kind=kind_phys),intent(inout),dimension(ims:ime):: &
+ real(kind=kind_phys),intent(inout),dimension(its:ite):: &
     regime,     &
     hfx,        &
     qfx,        &
@@ -412,7 +475,7 @@
     flqc,       &
     qgh
 
- real(kind=kind_phys),intent(inout),dimension(ims:ime),optional:: &
+ real(kind=kind_phys),intent(inout),dimension(its:ite),optional:: &
     ustm
 
 !--- local variables:
