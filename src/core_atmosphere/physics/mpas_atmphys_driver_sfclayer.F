@@ -924,7 +924,6 @@
                cd          = cd_p         , cda            = cda_p          , isftcflx = isftcflx               , &
                iz0tlnd     = iz0tlnd      , shalwater_z0   = shalwater_flag , shalwater_depth = shalwater_depth , &
                water_depth = waterdepth_p , scm_force_flux = scm_force_flux                                     , &
-               ids = ids , ide = ide , jds = jds , jde = jde , kds = kds , kde = kde ,                            &
                ims = ims , ime = ime , jms = jms , jme = jme , kms = kms , kme = kme ,                            &
                its = its , ite = ite , jts = jts , jte = jte , kts = kts , kte = kte                              &
                   )
