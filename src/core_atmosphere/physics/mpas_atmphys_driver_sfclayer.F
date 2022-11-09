@@ -17,7 +17,8 @@
 !wrf physics:
  use module_sf_mynn
  use module_sf_sfclay
- use module_sf_sfclayrev,only: sfclayrev,sfclayrevinit
+ use module_sf_sfclayrev,only: sfclayrev
+ use sf_sfclayrev,only: sf_sfclayrev_init
 
  implicit none
  private
@@ -815,7 +816,7 @@
 
     case("sf_monin_obukhov")
 !      call sfclayinit(allowed_to_read)
-       call sfclayrevinit( )
+       call sf_sfclayrev_init( )
 
     case("sf_mynn")
        call mynn_sf_init_driver(allowed_to_read)
