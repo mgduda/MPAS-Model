@@ -591,7 +591,7 @@
  type(mpas_pool_type),intent(inout):: diag_physics
  type(mpas_pool_type),intent(inout):: tend_physics
 
-!out arguments:
+!output arguments:
  character(len=*),intent(out):: errmsg
  integer,intent(out):: errflg
 

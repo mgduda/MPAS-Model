@@ -798,11 +798,15 @@
  end subroutine sfclayer_to_MPAS
 
 !=================================================================================================================
- subroutine init_sfclayer(configs)
+ subroutine init_sfclayer(configs,errmsg,errflg)
 !=================================================================================================================
 
 !input arguments:
  type(mpas_pool_type),intent(in):: configs
+
+!output arguments:
+ character(len=*),intent(out):: errmsg
+ integer,intent(out):: errflg
 
 !local variables and pointers:
  logical, parameter:: allowed_to_read = .false. !actually not used in subroutine sfclayinit.
@@ -816,7 +820,7 @@
 
     case("sf_monin_obukhov")
 !      call sfclayinit(allowed_to_read)
-       call sf_sfclayrev_init( )
+       call sf_sfclayrev_init(errmsg,errflg)
 
     case("sf_mynn")
        call mynn_sf_init_driver(allowed_to_read)
@@ -828,7 +832,8 @@
  end subroutine init_sfclayer
 
 !=================================================================================================================
- subroutine driver_sfclayer(itimestep,configs,mesh,diag_physics,sfc_input,its,ite)
+ subroutine driver_sfclayer(itimestep,configs,mesh,diag_physics,sfc_input,its,ite, &
+                            errmsg,errflg)
 !=================================================================================================================
 
 !input and inout arguments:
@@ -841,6 +846,10 @@
 
 !inout arguments:
  type(mpas_pool_type),intent(inout):: diag_physics
+
+!output arguments:
+ character(len=*),intent(out):: errmsg
+ integer,intent(out):: errflg
 
 !local pointers:
  logical,pointer:: config_do_restart,config_frac_seaice
@@ -925,6 +934,8 @@
                cd          = cd_p         , cda            = cda_p          , isftcflx = isftcflx               , &
                iz0tlnd     = iz0tlnd      , shalwater_z0   = shalwater_flag , shalwater_depth = shalwater_depth , &
                water_depth = waterdepth_p , scm_force_flux = scm_force_flux                                     , &
+               errmsg      = errmsg       , errflg         = errflg                                             , &
+               ids = ids , ide = ide , jds = jds , jde = jde , kds = kds , kde = kde ,                            &
                ims = ims , ime = ime , jms = jms , jme = jme , kms = kms , kme = kme ,                            &
                its = its , ite = ite , jts = jts , jte = jte , kts = kts , kte = kte                              &
                   )

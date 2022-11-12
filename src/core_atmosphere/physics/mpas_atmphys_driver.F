@@ -115,7 +115,7 @@
 !inout arguments:
  type(domain_type),intent(inout):: domain
 
-!out arguments:
+!output arguments:
  character(len=*), intent(out):: errmsg
  integer,          intent(out):: errflg
 
@@ -264,8 +264,9 @@
        call allocate_sfclayer(block%configs)
 !$OMP PARALLEL DO
        do thread=1,nThreads
-          call driver_sfclayer(itimestep,block%configs,mesh,diag_physics,sfc_input, &
-                               cellSolveThreadStart(thread), cellSolveThreadEnd(thread))
+          call driver_sfclayer(itimestep,block%configs,mesh,diag_physics,sfc_input,      &
+                               cellSolveThreadStart(thread), cellSolveThreadEnd(thread), &
+                               errmsg,errflg)
        end do
 !$OMP END PARALLEL DO
        call deallocate_sfclayer(block%configs)

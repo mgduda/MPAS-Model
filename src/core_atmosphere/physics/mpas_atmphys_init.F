@@ -71,7 +71,7 @@
 
 !=================================================================================================================
  subroutine physics_init(dminfo,clock,configs,mesh,diag,tend,state,time_lev,diag_physics, &
-                         atm_input,sfc_input)
+                         atm_input,sfc_input,errmsg,errflg)
 !=================================================================================================================
 
 !input arguments:
@@ -89,6 +89,10 @@
  type(mpas_pool_type),intent(inout):: diag_physics
  type(mpas_pool_type),intent(inout):: atm_input
  type(mpas_pool_type),intent(inout):: sfc_input
+
+!output arguments:
+ character(len=*), intent(out):: errmsg
+ integer,          intent(out):: errflg
 
 !local pointers:
  logical,pointer:: config_do_restart,       &
@@ -357,7 +361,7 @@
     call microphysics_init(dminfo,configs,mesh,sfc_input,diag_physics)
 
 !initialization of surface layer processes:
- if(config_sfclayer_scheme .ne. 'off') call init_sfclayer(configs)
+ if(config_sfclayer_scheme .ne. 'off') call init_sfclayer(configs,errmsg,errflg)
 
 !initialization of land-surface model:
 !if(.not. config_do_restart) then

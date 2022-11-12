@@ -3,8 +3,9 @@
  use mpas_log
  use ccpp_kinds,only: kind_phys
 
- use sf_sfclayrev,only: sf_sfclayrev_timestep_init, &
-                        sfclayrev1d
+ use sf_sfclayrev,only: sf_sfclayrev_run, &
+                        sf_sfclayrev_timestep_init
+
 
  implicit none
  private
@@ -25,15 +26,17 @@
                       svp1,svp2,svp3,svpt0,ep1,ep2,                 &
                       karman,eomeg,stbolt,                          &
                       p1000mb,                                      &
+                      ids,ide,jds,jde,kds,kde,                      &
                       ims,ime,jms,jme,kms,kme,                      &
                       its,ite,jts,jte,kts,kte,                      &
                       ustm,ck,cka,cd,cda,isftcflx,iz0tlnd,          &
                       shalwater_z0,water_depth,shalwater_depth,     &
-                      scm_force_flux)
+                      scm_force_flux,errmsg,errflg)
 !=================================================================================================================
                                                                
 !--- input arguments:
- integer,intent(in):: ims,ime,jms,jme,kms,kme, &
+ integer,intent(in):: ids,ide,jds,jde,kds,kde, &
+                      ims,ime,jms,jme,kms,kme, &
                       its,ite,jts,jte,kts,kte
 
  integer,intent(in):: isfflx
@@ -65,6 +68,9 @@
     v3d
 
 !--- output arguments:
+ character(len=*),intent(out):: errmsg
+ integer,intent(out):: errflg
+
  real(kind=kind_phys),intent(out),dimension(ims:ime,jms:jme):: &
     lh,         &
     u10,        &
@@ -179,28 +185,28 @@
     enddo
 
     call sf_sfclayrev_timestep_init(its,ite,kts,kte,dz_hv,u_hv,v_hv,qv_hv,p_hv,t_hv, &
-                                    dz1d,u1d,v1d,qv1d,p1d,t1d)
+                                    dz1d,u1d,v1d,qv1d,p1d,t1d,errmsg,errflg)
 
-    call sfclayrev1d(j,ux=u1d,vx=v1d,t1d=t1d,qv1d=qv1d,p1d=p1d,dz8w1d=dz1d,              &
-                cp=cp,g=g,rovcp=rovcp,r=r,xlv=xlv,psfcpa=psfc_hv,chs=chs_hv,             &
-                chs2=chs2_hv,cqs2=cqs2_hv,cpm=cpm_hv,pblh=pblh_hv,                       &
-                rmol=rmol_hv,znt=znt_hv,ust=ust_hv,mavail=mavail_hv,                     &
-                zol=zol_hv,mol=mol_hv,regime=regime_hv,psim=psim_hv,                     &
-                psih=psih_hv,fm=fm_hv,fh=fh_hv,xland=xland_hv,                           &
-                hfx=hfx_hv,qfx=qfx_hv,tsk=tsk_hv,u10=u10_hv,                             &
-                v10=v10_hv,th2=th2_hv,t2=t2_hv,q2=q2_hv,flhc=flhc_hv,                    &
-                flqc=flqc_hv,qgh=qgh_hv,qsfc=qsfc_hv,lh=lh_hv,                           &
-                gz1oz0=gz1oz0_hv,wspd=wspd_hv,br=br_hv,isfflx=isfflx,dx=dx_hv,           &
-                svp1=svp1,svp2=svp2,svp3=svp3,svpt0=svpt0,ep1=ep1,ep2=ep2,karman=karman, &
-                eomeg=eomeg,stbolt=stbolt,p1000mb=p1000mb,                               &
-                shalwater_z0=shalwater_z0,water_depth=water_depth_hv,                    &
-                shalwater_depth=shalwater_depth,                                         &
-                its=its,ite=ite                                                          &
-#if ( em_core == 1 )
-                ,isftcflx=isftcflx,iz0tlnd=iz0tlnd,scm_force_flux=scm_force_flux,        &
-                ustm=ustm_hv,ck=ck_hv,cka=cka_hv,cd=cd_hv,cda=cda_hv                     &
+    call sf_sfclayrev_run(ux=u1d,vx=v1d,t1d=t1d,qv1d=qv1d,p1d=p1d,dz8w1d=dz1d,                     &
+                          cp=cp,g=g,rovcp=rovcp,r=r,xlv=xlv,psfcpa=psfc_hv,chs=chs_hv,             &
+                          chs2=chs2_hv,cqs2=cqs2_hv,cpm=cpm_hv,pblh=pblh_hv,                       &
+                          rmol=rmol_hv,znt=znt_hv,ust=ust_hv,mavail=mavail_hv,                     &
+                          zol=zol_hv,mol=mol_hv,regime=regime_hv,psim=psim_hv,                     &
+                          psih=psih_hv,fm=fm_hv,fh=fh_hv,xland=xland_hv,                           &
+                          hfx=hfx_hv,qfx=qfx_hv,tsk=tsk_hv,u10=u10_hv,                             &
+                          v10=v10_hv,th2=th2_hv,t2=t2_hv,q2=q2_hv,flhc=flhc_hv,                    &
+                          flqc=flqc_hv,qgh=qgh_hv,qsfc=qsfc_hv,lh=lh_hv,                           &
+                          gz1oz0=gz1oz0_hv,wspd=wspd_hv,br=br_hv,isfflx=isfflx,dx=dx_hv,           &
+                          svp1=svp1,svp2=svp2,svp3=svp3,svpt0=svpt0,ep1=ep1,ep2=ep2,karman=karman, &
+                          eomeg=eomeg,stbolt=stbolt,p1000mb=p1000mb,                               &
+                          shalwater_z0=shalwater_z0,water_depth=water_depth_hv,                    &
+                          shalwater_depth=shalwater_depth,                                         &
+                          its=its,ite=ite,errmsg=errmsg,errflg=errflg                              &
+#if (EM_CORE == 1)
+                          ,isftcflx=isftcflx,iz0tlnd=iz0tlnd,scm_force_flux=scm_force_flux,        &
+                          ustm=ustm_hv,ck=ck_hv,cka=cka_hv,cd=cd_hv,cda=cda_hv                     &
 #endif
-                    )
+                         )
 
     do i = its,ite
        !output arguments:

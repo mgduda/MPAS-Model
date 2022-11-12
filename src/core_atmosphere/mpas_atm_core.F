@@ -308,6 +308,9 @@ module atm_core
 
       logical, pointer :: config_do_restart, config_do_DAcycling
 
+      character(len=StrKIND) :: errmsg
+      integer :: errflg
+
       call atm_compute_signs(mesh)
    
       call mpas_pool_get_subpool(block % structs, 'diag', diag)
@@ -449,7 +452,10 @@ module atm_core
 
          !initialization of all physics:
          call physics_init(dminfo, clock, block % configs, mesh, diag, tend, state, 1, diag_physics, &
-                           atm_input, sfc_input)
+                           atm_input, sfc_input, errmsg, errflg)
+         if ( errflg /= 0 ) then
+            call mpas_log_write('Physics init failed: '//trim(errmsg), messageType=MPAS_LOG_CRIT)
+         end if
       endif
 #endif
    
