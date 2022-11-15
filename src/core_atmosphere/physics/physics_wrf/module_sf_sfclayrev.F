@@ -158,7 +158,7 @@
           t_hv(i,k)  = t3d(i,k,j)
        enddo
 
-       !output arguments:
+       !inout arguments:
        regime_hv(i) = regime(i,j)
        hfx_hv(i)    = hfx(i,j)
        qfx_hv(i)    = qfx(i,j)
@@ -184,6 +184,12 @@
        qgh_hv(i)    = qgh(i,j)
     enddo
 
+    if(present(ustm)) then
+       do i = its,ite
+          ustm_hv(i) = ustm(i,j)
+       enddo
+    endif
+
     call sf_sfclayrev_timestep_init(its,ite,kts,kte,dz_hv,u_hv,v_hv,qv_hv,p_hv,t_hv, &
                                     dz1d,u1d,v1d,qv1d,p1d,t1d,errmsg,errflg)
 
@@ -202,7 +208,7 @@
                           shalwater_z0=shalwater_z0,water_depth=water_depth_hv,                    &
                           shalwater_depth=shalwater_depth,                                         &
                           its=its,ite=ite,errmsg=errmsg,errflg=errflg                              &
-#if (EM_CORE == 1)
+#if ( ( EM_CORE == 1 ) || ( defined(mpas) ) )
                           ,isftcflx=isftcflx,iz0tlnd=iz0tlnd,scm_force_flux=scm_force_flux,        &
                           ustm=ustm_hv,ck=ck_hv,cka=cka_hv,cd=cd_hv,cda=cda_hv                     &
 #endif
