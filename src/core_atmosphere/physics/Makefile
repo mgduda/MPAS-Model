@@ -52,7 +52,7 @@ lookup_tables:
 	./checkout_data_files.sh
 
 core_physics_mmm: core_physics_init
-	(cd physics_mmm; $(MAKE) all)
+	(cd physics_mmm; $(MAKE) all HOST_MODEL=MPAS)
 
 core_physics_wrf: core_physics_init
 	(cd physics_wrf; $(MAKE) all COREDEF="$(COREDEF)")
