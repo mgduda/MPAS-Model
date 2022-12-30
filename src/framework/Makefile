@@ -35,6 +35,7 @@ OBJS = mpas_kind_types.o \
        regex_matching.o \
        mpas_field_accessor.o \
        mpas_log.o \
+       mpas_halo.o \
        mpas_intracoupler.o \
        rtc_timer.o
     
@@ -62,6 +63,8 @@ mpas_abort.o: mpas_kind_types.o mpas_io_units.o mpas_threading.o
 mpas_constants.o: mpas_kind_types.o
 
 mpas_log.o: mpas_derived_types.o mpas_io_units.o mpas_abort.o mpas_threading.o mpas_c_interfacing.o
+
+mpas_halo.o: mpas_derived_types.o mpas_pool_routines.o mpas_log.o
 
 mpas_attlist.o: mpas_kind_types.o mpas_io_units.o mpas_derived_types.o
 
