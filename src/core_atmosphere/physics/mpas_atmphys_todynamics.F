@@ -57,17 +57,7 @@
  
 !=================================================================================================================
  subroutine physics_get_tend( block, mesh, state, diag, tend, tend_physics, configs, rk_step, dynamics_substep, &
-                              tend_ru_physics, tend_rtheta_physics, tend_rho_physics, tend_th, &
-                              ! Arguments needed for OpenACC-friendly halo exchange
-                              compactHaloInfo_c_v, &
-                              sendList_c_v, recvList_c_v, &
-                              gpu_idx_send_c_v, gpu_bufferoffset_send_c_v, gpu_nList_send_c_v, &
-                              gpu_idx_recv_c_v, gpu_bufferoffset_recv_c_v, gpu_nList_recv_c_v, &
-                              gpu_dimSizes_c_v, &
-                              gpu_nHaloLayers_c_v, &
-                              gpu_send_size_c_v, &
-                              gpu_recv_size_c_v, &
-                              gpu_compactHaloInfoSize_c_v )
+                              tend_ru_physics, tend_rtheta_physics, tend_rho_physics, tend_th)
 !=================================================================================================================
    
  use mpas_atm_dimensions
@@ -87,17 +77,6 @@
 
  real(kind=RKIND),dimension(:,:) :: tend_ru_physics, tend_rtheta_physics, tend_rho_physics
  real(kind=RKIND),dimension(:,:) :: tend_th
-
- ! Arguments needed for OpenACC-friendly halo exchange
- integer, dimension(:), pointer :: compactHaloInfo_c_v
- type (mpas_communication_list), pointer :: sendList_c_v, recvList_c_v
- integer, dimension(:), pointer :: gpu_idx_send_c_v,gpu_bufferoffset_send_c_v,gpu_nList_send_c_v
- integer, dimension(:), pointer :: gpu_idx_recv_c_v,gpu_bufferoffset_recv_c_v,gpu_nList_recv_c_v
- integer, dimension(2) :: gpu_dimSizes_c_v
- integer :: gpu_nHaloLayers_c_v
- integer :: gpu_send_size_c_v
- integer :: gpu_recv_size_c_v
- integer :: gpu_compactHaloInfoSize_c_v
 
 !local variables:
  character(len=StrKIND), pointer :: config_pbl_scheme, config_convection_scheme, &
@@ -284,17 +263,7 @@
                            tend_u_phys, tend_rtheta_adv, tend_diabatic, &
                            theta_m, scalars, &
                            tend_rtheta_physics, &  ! change for addtend for theta_m
-                           tend_theta_euler, &
-                           ! Arguments needed for OpenACC-friendly halo exchange
-                           compactHaloInfo_c_v, &
-                           sendList_c_v, recvList_c_v, &
-                           gpu_idx_send_c_v, gpu_bufferoffset_send_c_v, gpu_nList_send_c_v, &
-                           gpu_idx_recv_c_v, gpu_bufferoffset_recv_c_v, gpu_nList_recv_c_v, &
-                           gpu_dimSizes_c_v, &
-                           gpu_nHaloLayers_c_v, &
-                           gpu_send_size_c_v, &
-                           gpu_recv_size_c_v, &
-                           gpu_compactHaloInfoSize_c_v )
+                           tend_theta_euler)
 
  !
  ! Clean up any pointers that were allocated with zero size before the call to
@@ -357,20 +326,11 @@
                                  rthcuten, rqvcuten, rqccuten, rqrcuten, rqicuten, rqscuten, &
                                  rthratenlw, rthratensw, rthdynten, &
                                  tend_u_phys, tend_rtheta_adv, tend_diabatic, &
-                                 theta_m, scalars, tend_theta, tend_theta_euler, &
-                                 ! Arguments needed for OpenACC-friendly halo exchange
-                                 compactHaloInfo_c_v, &
-                                 sendList_c_v, recvList_c_v, &
-                                 gpu_idx_send_c_v, gpu_bufferoffset_send_c_v, gpu_nList_send_c_v, &
-                                 gpu_idx_recv_c_v, gpu_bufferoffset_recv_c_v, gpu_nList_recv_c_v, &
-                                 gpu_dimSizes_c_v, &
-                                 gpu_nHaloLayers_c_v, &
-                                 gpu_send_size_c_v, &
-                                 gpu_recv_size_c_v, &
-                                 gpu_compactHaloInfoSize_c_v )
+                                 theta_m, scalars, tend_theta, tend_theta_euler)
 !==================================================================================================
 
     use mpas_atm_dimensions
+    use mpas_dmpar, only : mpas_dmpar_field_halo_exch
  
     implicit none
 
@@ -416,17 +376,6 @@
     real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(inout) :: tend_theta
     real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: tend_theta_euler
 
-    ! Arguments needed for OpenACC-friendly halo exchange
-    integer, dimension(:), pointer :: compactHaloInfo_c_v
-    type (mpas_communication_list), pointer :: sendList_c_v, recvList_c_v
-    integer, dimension(:), pointer :: gpu_idx_send_c_v, gpu_bufferoffset_send_c_v, gpu_nList_send_c_v
-    integer, dimension(:), pointer :: gpu_idx_recv_c_v, gpu_bufferoffset_recv_c_v, gpu_nList_recv_c_v
-    integer, dimension(2) :: gpu_dimSizes_c_v
-    integer :: gpu_nHaloLayers_c_v
-    integer :: gpu_send_size_c_v
-    integer :: gpu_recv_size_c_v
-    integer :: gpu_compactHaloInfoSize_c_v
-
     integer :: i, k
     real (kind=RKIND) :: coeff
 
@@ -442,16 +391,9 @@
     !add coupled tendencies due to PBL processes:
     if (config_pbl_scheme .ne. 'off') then
        if (rk_step == 1 .and. dynamics_substep == 1) then
-          call tend_toEdges_gpu(block,mesh,rublten,rvblten,rublten_Edge, &
-                                compactHaloInfo_c_v, &
-                                sendList_c_v, recvList_c_v, &
-                                gpu_idx_send_c_v, gpu_bufferoffset_send_c_v, gpu_nList_send_c_v, &
-                                gpu_idx_recv_c_v, gpu_bufferoffset_recv_c_v, gpu_nList_recv_c_v, &
-                                gpu_dimSizes_c_v, &
-                                gpu_nHaloLayers_c_v, &
-                                gpu_send_size_c_v, &
-                                gpu_recv_size_c_v, &
-                                gpu_compactHaloInfoSize_c_v )
+          call mpas_dmpar_field_halo_exch(block % domain, 'rublten')
+          call mpas_dmpar_field_halo_exch(block % domain, 'rvblten')
+          call tend_toEdges_gpu(block,mesh,rublten,rvblten,rublten_Edge)
 
           !MGD for PV budget? should a similar line be in the cumulus section below?
 !!!
@@ -547,16 +489,9 @@
     
            case('cu_tiedtke','cu_ntiedtke')
               if (rk_step == 1 .and. dynamics_substep == 1) then
-                 call tend_toEdges_gpu(block,mesh,rucuten,rvcuten,rucuten_Edge, &
-                                       compactHaloInfo_c_v, &
-                                       sendList_c_v, recvList_c_v, &
-                                       gpu_idx_send_c_v, gpu_bufferoffset_send_c_v, gpu_nList_send_c_v, &
-                                       gpu_idx_recv_c_v, gpu_bufferoffset_recv_c_v, gpu_nList_recv_c_v, &
-                                       gpu_dimSizes_c_v, &
-                                       gpu_nHaloLayers_c_v, &
-                                       gpu_send_size_c_v, &
-                                       gpu_recv_size_c_v, &
-                                       gpu_compactHaloInfoSize_c_v )
+                 call mpas_dmpar_field_halo_exch(block % domain, 'rucuten')
+                 call mpas_dmpar_field_halo_exch(block % domain, 'rvcuten')
+                 call tend_toEdges_gpu(block,mesh,rucuten,rvcuten,rucuten_Edge)
                  
 !!!
  !$acc parallel vector_length(32)
@@ -632,17 +567,7 @@
  end subroutine physics_get_tend_work
 
 !=================================================================================================================
- subroutine tend_toEdges_gpu(block,mesh,Ux_tend,Uy_tend,U_tend, &
-                             ! Arguments needed for OpenACC-friendly halo exchange
-                             compactHaloInfo_c_v, &
-                             sendList_c_v, recvList_c_v, &
-                             gpu_idx_send_c_v, gpu_bufferoffset_send_c_v, gpu_nList_send_c_v, &
-                             gpu_idx_recv_c_v, gpu_bufferoffset_recv_c_v, gpu_nList_recv_c_v, &
-                             gpu_dimSizes_c_v, &
-                             gpu_nHaloLayers_c_v, &
-                             gpu_send_size_c_v, &
-                             gpu_recv_size_c_v, &
-                             gpu_compactHaloInfoSize_c_v )
+ subroutine tend_toEdges_gpu(block,mesh,Ux_tend,Uy_tend,U_tend)
 !=================================================================================================================
 
  use mpas_atm_dimensions
@@ -654,17 +579,6 @@
 
 !output arguments:
  real(kind=RKIND),intent(out),dimension(:,:):: U_tend
-
- ! Arguments needed for OpenACC-friendly halo exchange
- integer, dimension(:), pointer :: compactHaloInfo_c_v
- type (mpas_communication_list), pointer :: sendList_c_v, recvList_c_v
- integer, dimension(:), pointer :: gpu_idx_send_c_v,gpu_bufferoffset_send_c_v,gpu_nList_send_c_v
- integer, dimension(:), pointer :: gpu_idx_recv_c_v,gpu_bufferoffset_recv_c_v,gpu_nList_recv_c_v
- integer, dimension(2) :: gpu_dimSizes_c_v
- integer :: gpu_nHaloLayers_c_v
- integer :: gpu_send_size_c_v
- integer :: gpu_recv_size_c_v
- integer :: gpu_compactHaloInfoSize_c_v
 
 !local variables:
  integer:: iCell,iEdge,k,j
@@ -691,17 +605,6 @@
 
  call mpas_pool_get_array_gpu(mesh, 'cellsOnEdge', cellsOnEdge)
 
- !$acc data present(Ux_tend, Uy_tend, U_tend, east, north, edgeNormalVectors, cellsOnEdge)
- call mpas_dmpar_exch_halo_acc(Ux_tend, compactHaloInfo_c_v, sendList_c_v, recvList_c_v, gpu_bufferOffset_send_c_v, &
-                               gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v, &
-                               gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v, &
-                               gpu_compactHaloInfoSize_c_v, size(Ux_tend,1), size(Ux_tend,2))
-
- call mpas_dmpar_exch_halo_acc(Uy_tend, compactHaloInfo_c_v, sendList_c_v, recvList_c_v, gpu_bufferOffset_send_c_v, &
-                               gpu_nList_send_c_v, gpu_idx_send_c_v, gpu_bufferOffset_recv_c_v, gpu_nList_recv_c_v, &
-                               gpu_idx_recv_c_v, gpu_dimsizes_c_v, gpu_nHaloLayers_c_v, gpu_send_size_c_v, gpu_recv_size_c_v, &
-                               gpu_compactHaloInfoSize_c_v, size(Uy_tend,1), size(Uy_tend,2))
-
 !!!
  !$acc parallel vector_length(32)
  !$acc loop gang vector collapse(2) private(cell1, cell2)
@@ -709,17 +612,17 @@
  do k = 1, nVertLevels
     cell1 = cellsOnEdge(1,iEdge)
     cell2 = cellsOnEdge(2,iEdge)
-                           
-    U_tend(k,iEdge) =  Ux_tend(k,cell1) * 0.5 * (edgeNormalVectors(1,iEdge) * east(1,cell1)   &
+
+    U_tend(:,iEdge) =  Ux_tend(:,cell1) * 0.5 * (edgeNormalVectors(1,iEdge) * east(1,cell1)   &
                                               +  edgeNormalVectors(2,iEdge) * east(2,cell1)   &
                                               +  edgeNormalVectors(3,iEdge) * east(3,cell1))  &
-                     + Uy_tend(k,cell1) * 0.5 * (edgeNormalVectors(1,iEdge) * north(1,cell1)   &
+                     + Uy_tend(:,cell1) * 0.5 * (edgeNormalVectors(1,iEdge) * north(1,cell1)   &
                                               +  edgeNormalVectors(2,iEdge) * north(2,cell1)   &
                                               +  edgeNormalVectors(3,iEdge) * north(3,cell1))  &
-                     + Ux_tend(k,cell2) * 0.5 * (edgeNormalVectors(1,iEdge) * east(1,cell2)   &
+                     + Ux_tend(:,cell2) * 0.5 * (edgeNormalVectors(1,iEdge) * east(1,cell2)   &
                                               +  edgeNormalVectors(2,iEdge) * east(2,cell2)   &
                                               +  edgeNormalVectors(3,iEdge) * east(3,cell2))  &
-                     + Uy_tend(k,cell2) * 0.5 * (edgeNormalVectors(1,iEdge) * north(1,cell2)   &
+                     + Uy_tend(:,cell2) * 0.5 * (edgeNormalVectors(1,iEdge) * north(1,cell2)   &
                                               +  edgeNormalVectors(2,iEdge) * north(2,cell2)   &
                                               +  edgeNormalVectors(3,iEdge) * north(3,cell2))
  end do
@@ -730,7 +633,7 @@
 
  end subroutine tend_toEdges_gpu
 
-
+#if 0
 !=================================================================================================================
  subroutine tend_toEdges(block,mesh,Ux_tend,Uy_tend,U_tend)
 !=================================================================================================================
@@ -840,6 +743,7 @@
  end do
  
  end subroutine tend_toEdges
+#endif
 
 !=================================================================================================================
  end module mpas_atmphys_todynamics
