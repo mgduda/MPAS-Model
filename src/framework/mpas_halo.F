@@ -491,6 +491,9 @@ module mpas_halo
         use mpas_log, only : mpas_log_write
         use mpi, only : MPI_Irecv, MPI_Isend, MPI_Waitall, MPI_Waitany, &
                         MPI_REQUEST_NULL, MPI_STATUS_IGNORE, MPI_STATUSES_IGNORE, MPI_SUCCESS
+#ifdef MPAS_OPENACC
+        use openacc
+#endif
 #ifdef SINGLE_PRECISION
         use mpi, only : MPI_REAL
 
@@ -606,6 +609,9 @@ module mpas_halo
                 case (2)
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r2arr, timeLevel=group % fields(i) % timeLevel)
+                    if (acc_is_present(group % fields(i) % r2arr)) then
+                        !$acc update host(group % fields(i) % r2arr)
+                    end if
 
                     !
                     ! Pack send buffer for all neighbors for current field
@@ -629,6 +635,9 @@ module mpas_halo
                 case (3)
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r3arr, group % fields(i) % timeLevel)
+                    if (acc_is_present(group % fields(i) % r3arr)) then
+                        !$acc update host(group % fields(i) % r3arr)
+                    end if
 
                     !
                     ! Pack send buffer for all neighbors for current field
@@ -728,6 +737,9 @@ module mpas_halo
                                 end do
                             end do
                         end do
+                        if (acc_is_present(group % fields(i) % r2arr)) then
+                            !$acc update device(group % fields(i) % r2arr)
+                        end if
 
                     !
                     ! Unpacking code for 3-d real-valued fields
@@ -749,6 +761,9 @@ module mpas_halo
                                 end do
                             end do
                         end do
+                        if (acc_is_present(group % fields(i) % r3arr)) then
+                            !$acc update device(group % fields(i) % r3arr)
+                        end if
 
                     end select
                 end if
