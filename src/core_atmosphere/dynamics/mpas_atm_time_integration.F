@@ -4327,7 +4327,7 @@ module atm_time_integration
       call mpas_pool_get_field(halo_scratch, 'scale', scale)
       call mpas_allocate_scratch_field(scale)
       call mpas_pool_get_array(halo_scratch, 'scale', scale_arr)
-!$acc declare create(scale_arr)
+      !$acc enter data create(scale_arr)
 
       call atm_advance_scalars_mono_work(block, state, nCells, nEdges, nVertLevels, dt, &
                                    cellStart, cellEnd, vertexStart, vertexEnd, edgeStart, edgeEnd, &
@@ -4340,6 +4340,7 @@ module atm_time_integration
                                    bdyMaskCell, bdyMaskEdge, &
                                    advance_density, rho_zz_int)
 
+      !$acc exit data delete(scale_arr)
       call mpas_deallocate_scratch_field(scale)
 
    end subroutine atm_advance_scalars_mono
