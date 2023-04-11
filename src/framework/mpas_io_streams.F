@@ -94,7 +94,7 @@ module mpas_io_streams
 #ifdef MPAS_PIO_SUPPORT
       type (file_desc_t), intent(inout), optional :: pio_file_desc
 #else
-      integer, optional, pointer :: pio_file_desc
+      integer, optional :: pio_file_desc
 #endif
       integer, intent(out), optional :: ierr
 
