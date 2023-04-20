@@ -675,7 +675,8 @@ ifneq ($(wildcard $(PIO_LIB)/libgptl\.*), )
 endif
 
 else # Not using PIO, using SMIOL
-	LIBS = -lsmiolf -lsmiol
+	LIBS += -L$(PWD)/src/external/SMIOL -lsmiolf -lsmiol
+	FCINCLUDES += -I$(PWD)/src/external/SMIOL
 endif
 
 ifneq "$(NETCDF)" ""
