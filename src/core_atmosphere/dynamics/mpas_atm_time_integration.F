@@ -48,7 +48,6 @@ module atm_time_integration
    ! Used in atm_advance_scalars_mono
    real (kind=RKIND), dimension(:,:), allocatable :: scalar_old_arr, scalar_new_arr
    real (kind=RKIND), dimension(:,:), allocatable :: s_max_arr, s_min_arr
-   real (kind=RKIND), dimension(:,:,:), allocatable :: scale_array
    real (kind=RKIND), dimension(:,:), allocatable :: flux_array
    real (kind=RKIND), dimension(:,:), allocatable :: flux_upwind_tmp_arr
    real (kind=RKIND), dimension(:,:), allocatable :: flux_tmp_arr
@@ -1257,6 +1256,7 @@ module atm_time_integration
       type (mpas_pool_type), pointer :: state
       type (mpas_pool_type), pointer :: diag
       type (mpas_pool_type), pointer :: mesh
+      type (mpas_pool_type), pointer :: halo_scratch
 
       integer, pointer :: nCells
       integer, pointer :: nEdges
@@ -1282,6 +1282,7 @@ module atm_time_integration
       call mpas_pool_get_subpool(block % structs, 'state', state)
       call mpas_pool_get_subpool(block % structs, 'diag', diag)
       call mpas_pool_get_subpool(block % structs, 'mesh', mesh)
+      call mpas_pool_get_subpool(block % structs, 'halo_scratch', halo_scratch)
 
       call mpas_pool_get_dimension(mesh, 'nCells', nCells)
       call mpas_pool_get_dimension(mesh, 'nEdges', nEdges)
@@ -1306,8 +1307,6 @@ module atm_time_integration
       s_max_arr(:,nCells+1) = 0.0_RKIND
       allocate(s_min_arr(nVertLevels,nCells+1))
       s_min_arr(:,nCells+1) = 0.0_RKIND
-      allocate(scale_array(nVertLevels,2,nCells+1))
-      scale_array(:,:,nCells+1) = 0.0_RKIND
       allocate(flux_array(nVertLevels,nEdges+1))
       flux_array(:,nEdges+1) = 0.0_RKIND
       allocate(wdtn_arr(nVertLevels+1,nCells+1))
@@ -1342,12 +1341,13 @@ module atm_time_integration
                                      horiz_flux_array, rk_step, config_time_integration_order, &
                                      advance_density=config_split_dynamics_transport)
          else
-            call atm_advance_scalars_mono(field_name, block, tend, state, diag, mesh, block % configs, rk_timestep(rk_step), &
+            call atm_advance_scalars_mono(field_name, block, tend, state, diag, mesh, halo_scratch, &
+                                          block % configs, rk_timestep(rk_step), &
                                           cellThreadStart(thread), cellThreadEnd(thread), &
                                           edgeThreadStart(thread), edgeThreadEnd(thread), &
                                           cellSolveThreadStart(thread), cellSolveThreadEnd(thread), &
                                           scalar_old_arr, scalar_new_arr, s_max_arr, s_min_arr, wdtn_arr, &
-                                          scale_array, flux_array, flux_upwind_tmp_arr, flux_tmp_arr, &
+                                          flux_array, flux_upwind_tmp_arr, flux_tmp_arr, &
                                           advance_density=config_split_dynamics_transport, rho_zz_int=rho_zz_int)
          end if
       end do
@@ -1357,10 +1357,10 @@ module atm_time_integration
       deallocate(scalar_new_arr)
       deallocate(s_max_arr)
       deallocate(s_min_arr)
-      deallocate(scale_array)
       deallocate(flux_array)
       deallocate(wdtn_arr)
       deallocate(rho_zz_int)
+
       if (rk_step < 3 .or. (.not. config_monotonic .and. .not. config_positive_definite)) then
          deallocate(horiz_flux_array)
       else
@@ -3073,10 +3073,10 @@ module atm_time_integration
    !>  to the work routine.
    !
    !-----------------------------------------------------------------------
-   subroutine atm_advance_scalars_mono(field_name, block, tend, state, diag, mesh, configs, dt, &
+   subroutine atm_advance_scalars_mono(field_name, block, tend, state, diag, mesh, halo_scratch, configs, dt, &
                                        cellStart, cellEnd, edgeStart, edgeEnd, &
                                        cellSolveStart, cellSolveEnd, &
-                                       scalar_old, scalar_new, s_max, s_min, wdtn, scale_arr, flux_arr, &
+                                       scalar_old, scalar_new, s_max, s_min, wdtn, flux_arr, &
                                        flux_upwind_tmp, flux_tmp, advance_density, rho_zz_int)
 
       implicit none
@@ -3088,6 +3088,7 @@ module atm_time_integration
       type (mpas_pool_type), intent(inout) :: state
       type (mpas_pool_type), intent(in)    :: diag
       type (mpas_pool_type), intent(in)    :: mesh
+      type (mpas_pool_type), intent(in)    :: halo_scratch
       type (mpas_pool_type), intent(in)    :: configs
       real (kind=RKIND), intent(in)        :: dt
       integer, intent(in) :: cellStart, cellEnd, edgeStart, edgeEnd
@@ -3095,7 +3096,6 @@ module atm_time_integration
       real (kind=RKIND), dimension(:,:), intent(inout) :: scalar_old, scalar_new
       real (kind=RKIND), dimension(:,:), intent(inout) :: s_max, s_min
       real (kind=RKIND), dimension(:,:), intent(inout) :: wdtn
-      real (kind=RKIND), dimension(:,:,:), intent(inout) :: scale_arr
       real (kind=RKIND), dimension(:,:), intent(inout) :: flux_arr
       real (kind=RKIND), dimension(:,:), intent(inout) :: flux_upwind_tmp, flux_tmp
       logical, intent(in), optional :: advance_density
@@ -3123,6 +3123,9 @@ module atm_time_integration
       real (kind=RKIND), dimension(:), pointer :: fnm, fnp, rdnw
       integer, dimension(:), pointer :: nEdgesOnCell
       real (kind=RKIND), pointer :: coef_3rd_order
+
+      type (field3DReal), pointer :: scale
+      real (kind=RKIND), dimension(:,:,:), pointer :: scale_arr
 
 
       call mpas_pool_get_config(configs, 'config_coef_3rd_order', coef_3rd_order)
@@ -3160,6 +3163,10 @@ module atm_time_integration
       call mpas_pool_get_array(mesh, 'bdyMaskCell', bdyMaskCell)  ! MPAS_regional addition
       call mpas_pool_get_array(mesh, 'bdyMaskEdge', bdyMaskEdge)  ! MPAS_regional addition
 
+      call mpas_pool_get_field(halo_scratch, 'scale', scale)
+      call mpas_allocate_scratch_field(scale)
+      call mpas_pool_get_array(halo_scratch, 'scale', scale_arr)
+
       call atm_advance_scalars_mono_work(block, state, nCells, nEdges, num_scalars, dt, &
                                    cellStart, cellEnd, edgeStart, edgeEnd, &
                                    cellSolveStart, cellSolveEnd, &
@@ -3170,6 +3177,8 @@ module atm_time_integration
                                    wdtn, scale_arr, flux_arr, flux_upwind_tmp, flux_tmp, &
                                    bdyMaskCell, bdyMaskEdge, &
                                    advance_density, rho_zz_int)
+
+      call mpas_deallocate_scratch_field(scale)
 
    end subroutine atm_advance_scalars_mono
 
@@ -3255,14 +3264,10 @@ module atm_time_integration
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(inout) :: scalar_old, scalar_new
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(inout) :: s_max, s_min
       real (kind=RKIND), dimension(nVertLevels+1,nCells+1), intent(inout) :: wdtn
-      real (kind=RKIND), dimension(nVertLevels,2,nCells+1), intent(inout), target :: scale_arr
+      real (kind=RKIND), dimension(nVertLevels,2,nCells+1), intent(inout) :: scale_arr
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(inout) :: flux_arr
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(inout) :: flux_upwind_tmp, flux_tmp
       type (field3DReal), pointer :: scalars_old_field
-
-      type (field3DReal), pointer :: tempField
-      type (field3DReal), target :: tempFieldTarget
-
 
       integer, parameter :: SCALE_IN = 1, SCALE_OUT = 2
 
@@ -3652,21 +3657,7 @@ module atm_time_integration
          !
 !$OMP BARRIER
 !$OMP MASTER
-         tempField => tempFieldTarget
-
-         tempField % block => block
-         tempField % dimSizes(1) = nVertLevels
-         tempField % dimSizes(2) = 2
-         tempField % dimSizes(3) = nCells
-         tempField % sendList => block % parinfo % cellsToSend
-         tempField % recvList => block % parinfo % cellsToRecv
-         tempField % copyList => block % parinfo % cellsToCopy
-         tempField % prev => null()
-         tempField % next => null()
-         tempField % isActive = .true.
-
-         tempField % array => scale_arr
-         call mpas_dmpar_exch_halo_field(tempField, (/ 1 /))
+         call mpas_dmpar_field_halo_exch(block % domain, 'scale')
 !$OMP END MASTER
 !$OMP BARRIER
 
