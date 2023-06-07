@@ -23,11 +23,11 @@
 ################################################################################
 
 
-mpas_vers="7.0"
+mpas_vers="8.0"
 
-github_org="MPAS-Dev"   # GitHub organization where the MPAS-Data repository is found.
-                        # For physics development, it can be helpful for a developer
-                        # to obtain tables from their own fork of the MPAS-Data repository.
+github_org="mgduda"   # GitHub organization where the MPAS-Data repository is found.
+                      # For physics development, it can be helpful for a developer
+                      # to obtain tables from their own fork of the MPAS-Data repository.
 
 #
 # Return 1 if the "mpas_vers" string is found in the physics table COMPATIBILITY
