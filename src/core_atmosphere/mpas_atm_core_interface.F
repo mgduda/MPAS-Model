@@ -122,6 +122,8 @@ module atm_core_interface
       logical, pointer :: limited_areaActive
       logical, pointer :: config_apply_lbcs
       logical, pointer :: config_jedi_da, jedi_daActive
+      character(len=StrKIND), pointer :: config_static_stream_name
+      logical, pointer :: not_static_streamActive
       integer :: local_ierr
 
       ierr = 0
@@ -171,6 +173,24 @@ module atm_core_interface
          ierr = ierr + 1
          call mpas_log_write('Package setup failed for ''jedi_da''. '// &
               'Either ''jedi_da'' is not a package, or ''config_jedi_da'' is not a namelist option.', &
+              messageType=MPAS_LOG_ERR)
+      end if
+
+      !
+      ! Separate static I/O stream
+      !
+      nullify(config_static_stream_name)
+      call mpas_pool_get_config(configs, 'config_static_stream_name', config_static_stream_name)
+
+      nullify(not_static_streamActive)
+      call mpas_pool_get_package(packages, 'not_static_streamActive', not_static_streamActive)
+
+      if (associated(config_static_stream_name) .and. associated(not_static_streamActive)) then
+         not_static_streamActive = (len_trim(config_static_stream_name) == 0)
+      else
+         ierr = ierr + 1
+         call mpas_log_write('Package setup failed for ''not_static_stream''. '// &
+              'Either ''not_static_stream'' is not a package, or ''config_static_stream_name'' is not a namelist option.', &
               messageType=MPAS_LOG_ERR)
       end if
 
@@ -340,7 +360,7 @@ module atm_core_interface
 
       use mpas_kind_types, only : StrKIND
       use mpas_derived_types, only : mpas_pool_type
-      use mpas_pool_routines, only : mpas_pool_get_config
+      use mpas_pool_routines, only : mpas_pool_get_config, mpas_pool_get_package
 
       implicit none
 
@@ -349,18 +369,34 @@ module atm_core_interface
       integer :: ierr
 
       logical, pointer :: config_do_restart
+      character(len=StrKIND), pointer :: config_static_stream_name
 
       ierr = 0
 
-      call mpas_pool_get_config(configs, 'config_do_restart', config_do_restart)
+      nullify(config_static_stream_name)
+      call mpas_pool_get_config(configs, 'config_static_stream_name', config_static_stream_name)
 
-      if (.not. associated(config_do_restart)) then
-         call mpas_log_write('config_do_restart was not found when defining mesh stream.', messageType=MPAS_LOG_ERR)
+      if (.not. associated(config_static_stream_name)) then
          ierr = 1
-      else if (config_do_restart) then
-         write(stream,'(a)') 'restart'
+         call mpas_log_write('Namelist option config_static_stream_name was not found when defining mesh stream.', &
+                             messageType=MPAS_LOG_ERR)
+         return
+      end if
+
+      if (len_trim(config_static_stream_name) > 0) then
+         write(stream,'(a)') trim(config_static_stream_name)
+
       else
-         write(stream,'(a)') 'input'
+         call mpas_pool_get_config(configs, 'config_do_restart', config_do_restart)
+
+         if (.not. associated(config_do_restart)) then
+            call mpas_log_write('config_do_restart was not found when defining mesh stream.', messageType=MPAS_LOG_ERR)
+            ierr = 1
+         else if (config_do_restart) then
+            write(stream,'(a)') 'restart'
+         else
+            write(stream,'(a)') 'input'
+         end if
       end if
 
    end function atm_get_mesh_stream
