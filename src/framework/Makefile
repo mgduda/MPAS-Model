@@ -32,6 +32,7 @@ OBJS = mpas_kind_types.o \
        mpas_field_routines.o \
        mpas_pool_routines.o \
        xml_stream_parser.o \
+       stream_inquiry.o \
        regex_matching.o \
        mpas_log.o \
        mpas_halo.o \
