@@ -357,7 +357,7 @@ module atm_core_interface
    !>  are available.
    !
    !-----------------------------------------------------------------------
-   function atm_get_mesh_stream(configs, stream) result(ierr)
+   function atm_get_mesh_stream(dminfo, configs, stream) result(ierr)
 
       use mpas_kind_types, only : StrKIND
       use mpas_derived_types, only : mpas_pool_type
@@ -365,6 +365,7 @@ module atm_core_interface
 
       implicit none
 
+      type (dm_info), intent(in) :: dminfo
       type (mpas_pool_type), intent(inout) :: configs
       character(len=StrKIND), intent(out) :: stream
       integer :: ierr

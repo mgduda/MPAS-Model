@@ -44,10 +44,12 @@
    end interface
 
    abstract interface
-      function mpas_get_mesh_stream_function(configs, stream) result(iErr)
+      function mpas_get_mesh_stream_function(dminfo, configs, stream) result(iErr)
          use mpas_kind_types
+         import dm_info
          import mpas_pool_type
 
+         type (dm_info), intent(in) :: dminfo
          type (mpas_pool_type), intent(inout) :: configs
          character (len=StrKIND), intent(out) :: stream
          integer :: iErr
