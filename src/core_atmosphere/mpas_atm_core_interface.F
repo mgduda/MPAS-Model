@@ -101,8 +101,11 @@ module atm_core_interface
    !-----------------------------------------------------------------------
    function atm_setup_packages(dminfo, configs, packages, iocontext) result(ierr)
 
-      use mpas_derived_types, only : mpas_pool_type, mpas_io_context_type, dm_info
+      use iso_c_binding, only : c_char
+      use mpas_derived_types, only : MPAS_LOG_ERR
+      use mpas_derived_types, only : mpas_pool_type, mpas_io_context_type
       use mpas_pool_routines, only : mpas_pool_get_config, mpas_pool_get_package
+      use mpas_c_interfacing, only : mpas_f_to_c_string, mpas_c_to_f_string
 
 #ifdef DO_PHYSICS
       use mpas_atmphys_control
@@ -126,6 +129,21 @@ module atm_core_interface
       logical, pointer :: config_use_invariant_stream
       logical, pointer :: no_invariant_streamActive
       integer :: local_ierr
+
+      character(len=StrKIND) :: streams_filename, stream_name, attname, attval
+      character(kind=c_char), dimension(StrKIND+1) :: c_streams_filename, c_stream_name, c_attname, c_attval
+
+      interface
+         subroutine query_stream_attribute(comm, xmlname, streamname, attname, attval, ierr) bind(c)
+            use iso_c_binding, only : c_char, c_int
+            integer(kind=c_int), intent(in) :: comm
+            character(kind=c_char), dimension(*), intent(in) :: xmlname
+            character(kind=c_char), dimension(*), intent(in) :: streamname
+            character(kind=c_char), dimension(*), intent(out) :: attname
+            character(kind=c_char), dimension(*), intent(out) :: attval
+            integer(kind=c_int), intent(out) :: ierr
+         end subroutine query_stream_attribute
+      end interface
 
       ierr = 0
 
@@ -180,18 +198,34 @@ module atm_core_interface
       !
       ! Separate time-invariant stream
       !
-      nullify(config_use_invariant_stream)
-      call mpas_pool_get_config(configs, 'config_use_invariant_stream', config_use_invariant_stream)
-
       nullify(no_invariant_streamActive)
       call mpas_pool_get_package(packages, 'no_invariant_streamActive', no_invariant_streamActive)
 
-      if (associated(config_use_invariant_stream) .and. associated(no_invariant_streamActive)) then
-         no_invariant_streamActive = .not. config_use_invariant_stream
+      if (associated(no_invariant_streamActive)) then
+         streams_filename = 'streams.atmosphere'
+         stream_name = 'invariant'
+         attname = 'input_interval'
+         call mpas_f_to_c_string(streams_filename, c_streams_filename)
+         call mpas_f_to_c_string(stream_name, c_stream_name)
+         call mpas_f_to_c_string(attname, c_attname)
+         call query_stream_attribute(dminfo % comm, c_streams_filename, c_stream_name, c_attname, c_attval, ierr)
+         call mpas_c_to_f_string(c_attval, attval)
+
+         if (ierr /= 0) then
+            no_invariant_streamActive = .true.
+            ierr = 0
+         else
+            call mpas_log_write('input_interval for invariant stream is "'//trim(attval)//'"')
+            if (trim(attval) == 'none') then
+               no_invariant_streamActive = .true.
+            else
+               no_invariant_streamActive = .false.
+            end if
+         end if
       else
          ierr = ierr + 1
          call mpas_log_write('Package setup failed for ''no_invariant_stream''. '// &
-              'Either ''no_invariant_stream'' is not a package, or ''config_use_invariant_stream'' is not a namelist option.', &
+              'Apparently ''no_invariant_stream'' is not a package.', &
               messageType=MPAS_LOG_ERR)
       end if
 
@@ -359,9 +393,11 @@ module atm_core_interface
    !-----------------------------------------------------------------------
    function atm_get_mesh_stream(dminfo, configs, stream) result(ierr)
 
+      use iso_c_binding, only : c_char
       use mpas_kind_types, only : StrKIND
-      use mpas_derived_types, only : mpas_pool_type
+      use mpas_derived_types, only : mpas_pool_type, dm_info
       use mpas_pool_routines, only : mpas_pool_get_config, mpas_pool_get_package
+      use mpas_c_interfacing, only : mpas_f_to_c_string, mpas_c_to_f_string
 
       implicit none
 
@@ -371,34 +407,51 @@ module atm_core_interface
       integer :: ierr
 
       logical, pointer :: config_do_restart
-      logical, pointer :: config_use_invariant_stream
+
+      character(len=StrKIND) :: streams_filename, stream_name, attname, attval
+      character(kind=c_char), dimension(StrKIND+1) :: c_streams_filename, c_stream_name, c_attname, c_attval
+
+      interface
+         subroutine query_stream_attribute(comm, xmlname, streamname, attname, attval, ierr) bind(c)
+            use iso_c_binding, only : c_char, c_int
+            integer(kind=c_int), intent(in) :: comm
+            character(kind=c_char), dimension(*), intent(in) :: xmlname
+            character(kind=c_char), dimension(*), intent(in) :: streamname
+            character(kind=c_char), dimension(*), intent(out) :: attname
+            character(kind=c_char), dimension(*), intent(out) :: attval
+            integer(kind=c_int), intent(out) :: ierr
+         end subroutine query_stream_attribute
+      end interface
 
       ierr = 0
 
-      nullify(config_use_invariant_stream)
-      call mpas_pool_get_config(configs, 'config_use_invariant_stream', config_use_invariant_stream)
+      streams_filename = 'streams.atmosphere'
+      stream_name = 'invariant'
+      attname = 'input_interval'
+      call mpas_f_to_c_string(streams_filename, c_streams_filename)
+      call mpas_f_to_c_string(stream_name, c_stream_name)
+      call mpas_f_to_c_string(attname, c_attname)
+      call query_stream_attribute(dminfo % comm, c_streams_filename, c_stream_name, c_attname, c_attval, ierr)
+      call mpas_c_to_f_string(c_attval, attval)
 
-      if (.not. associated(config_use_invariant_stream)) then
-         ierr = 1
-         call mpas_log_write('Namelist option config_use_invariant_stream was not found when defining mesh stream.', &
-                             messageType=MPAS_LOG_ERR)
-         return
+      if (ierr /= 0) then
+         ierr = 0
+      else
+         if (trim(attval) /= 'none') then
+            write(stream,'(a)') 'invariant'
+            return
+         end if
       end if
 
-      if (config_use_invariant_stream) then
-         write(stream,'(a)') 'invariant'
+      call mpas_pool_get_config(configs, 'config_do_restart', config_do_restart)
 
+      if (.not. associated(config_do_restart)) then
+         call mpas_log_write('config_do_restart was not found when defining mesh stream.', messageType=MPAS_LOG_ERR)
+         ierr = 1
+      else if (config_do_restart) then
+         write(stream,'(a)') 'restart'
       else
-         call mpas_pool_get_config(configs, 'config_do_restart', config_do_restart)
-
-         if (.not. associated(config_do_restart)) then
-            call mpas_log_write('config_do_restart was not found when defining mesh stream.', messageType=MPAS_LOG_ERR)
-            ierr = 1
-         else if (config_do_restart) then
-            write(stream,'(a)') 'restart'
-         else
-            write(stream,'(a)') 'input'
-         end if
+         write(stream,'(a)') 'input'
       end if
 
    end function atm_get_mesh_stream

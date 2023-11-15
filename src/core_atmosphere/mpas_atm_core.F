@@ -122,9 +122,9 @@ module atm_core
       call mpas_pool_get_config(domain % blocklist % configs, 'config_use_invariant_stream', config_use_invariant_stream)
 
 
-      if (config_use_invariant_stream) then
+!      if (config_use_invariant_stream) then
          call MPAS_stream_mgr_read(domain % streamManager, streamID='invariant', whence=MPAS_STREAM_NEAREST, ierr=ierr)
-      end if
+!      end if
       call MPAS_stream_mgr_reset_alarms(domain % streamManager, streamID='invariant', direction=MPAS_STREAM_INPUT, ierr=ierr)
 
       !

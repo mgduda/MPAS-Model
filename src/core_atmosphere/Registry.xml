@@ -425,7 +425,7 @@
                         type="input"
                         in_defaults="false"
                         filename_template="invariant.nc"
-                        input_interval="initial_only"
+                        input_interval="none"
                         immutable="true">
 
 			<var name="latCell"/>
