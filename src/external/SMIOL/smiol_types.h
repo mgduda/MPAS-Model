@@ -5,6 +5,7 @@
 #define SMIOL_TYPES_H
 
 #include <stdint.h>
+#include <stdio.h>
 #include "mpi.h"
 
 
@@ -47,6 +48,7 @@ struct SMIOL_file {
 	MPI_Fint io_group_comm; /* Communicator shared by tasks associated with
 	                           an I/O task, usually 1 I/O task and N-1
 	                           non-I/O tasks, where N is the I/O stride */
+	FILE *statfile;
 };
 
 struct SMIOL_decomp {

@@ -269,6 +269,7 @@ int SMIOL_open_file(struct SMIOL_context *context, const char *filename,
 	(*file)->context = context;
 	(*file)->frame = (SMIOL_Offset) 0;
 
+	(*file)->statfile = NULL;
 
 	/*
 	 * Determine whether a task is an I/O task or not, and compute
@@ -318,6 +319,12 @@ int SMIOL_open_file(struct SMIOL_context *context, const char *filename,
 	if (mode & SMIOL_FILE_CREATE) {
 #ifdef SMIOL_PNETCDF
 		if ((*file)->io_task) {
+			if (context->comm_rank == 0) {
+				char tempname[256];
+				snprintf(tempname, 256, "%s.timing", filename);
+				(*file)->statfile = fopen(tempname, "w");
+				fprintf((*file)->statfile, "=== Opening file at %lf\n\n", MPI_Wtime());
+			}
 			ierr = ncmpi_create(io_file_comm, filename,
 			                    (NC_64BIT_DATA | NC_CLOBBER),
 			                    MPI_INFO_NULL,
@@ -467,6 +474,10 @@ int SMIOL_close_file(struct SMIOL_file **file)
 	}
 
 	if ((*file)->io_task) {
+		if ((*file)->statfile) {
+			fprintf((*file)->statfile, "=== Closing file at %lf\n", MPI_Wtime());
+			fclose((*file)->statfile);
+		}
 		ierr = ncmpi_close((*file)->ncidp);
 	}
 	MPI_Bcast(&ierr, 1, MPI_INT, 0, io_group_comm);
@@ -1080,12 +1091,20 @@ int SMIOL_put_var(struct SMIOL_file *file, const char *varname,
 	void *agg_buf = NULL;
 	const void *agg_buf_cnst = NULL;
 
+	double start_total, stop_total;
+
 
 	/*
 	 * Basic checks on arguments
 	 */
 	if (file == NULL || varname == NULL) {
 		return SMIOL_INVALID_ARGUMENT;
+	}
+
+	if (file->statfile) {
+		fprintf(file->statfile, "Begin writing variable %s at %lf\n",
+		        varname, MPI_Wtime());
+		start_total = MPI_Wtime();
 	}
 
 	/*
@@ -1106,6 +1125,8 @@ int SMIOL_put_var(struct SMIOL_file *file, const char *varname,
 	 * be done for decomposed variables.
 	 */
 	if (decomp) {
+		double start_time, stop_time;
+
 		out_buf = malloc(element_size * decomp->io_count);
 		if (out_buf == NULL) {
 			free(start);
@@ -1138,15 +1159,21 @@ int SMIOL_put_var(struct SMIOL_file *file, const char *varname,
 
 			agg_comm = MPI_Comm_f2c(decomp->agg_comm);
 
+			start_time = MPI_Wtime();
 			ierr = MPI_Gatherv((const void *)buf,
 			                   (int)decomp->n_compute, dtype,
 			                   (void *)agg_buf,
 			                   (const int *)decomp->counts,
 			                   (const int *)decomp->displs,
 			                   dtype, 0, agg_comm);
+			stop_time = MPI_Wtime();
 			if (ierr != MPI_SUCCESS) {
 				fprintf(stderr, "MPI_Gatherv failed with code %i\n", ierr);
 				return SMIOL_MPI_ERROR;
+			}
+			if (file->statfile) {
+				fprintf(file->statfile, "   time to aggregate : %lf\n",
+				        (stop_time - start_time));
 			}
 
 			ierr = MPI_Type_free(&dtype);
@@ -1160,13 +1187,19 @@ int SMIOL_put_var(struct SMIOL_file *file, const char *varname,
 			agg_buf_cnst = buf;
 		}
 
+		start_time = MPI_Wtime();
 		ierr = transfer_field(decomp, SMIOL_COMP_TO_IO,
 		                      element_size, agg_buf_cnst, out_buf);
+		stop_time = MPI_Wtime();
 		if (ierr != SMIOL_SUCCESS) {
 			free(start);
 			free(count);
 			free(out_buf);
 			return ierr;
+		}
+		if (file->statfile) {
+			fprintf(file->statfile, "   time to rearrange : %lf\n",
+			        (stop_time - start_time));
 		}
 
 		if (decomp->agg_factor != 1) {
@@ -1258,6 +1291,9 @@ int SMIOL_put_var(struct SMIOL_file *file, const char *varname,
 		}
 
 		if (file->io_task) {
+			double start_time, stop_time;
+
+			start_time = MPI_Wtime();
 			ierr = write_chunk_pnetcdf(file,
 			                           varidp,
 			                           ndims,
@@ -1268,6 +1304,11 @@ int SMIOL_put_var(struct SMIOL_file *file, const char *varname,
 			                           mpi_start,
 			                           mpi_count
 			                          );
+			stop_time = MPI_Wtime();
+			if (file->statfile) {
+				fprintf(file->statfile, "   time to write chunk : %lf\n",
+				        (stop_time - start_time));
+			}
 		}
 
 		MPI_Bcast(&ierr, 1, MPI_INT, 0, io_group_comm);
@@ -1299,6 +1340,12 @@ int SMIOL_put_var(struct SMIOL_file *file, const char *varname,
 
 	free(start);
 	free(count);
+
+	if (file->statfile) {
+		stop_total = MPI_Wtime();
+		fprintf(file->statfile, "Total time to write variable %s : %lf\n\n",
+		        varname, (stop_total - start_total));
+	}
 
 	return SMIOL_SUCCESS;
 }
@@ -1898,12 +1945,18 @@ int SMIOL_sync_file(struct SMIOL_file *file)
 	MPI_Comm io_group_comm;
 	int ierr;
 #endif
+	double start_time, stop_time;
 
 	/*
 	 * Check that file is valid
 	 */
 	if (file == NULL) {
 		return SMIOL_INVALID_ARGUMENT;
+	}
+
+	if (file->statfile) {
+		fprintf(file->statfile, "=== Syncing file at %lf\n", MPI_Wtime());
+		start_time = MPI_Wtime();
 	}
 
 #ifdef SMIOL_PNETCDF
@@ -1947,6 +2000,11 @@ int SMIOL_sync_file(struct SMIOL_file *file)
 		return SMIOL_LIBRARY_ERROR;
 	}
 #endif
+	if (file->statfile) {
+		stop_time = MPI_Wtime();
+		fprintf(file->statfile, "Total time to sync file : %lf\n\n", (stop_time - start_time));
+		fflush(file->statfile);
+	}
 
 	return SMIOL_SUCCESS;
 }
@@ -2576,18 +2634,25 @@ int write_chunk_pnetcdf(struct SMIOL_file *file,
 	size_t element_size;
 	int iter_idx;
 	int i;
+	double start_time, stop_time;
 
 	/*
 	 * For scalar variables (with or without an unlimited dimension),
 	 * just write with a single call to the blocking write interface.
 	 */
 	if (ndims == 0 || (has_unlimited_dim && ndims == 1)) {
+		start_time = MPI_Wtime();
 		ierr = ncmpi_bput_vara(file->ncidp,
 		                       varidp,
 		                       mpi_start, mpi_count,
 		                       buf_p,
 		                       0, MPI_DATATYPE_NULL,
 		                       &(file->reqs[(file->n_reqs++)]));
+		stop_time = MPI_Wtime();
+		if (file->statfile) {
+			fprintf(file->statfile, "      time to write scalar : %lf\n",
+			        (stop_time - start_time));
+		}
 		return ierr;
 	}
 
@@ -2648,11 +2713,17 @@ int write_chunk_pnetcdf(struct SMIOL_file *file,
 		 * most 2 GiB at a time
 		 */
 		while (!global_done) {
+			start_time = MPI_Wtime();
 			ierr = ncmpi_put_vara_all(file->ncidp,
 			                          varidp,
 			                          mpi_start, mpi_count,
 			                          &((uint8_t *)buf_p)[buf_offset],
 			                          0, MPI_DATATYPE_NULL);
+			stop_time = MPI_Wtime();
+			if (file->statfile) {
+				fprintf(file->statfile, "      time to write unbuffered chunk : %lf\n",
+				        (stop_time - start_time));
+			}
 
 			/*
 			 * Update start/count values for slowest non-record
@@ -2708,18 +2779,30 @@ int write_chunk_pnetcdf(struct SMIOL_file *file,
 		 */
 		if ((size_t)max_usage > file->bufsize
 		    || file->n_reqs == MAX_REQS) {
+			start_time = MPI_Wtime();
 			ierr = ncmpi_wait_all(file->ncidp, file->n_reqs,
 			                      file->reqs, NULL);  /* statuses */
+			stop_time = MPI_Wtime();
+			if (file->statfile) {
+				fprintf(file->statfile, "      time to wait for pending buffered writes : %lf\n",
+				        (stop_time - start_time));
+			}
 			file->n_reqs = 0;
 		}
 
 		if (ierr == NC_NOERR) {
+			start_time = MPI_Wtime();
 			ierr = ncmpi_bput_vara(file->ncidp,
 			                       varidp,
 			                       mpi_start, mpi_count,
 			                       buf_p,
 			                       0, MPI_DATATYPE_NULL,
 			                       &(file->reqs[(file->n_reqs++)]));
+			stop_time = MPI_Wtime();
+			if (file->statfile) {
+				fprintf(file->statfile, "      time to write buffered chunk : %lf\n",
+				        (stop_time - start_time));
+			}
 		}
 	}
 
