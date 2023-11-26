@@ -30,6 +30,7 @@ int build_start_count(struct SMIOL_file *file, const char *varname,
 #ifdef SMIOL_PNETCDF
 int write_chunk_pnetcdf(struct SMIOL_file *file,
                         int varidp,
+                        const struct SMIOL_decomp *decomp,
                         int ndims,
                         int has_unlimited_dim,
                         size_t basic_type_size,
@@ -1296,6 +1297,7 @@ int SMIOL_put_var(struct SMIOL_file *file, const char *varname,
 			start_time = MPI_Wtime();
 			ierr = write_chunk_pnetcdf(file,
 			                           varidp,
+			                           decomp,
 			                           ndims,
 			                           has_unlimited_dim,
 			                           basic_size,
@@ -2619,6 +2621,7 @@ int build_start_count(struct SMIOL_file *file, const char *varname,
  ********************************************************************************/
 int write_chunk_pnetcdf(struct SMIOL_file *file,
                         int varidp,
+                        const struct SMIOL_decomp *decomp,
                         int ndims,
                         int has_unlimited_dim,
                         size_t basic_type_size,
@@ -2642,12 +2645,11 @@ int write_chunk_pnetcdf(struct SMIOL_file *file,
 	 */
 	if (ndims == 0 || (has_unlimited_dim && ndims == 1)) {
 		start_time = MPI_Wtime();
-		ierr = ncmpi_bput_vara(file->ncidp,
-		                       varidp,
-		                       mpi_start, mpi_count,
-		                       buf_p,
-		                       0, MPI_DATATYPE_NULL,
-		                       &(file->reqs[(file->n_reqs++)]));
+		ierr = ncmpi_put_vara_all(file->ncidp,
+		                          varidp,
+		                          mpi_start, mpi_count,
+		                          buf_p,
+		                          0, MPI_DATATYPE_NULL);
 		stop_time = MPI_Wtime();
 		if (file->statfile) {
 			fprintf(file->statfile, "      time to write scalar : %lf\n",
@@ -2686,7 +2688,7 @@ int write_chunk_pnetcdf(struct SMIOL_file *file,
 	 * the buffer size, just write through the non-buffered interface;
 	 * otherwise, the ncmpi_bput_vara call will fail.
 	 */
-	if (max_usage > file->bufsize || max_usage > ((MPI_Offset)INT_MAX)) {
+	if (max_usage > file->bufsize || max_usage > ((MPI_Offset)INT_MAX) || !decomp) {
 		MPI_Offset remaining_count;
 		MPI_Offset max_count;
 		long done, global_done;
