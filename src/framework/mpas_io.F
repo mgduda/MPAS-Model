@@ -397,7 +397,7 @@ module mpas_io
 #endif
 #ifdef MPAS_SMIOL_SUPPORT
                local_ierr = SMIOLf_open_file(ioContext % smiol_context, trim(filename), &
-                                             SMIOL_FILE_WRITE, MPAS_io_open % smiol_file)
+                                             SMIOL_FILE_WRITE, MPAS_io_open % smiol_file, bufsize=0)
 #endif
                MPAS_io_open % preexisting_file = .true.
             else
@@ -406,7 +406,7 @@ module mpas_io
 #endif
 #ifdef MPAS_SMIOL_SUPPORT
                local_ierr = SMIOLf_open_file(ioContext % smiol_context, trim(filename), &
-                                             SMIOL_FILE_CREATE, MPAS_io_open % smiol_file)
+                                             SMIOL_FILE_CREATE, MPAS_io_open % smiol_file, bufsize=0)
 #endif
 #ifdef MPAS_DEBUG
                if (exists) then
