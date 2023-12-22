@@ -42,15 +42,17 @@ module mpas_framework
 !>  MPI, the log unit numbers.
 !
 !-----------------------------------------------------------------------
-   subroutine mpas_framework_init_phase1(dminfo, mpi_comm)!{{{
+   subroutine mpas_framework_init_phase1(dminfo, external_comm)!{{{
+
+      use mpi_f08, only : MPI_Comm
 
       implicit none
 
       type (dm_info), pointer :: dminfo
-      integer, intent(in), optional :: mpi_comm
+      type (MPI_Comm), intent(in), optional :: external_comm
 
       allocate(dminfo)
-      call mpas_dmpar_init(dminfo, mpi_comm)
+      call mpas_dmpar_init(dminfo, external_comm)
 
    end subroutine mpas_framework_init_phase1!}}}
 

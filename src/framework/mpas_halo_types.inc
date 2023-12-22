@@ -47,7 +47,7 @@
         integer :: nGroupSendNeighbors = MPAS_HALO_INVALID                ! Number of unique neighbors that we send to
         integer :: groupSendBufSize = MPAS_HALO_INVALID                   ! Total number of elements to be sent in a group exchange
         real (kind=RKIND), dimension(:), pointer :: sendBuf => null()     ! Segmented buffer used for outgoing messages
-        integer, dimension(:), pointer :: sendRequests => null()          ! Used internally - MPI request IDs
+        type (MPI_Request), dimension(:), pointer :: sendRequests => null() ! Used internally - MPI request IDs
         integer, dimension(:,:), pointer :: groupPackOffsets => null()    ! Offsets into sendBuf for each neighbor and each field
                                                                           !     dimensioned (nGroupSendNeighbors, nFields)
         integer, dimension(:), pointer :: groupSendNeighbors => null()    ! List of neighbors we send to
@@ -60,7 +60,7 @@
         integer :: nGroupRecvNeighbors = MPAS_HALO_INVALID                ! Number of unique neighbors that we recv from
         integer :: groupRecvBufSize = MPAS_HALO_INVALID                   ! Total number of elements to be recvd in a group exchange
         real (kind=RKIND), dimension(:), pointer :: recvBuf => null()     ! Segmented buffer used for incoming messages
-        integer, dimension(:), pointer :: recvRequests => null()          ! Used internally - MPI request IDs
+        type (MPI_Request), dimension(:), pointer :: recvRequests => null() ! Used internally - MPI request IDs
         integer, dimension(:,:), pointer :: groupUnpackOffsets => null()  ! Offsets into recvBuf for each neighbor and each field
                                                                           !     dimensioned (nGroupRecvNeighbors, nFields)
         integer, dimension(:), pointer :: groupRecvNeighbors => null()    ! List of neighbors we recv from

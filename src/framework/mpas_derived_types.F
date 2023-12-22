@@ -36,6 +36,8 @@ module mpas_derived_types
    use smiolf, only : SMIOLf_context, SMIOLf_decomp, SMIOLf_file, SMIOL_offset_kind
 #endif
 
+   use mpi_f08, only : MPI_Request, MPI_Comm, MPI_Info
+
    use ESMF
 
 #include "mpas_attlist_types.inc"

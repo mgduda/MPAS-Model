@@ -7,7 +7,9 @@
    integer, parameter :: MPAS_DMPAR_BUFFER_EXISTS = 6
 
    type dm_info
-     integer :: nprocs, my_proc_id, comm, info
+     type (MPI_Comm) :: comm
+     type (MPI_Info) :: info
+     integer :: nprocs, my_proc_id
      logical :: initialized_mpi
 
      ! Add variables specific to block decomposition. {{{
@@ -47,7 +49,7 @@
      integer :: bufferOffset
      real (kind=RKIND), dimension(:), pointer :: rbuffer => null()
      integer, dimension(:), pointer :: ibuffer => null()
-     integer :: reqID
+     type (MPI_Request) :: reqID
      type (mpas_communication_list), pointer :: next => null()
      integer :: commListSize
      logical :: received

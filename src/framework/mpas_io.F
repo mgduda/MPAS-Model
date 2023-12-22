@@ -203,7 +203,7 @@ module mpas_io
 
 #ifdef MPAS_SMIOL_SUPPORT
          allocate(ioContext % smiol_context)
-         local_ierr = SMIOLf_init(ioContext % dminfo % comm, &
+         local_ierr = SMIOLf_init(ioContext % dminfo % comm % mpi_val, &
                                   io_task_count, &
                                   io_task_stride, &
                                   iocontext % smiol_context)

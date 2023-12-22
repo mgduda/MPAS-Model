@@ -485,16 +485,20 @@ module mpas_halo
     !-----------------------------------------------------------------------
     subroutine mpas_halo_exch_group_full_halo_exch(domain, groupName, iErr)
 
-        use mpi
+#ifndef MPI_MODULE_NAME
+#define MPI_MODULE_NAME mpi_f08
+#endif
+
+        use MPI_MODULE_NAME
         use mpas_derived_types, only : domain_type, mpas_halo_group, MPAS_HALO_REAL, MPAS_LOG_CRIT
         use mpas_pool_routines, only : mpas_pool_get_array
         use mpas_log, only : mpas_log_write
 
         ! Parameters
 #ifdef SINGLE_PRECISION
-        integer, parameter :: MPI_REALKIND = MPI_REAL
+        type (MPI_Datatype), parameter :: MPI_REALKIND = MPI_REAL
 #else
-        integer, parameter :: MPI_REALKIND = MPI_DOUBLE_PRECISION
+        type (MPI_Datatype), parameter :: MPI_REALKIND = MPI_DOUBLE_PRECISION
 #endif
 
         ! Arguments
@@ -508,7 +512,8 @@ module mpas_halo
         integer :: i1, i2, j, iNeighbor, iReq
         integer :: iHalo, iEndp
         integer :: nHalos, nSendEndpts, nRecvEndpts
-        integer :: rank, comm
+        integer :: rank
+        type (MPI_Comm) :: comm
         integer :: mpi_ierr
         type (mpas_halo_group), pointer :: group
         integer, dimension(:), pointer :: compactHaloInfo
@@ -550,7 +555,7 @@ module mpas_halo
         ! the group; all fields should be using the same communicator, so this should not
         ! be problematic
         !
-        comm = group % fields(1) % compactHaloInfo(7)
+        comm % mpi_val = group % fields(1) % compactHaloInfo(7)
         rank = group % fields(1) % compactHaloInfo(8)
 
 
@@ -992,7 +997,7 @@ module mpas_halo
         ! 7-8: Add MPI info
         !
         idx = 7
-        compactHaloInfo(idx) = domain % dminfo % comm
+        compactHaloInfo(idx) = domain % dminfo % comm % mpi_val
         idx = idx + 1
         compactHaloInfo(idx) = domain % dminfo % my_proc_id
         idx = idx + 1
