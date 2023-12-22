@@ -3,7 +3,8 @@
 DEPS := $(shell find ../core_$(CORE)/ -type f -name "*.xml" ! -name "*processed.xml")
 TYPE_DEPS := $(shell find . -type f -name "*_types.inc")
 
-OBJS = mpas_kind_types.o \
+OBJS = mpas_mp.o \
+       mpas_kind_types.o \
        mpas_framework.o \
        mpas_timer.o \
        mpas_timekeeping.o \
@@ -42,7 +43,8 @@ all: framework $(DEPS)
 framework: $(OBJS)
 	ar -ru libframework.a $(OBJS) ../external/ezxml/ezxml.o
 
-mpas_framework.o: mpas_dmpar.o \
+mpas_framework.o: mpas_mp.o \
+                  mpas_dmpar.o \
                   mpas_io.o \
                   mpas_derived_types.o \
                   mpas_domain_routines.o \
@@ -55,15 +57,15 @@ mpas_framework.o: mpas_dmpar.o \
                   mpas_stream_manager.o \
                   mpas_c_interfacing.o
 
-mpas_abort.o: mpas_kind_types.o mpas_io_units.o mpas_threading.o
+mpas_abort.o: mpas_mp.o mpas_kind_types.o mpas_io_units.o mpas_threading.o
 
 mpas_constants.o: mpas_kind_types.o
 
-mpas_log.o: mpas_derived_types.o mpas_io_units.o mpas_abort.o mpas_threading.o mpas_c_interfacing.o
+mpas_log.o: mpas_mp.o mpas_derived_types.o mpas_io_units.o mpas_abort.o mpas_threading.o mpas_c_interfacing.o
 
 mpas_attlist.o: mpas_kind_types.o mpas_io_units.o mpas_derived_types.o
 
-mpas_derived_types.o: mpas_kind_types.o mpas_constants.o $(TYPE_DEPS)
+mpas_derived_types.o: mpas_mp.o mpas_kind_types.o mpas_constants.o $(TYPE_DEPS)
 
 mpas_domain_routines.o: mpas_derived_types.o mpas_pool_routines.o mpas_dmpar.o
 
@@ -75,7 +77,7 @@ mpas_decomp.o: mpas_derived_types.o mpas_stream_manager.o mpas_log.o
 
 mpas_hash.o : mpas_derived_types.o
 
-mpas_dmpar.o: mpas_sort.o mpas_kind_types.o mpas_derived_types.o mpas_hash.o mpas_threading.o mpas_pool_routines.o mpas_log.o
+mpas_dmpar.o: mpas_mp.o mpas_sort.o mpas_kind_types.o mpas_derived_types.o mpas_hash.o mpas_threading.o mpas_pool_routines.o mpas_log.o
 
 mpas_sort.o: mpas_kind_types.o mpas_log.o
 
@@ -108,7 +110,7 @@ mpas_c_interfacing.o:
 xml_stream_parser.o: xml_stream_parser.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(CPPINCLUDES) -I../external/ezxml -c xml_stream_parser.c
 
-mpas_halo.o: mpas_derived_types.o mpas_pool_routines.o mpas_log.o
+mpas_halo.o: mpas_mp.o mpas_derived_types.o mpas_pool_routines.o mpas_log.o
 
 clean:
 	$(RM) *.o *.mod *.f90 libframework.a

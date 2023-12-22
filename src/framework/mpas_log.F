@@ -806,13 +806,9 @@ module mpas_log
 
    subroutine log_abort()
 
-#ifndef MPI_MODULE_NAME
-#define MPI_MODULE_NAME mpi_f08
-#endif
-
 #ifdef _MPI
 #ifndef NOMPIMOD
-      use MPI_MODULE_NAME
+      use mpas_mp
 #endif
 #endif
 

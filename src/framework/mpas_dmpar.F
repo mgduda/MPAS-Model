@@ -29,13 +29,9 @@ module mpas_dmpar
    use mpas_pool_routines
    use mpas_log
 
-#ifndef MPI_MODULE_NAME
-#define MPI_MODULE_NAME mpi_f08
-#endif
-
 #ifdef _MPI
 #ifndef NOMPIMOD
-   use MPI_MODULE_NAME
+   use mpas_mp
 #endif
 #endif
 

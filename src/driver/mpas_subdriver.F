@@ -47,7 +47,7 @@ module mpas_subdriver
       use mpas_timekeeping, only : mpas_get_clock_time, mpas_get_time
       use mpas_bootstrapping, only : mpas_bootstrap_framework_phase1, mpas_bootstrap_framework_phase2
       use mpas_log
-      use mpi_f08, only : MPI_Comm
+      use mpas_mp, only : MPI_Comm
  
       implicit none
 

@@ -485,11 +485,7 @@ module mpas_halo
     !-----------------------------------------------------------------------
     subroutine mpas_halo_exch_group_full_halo_exch(domain, groupName, iErr)
 
-#ifndef MPI_MODULE_NAME
-#define MPI_MODULE_NAME mpi_f08
-#endif
-
-        use MPI_MODULE_NAME
+        use mpas_mp
         use mpas_derived_types, only : domain_type, mpas_halo_group, MPAS_HALO_REAL, MPAS_LOG_CRIT
         use mpas_pool_routines, only : mpas_pool_get_array
         use mpas_log, only : mpas_log_write

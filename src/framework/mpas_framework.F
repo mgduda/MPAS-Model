@@ -44,7 +44,7 @@ module mpas_framework
 !-----------------------------------------------------------------------
    subroutine mpas_framework_init_phase1(dminfo, external_comm)!{{{
 
-      use mpi_f08, only : MPI_Comm
+      use mpas_mp, only : MPI_Comm
 
       implicit none
 
