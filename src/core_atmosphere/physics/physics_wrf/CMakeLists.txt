@@ -1,6 +1,7 @@
 target_sources(${MPAS_EXE_NAME}
                PUBLIC
                   libmassv.F
+                  module_bep_bem_helper.F
                   module_bl_gwdo.F
                   module_bl_mynn.F
                   module_bl_ysu.F
@@ -13,8 +14,8 @@ target_sources(${MPAS_EXE_NAME}
                   module_cu_tiedtke.F
                   module_mp_kessler.F
                   module_mp_radar.F
-                  module_mp_thompson.F
                   module_mp_thompson_cldfra3.F
+                  module_mp_thompson.F
                   module_mp_wsm6.F
                   module_ra_cam.F
                   module_ra_cam_support.F
@@ -22,15 +23,16 @@ target_sources(${MPAS_EXE_NAME}
                   module_ra_rrtmg_sw.F
                   module_ra_rrtmg_vinterp.F
                   module_sf_bem.F
-                  module_sf_bep.F
                   module_sf_bep_bem.F
+                  module_sf_bep.F
                   module_sf_mynn.F
-                  module_sf_noah_seaice.F
-                  module_sf_noah_seaice_drv.F
                   module_sf_noahdrv.F
                   module_sf_noahlsm.F
                   module_sf_noahlsm_glacial_only.F
+                  module_sf_noah_seaice_drv.F
+                  module_sf_noah_seaice.F
                   module_sf_oml.F
                   module_sf_sfcdiags.F
                   module_sf_sfclay.F
+                  module_sf_sfclayrev.F
                   module_sf_urban.F)

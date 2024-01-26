@@ -1,16 +1,19 @@
 add_subdirectory(physics_wrf)
+add_subdirectory(physics_mmm)
 
 target_sources(${MPAS_EXE_NAME}
                PUBLIC
+                  ccpp_kinds.F
                   mpas_atmphys_camrad_init.F
                   mpas_atmphys_constants.F
                   mpas_atmphys_control.F
                   mpas_atmphys_date_time.F
-                  mpas_atmphys_driver.F
                   mpas_atmphys_driver_cloudiness.F
                   mpas_atmphys_driver_convection.F
+                  mpas_atmphys_driver.F
                   mpas_atmphys_driver_gwdo.F
                   mpas_atmphys_driver_lsm.F
+                  mpas_atmphys_driver_lsm_shared.F
                   mpas_atmphys_driver_microphysics.F
                   mpas_atmphys_driver_oml.F
                   mpas_atmphys_driver_pbl.F

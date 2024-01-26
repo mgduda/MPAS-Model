@@ -11,10 +11,10 @@ target_sources(${MPAS_EXE_NAME}
                   mpas_derived_types.F
                   mpas_dmpar.F
                   mpas_domain_routines.F
-                  mpas_field_accessor.F
                   mpas_field_routines.F
                   mpas_forcing.F
                   mpas_framework.F
+                  mpas_halo.F
                   mpas_hash.F
                   mpas_io.F
                   mpas_io_streams.F
@@ -23,12 +23,15 @@ target_sources(${MPAS_EXE_NAME}
                   mpas_log.F
                   mpas_pool_routines.F
                   mpas_sort.F
+                  mpas_stream_inquiry.F
                   mpas_stream_list.F
                   mpas_stream_manager.F
+                  mpas_string_utils.F
                   mpas_threading.F
                   mpas_timekeeping.F
                   mpas_timer.F
                   pool_hash.c
                   random_id.c
                   regex_matching.c
+                  stream_inquiry.c
                   xml_stream_parser.c)

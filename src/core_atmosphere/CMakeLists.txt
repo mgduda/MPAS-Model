@@ -70,4 +70,5 @@ target_sources(${MPAS_EXE_NAME}
                   mpas_atm_core.F
                   mpas_atm_core_interface.F
                   mpas_atm_dimensions.F
+                  mpas_atm_halos.F
                   mpas_atm_threading.F)

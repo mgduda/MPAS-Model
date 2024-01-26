@@ -1,9 +1,10 @@
 target_sources(${MPAS_EXE_NAME}
                PUBLIC
-                  convective_diagnostics.F
-                  isobaric_diagnostics.F
-                  mpas_atm_diagnostic_template.F
                   mpas_atm_diagnostics_manager.F
                   mpas_atm_diagnostics_utils.F
-                  pv_diagnostics.F
-                  soundings.F)
+                  mpas_atm_diagnostic_template.F
+                  mpas_cloud_diagnostics.F
+                  mpas_convective_diagnostics.F
+                  mpas_isobaric_diagnostics.F
+                  mpas_pv_diagnostics.F
+                  mpas_soundings.F)
