@@ -71,6 +71,8 @@ else()
     message(FATAL_ERROR "Please define MPAS_COMPILER as one of: gnu intel pgi")
 endif()
 
+set_property(TARGET ${MPAS_EXE_NAME} PROPERTY Fortran_FORMAT FREE)
+
 
 #
 # Set precision for real values
@@ -89,7 +91,7 @@ set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${BYTESWAP_FLAGS}")
 
 
 #
-# Add required external libraries: netCDF, parallel-netCDF, PIO
+# Locate external libraries: netCDF, parallel-netCDF, PIO
 #
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/" ${CMAKE_MODULE_PATH})
 
@@ -97,39 +99,27 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/" ${CMAKE_MODULE_PATH})
 find_package(NetCDF REQUIRED)
 find_package(HDF5 REQUIRED)
 find_package(PNETCDF REQUIRED)
-find_package(PIO REQUIRED)
+find_package(PIO)
 
 
 #
-# Set compilation macros to select appropriate PIO API
+# If the PIO library was found, use PIO; otherwise use SMIOL
 #
 get_property(PIO_VERSION GLOBAL PROPERTY PIO_VERSION)
-if(PIO_VERSION STREQUAL "2")
-    target_compile_definitions(${MPAS_EXE_NAME} PUBLIC USE_PIO2)
+if(PIO_VERSION GREATER_EQUAL 1)
+    target_compile_definitions(${MPAS_EXE_NAME} PUBLIC MPAS_PIO_SUPPORT)
+
+    #
+    # Set compilation macros to select appropriate PIO API
+    #
+    if(PIO_VERSION STREQUAL "2")
+        target_compile_definitions(${MPAS_EXE_NAME} PUBLIC USE_PIO2)
+    endif()
+    set(IO_LIBRARIES ${PIO_LIBRARIES})
+    set(IO_INCLUDES_DIRS ${PIO_INCLUDE_DIRS})
+else()
+    target_compile_definitions(${MPAS_EXE_NAME} PUBLIC MPAS_SMIOL_SUPPORT)
 endif()
-
-
-#
-# Define main target dependencies
-#
-target_include_directories(${MPAS_EXE_NAME}
-                           PUBLIC
-                              ${PNETCDF_INCLUDE_DIRS}
-                              ${HDF5_INCLUDE_DIRS}
-                              ${PIO_INCLUDE_DIR}
-                              ${NETCDF_INCLUDE_DIRS}
-                          )
-
-target_link_libraries(${MPAS_EXE_NAME}
-                      PUBLIC
-                         ${PIO_LIBRARIES}
-                         ${NetCDF_LIBRARIES}
-                         ${HDF5_LIBRARIES}
-                         ${PNETCDF_LIBRARIES}
-                         ${CMAKE_DL_LIBS}
-                     )
-
-set_property(TARGET ${MPAS_EXE_NAME} PROPERTY Fortran_FORMAT FREE)
 
 
 #
@@ -145,3 +135,23 @@ get_property(MPAS_INTERNAL_INCLUDE_DIRS GLOBAL PROPERTY MPAS_INTERNAL_INCLUDE_DI
 get_property(MPAS_INTERNAL_LIBRARIES GLOBAL PROPERTY MPAS_INTERNAL_LIBRARIES)
 target_include_directories(${MPAS_EXE_NAME} PRIVATE ${MPAS_INTERNAL_INCLUDE_DIRS})
 target_link_libraries(${MPAS_EXE_NAME} PRIVATE ${MPAS_INTERNAL_LIBRARIES})
+
+#
+# Add external include paths and libraries
+#
+target_include_directories(${MPAS_EXE_NAME}
+                           PUBLIC
+                              ${IO_INCLUDE_DIRS}
+                              ${PNETCDF_INCLUDE_DIRS}
+                              ${HDF5_INCLUDE_DIRS}
+                              ${NETCDF_INCLUDE_DIRS}
+                          )
+
+target_link_libraries(${MPAS_EXE_NAME}
+                      PUBLIC
+                         ${IO_LIBRARIES}
+                         ${NetCDF_LIBRARIES}
+                         ${HDF5_LIBRARIES}
+                         ${PNETCDF_LIBRARIES}
+                         ${CMAKE_DL_LIBS}
+                     )
