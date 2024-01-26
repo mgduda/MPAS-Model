@@ -72,6 +72,7 @@ else()
 endif()
 
 set_property(TARGET ${MPAS_EXE_NAME} PROPERTY Fortran_FORMAT FREE)
+set_property(TARGET ${MPAS_EXE_NAME} PROPERTY Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/mod)
 
 
 #
