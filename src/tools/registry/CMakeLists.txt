@@ -15,6 +15,7 @@ add_executable(parse)
 target_compile_definitions(parse PUBLIC MPAS_NAMELIST_SUFFIX=${MPAS_CORE})
 target_compile_definitions(parse PUBLIC MPAS_GIT_VERSION=${MPAS_GIT_VERSION})
 target_compile_definitions(parse PUBLIC MPAS_EXE_NAME=${MPAS_EXE_NAME})
+target_compile_definitions(parse PUBLIC MPAS_BUILD_TARGET=${MPAS_COMPILER})
 
 target_sources(parse
                PUBLIC
