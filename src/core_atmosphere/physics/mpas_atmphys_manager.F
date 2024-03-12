@@ -237,6 +237,7 @@
     !update surface boundary conditions with input sea-surface temperatures and fractional
     !sea-ice coverage:
     if(mpas_is_alarm_ringing(clock,sfcbdyAlarmID,ierr=ierr)) then
+       call mpas_log_write('*RING* sfcbdy alarm is ringing *RING*')
        call mpas_reset_clock_alarm(clock,sfcbdyAlarmID,ierr=ierr)
        if(config_sst_update) &
           call physics_update_sst(domain%dminfo,config_frac_seaice,mesh,sfc_input,diag_physics)
@@ -401,6 +402,7 @@
  logical,pointer:: config_sst_update
  logical,pointer:: config_frac_seaice
  logical,pointer:: config_microp_re
+ logical,pointer:: config_do_restart
 
 
  integer,pointer:: cam_dim1
@@ -414,6 +416,7 @@
  type(MPAS_Time_Type):: startTime,alarmStartTime
  type(MPAS_TimeInterval_Type):: alarmTimeStep, alarmTimeStepHi
  character(len=StrKIND) :: stream_interval
+ character(len=StrKIND) :: stream_ref_time
  integer:: ierr
 
 !-----------------------------------------------------------------------------------------------------------------
@@ -439,6 +442,7 @@
 
  call mpas_pool_get_config(configs,'config_dt',config_dt)
 
+ call mpas_pool_get_config(configs,'config_do_restart',config_do_restart)
 
  call mpas_pool_get_dimension(mesh,'cam_dim1'   ,cam_dim1   )
  call mpas_pool_get_dimension(mesh,'nMonths'    ,nMonths    )
@@ -557,10 +561,27 @@
     call MPAS_stream_mgr_get_property(stream_manager, 'surface', MPAS_STREAM_PROPERTY_RECORD_INTV, stream_interval, &
                                       direction=MPAS_STREAM_INPUT, ierr=ierr)
     call mpas_set_timeInterval(alarmTimeStep,timeString=stream_interval,ierr=ierr)
-    alarmStartTime = startTime
+
+    ! Get the reference time -- if specified -- from the surface stream, and use that
+    ! to anchor the ringing times for the sfcbdy alarm to the same point as the reads
+    ! of the surface stream
+    call MPAS_stream_mgr_get_property(stream_manager, 'surface', MPAS_STREAM_PROPERTY_REF_TIME, stream_ref_time, &
+                                      direction=MPAS_STREAM_INPUT, ierr=ierr)
+    if (ierr == MPAS_STREAM_MGR_NOERR .and. trim(stream_ref_time) /= 'none') then
+        call mpas_set_time(alarmStartTime, dateTimeString=stream_ref_time, ierr=ierr)
+    else
+       alarmStartTime = startTime
+    end if
+
     call mpas_add_clock_alarm(clock,sfcbdyAlarmID,alarmStartTime,alarmTimeStep,ierr=ierr)
     if(ierr /= 0) &
        call physics_error_fatal('subroutine physics_init: error creating alarm sfcbdy')
+
+    ! If this is a restart simulation, clear the sfcbdy alarm -- the restart state should
+    ! already contain exactly what we want to use
+    if (config_do_restart) then
+       call mpas_reset_clock_alarm(clock,sfcbdyAlarmID,ierr=ierr)
+    end if
  endif
 
 !set alarm to update the ozone path length, the trace gas path length, the total emissivity,
