@@ -5925,7 +5925,7 @@ call mpas_timer_start('atm_compute_solve_diagnostics_work')
       ! Compute height on cell edges at velocity locations
       !
       call mpas_timer_start('h_edge')
-!$acc parallel present(cellsOnEdge,dcEdge,dvEdge)
+!$acc parallel
       !$acc loop gang worker
       do iEdge=edgeStart,edgeEnd
          cell1 = cellsOnEdge(1,iEdge)
@@ -5953,7 +5953,7 @@ call mpas_timer_start('atm_compute_solve_diagnostics_work')
       ! Compute circulation and relative vorticity at each vertex
       !
       call mpas_timer_start('vorticity')
-!$acc parallel present(edgesOnVertex,edgesOnVertex_sign,dcEdge,invAreaTriangle)
+!$acc parallel
       !$acc loop gang worker
       do iVertex=vertexStart,vertexEnd
          !$acc loop vector
@@ -5986,7 +5986,7 @@ call mpas_timer_start('atm_compute_solve_diagnostics_work')
       ! Compute the divergence at each cell center
       !
       call mpas_timer_start('divergence')
-!$acc parallel present(nEdgesOnCell,edgesOnCell,edgesOnCell_sign,dvEdge,invAreaCell)
+!$acc parallel
       !$acc loop gang worker
       do iCell=cellStart,cellEnd
          !$acc loop vector
@@ -6024,7 +6024,7 @@ call mpas_timer_start('atm_compute_solve_diagnostics_work')
       ! Replace 2.0 with 2 in exponentiation to avoid outside chance that
       ! compiler will actually allow "float raised to float" operation
       call mpas_timer_start('ke')
-!$acc parallel present(ke_edge,nEdgesOnCell,edgesOnCell)
+!$acc parallel
       !$acc loop gang vector
       do iCell=cellStart,cellEnd
          !$acc loop vector
@@ -6058,7 +6058,7 @@ call mpas_timer_start('hollingsworth')
 
          ! Replace 2.0 with 2 in exponentiation to avoid outside chance that
          ! compiler will actually allow "float raised to float" operation
-!$acc parallel present(ke_edge,edgesOnVertex,invAreaTriangle)
+!$acc parallel
 
          !$acc loop gang worker
          do iVertex=vertexStart,vertexEnd
@@ -6079,7 +6079,7 @@ call mpas_timer_start('hollingsworth')
 
          ke_fact = 1.0 - .375
 
-!$acc parallel present(verticesOnCell, kiteForCell, invAreaCell, kiteAreasOnVertex)
+!$acc parallel
          !$acc loop gang worker
          do iCell=cellStart,cellEnd
             !$acc loop vector
@@ -6124,7 +6124,7 @@ call mpas_timer_stop('hollingsworth')
 
       if (reconstruct_v) then
 call mpas_timer_start('tangential_wind')
-!$acc parallel present(nEdgesOnEdge,edgesOnEdge,weightsOnEdge)
+!$acc parallel
 !$acc loop gang worker
         do iEdge = edgeStart,edgeEnd
           do k = 1,nVertLevels
@@ -6149,7 +6149,7 @@ call mpas_timer_stop('tangential_wind')
       ! Avoid dividing h_vertex by areaTriangle and move areaTriangle into
       ! numerator for the pv_vertex calculation
       call mpas_timer_start('pv_vertex')
-!$acc parallel copyin(fVertex) present(vorticity)
+!$acc parallel copyin(fVertex)
       !$acc loop gang worker
       do iVertex = vertexStart,vertexEnd
          !$acc loop vector
@@ -6168,7 +6168,7 @@ call mpas_timer_stop('tangential_wind')
       !   ( this computes pv_edge at all edges bounding real cells )
       !
       call mpas_timer_start('pv_edge')
-!$acc parallel present(verticesOnEdge)
+!$acc parallel
       !$acc loop gang worker
       do iEdge = edgeStart,edgeEnd
          !$acc loop vector
@@ -6188,7 +6188,7 @@ call mpas_timer_stop('tangential_wind')
          !  only needed for APVM upwinding
          !
          call mpas_timer_start('pv_cell')
-!$acc parallel present(invAreaCell,nEdgesOnCell,verticesOnCell,kiteForCell,kiteAreasOnVertex)
+!$acc parallel
 
          !$acc loop gang worker
          do iCell=cellStart,cellEnd
@@ -6233,7 +6233,7 @@ call mpas_timer_stop('tangential_wind')
          !
          call mpas_timer_start('apvm')
          r = config_apvm_upwinding * dt
-!$acc parallel create(gradPVt,gradPVn) present(invDvEdge,invDcEdge,verticesOnEdge,cellsOnEdge)
+!$acc parallel create(gradPVt,gradPVn)
 
          !$acc loop gang worker
          do iEdge = edgeStart,edgeEnd
