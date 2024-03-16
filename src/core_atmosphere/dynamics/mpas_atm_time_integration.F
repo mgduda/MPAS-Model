@@ -146,6 +146,7 @@ module atm_time_integration
       call field_to_device(domain, 'dvEdge')
       call field_to_device(domain, 'invDcEdge')
       call field_to_device(domain, 'invDvEdge')
+      call field_to_device(domain, 'fVertex')
       call field_to_device(domain, 'kiteAreasOnVertex')
       call field_to_device(domain, 'weightsOnEdge')
       call field_to_device(domain, 'edgesOnVertex_sign')
@@ -326,6 +327,7 @@ module atm_time_integration
       real(kind=RKIND), dimension(:), pointer :: dvEdge
       real(kind=RKIND), dimension(:), pointer :: invDcEdge
       real(kind=RKIND), dimension(:), pointer :: invDvEdge
+      real(kind=RKIND), dimension(:), pointer :: fVertex
       real(kind=RKIND), dimension(:,:), pointer :: kiteAreasOnVertex
       real(kind=RKIND), dimension(:,:), pointer :: weightsOnEdge
       real(kind=RKIND), dimension(:,:), pointer :: edgesOnVertex_sign
@@ -393,6 +395,10 @@ module atm_time_integration
       nullify(invDvEdge)
       call mpas_pool_get_array(mesh, 'invDvEdge', invDvEdge)
       !$acc exit data delete(invDvEdge)
+
+      nullify(fVertex)
+      call mpas_pool_get_array(mesh, 'fVertex', fVertex)
+      !$acc exit data delete(fVertex)
 
       nullify(kiteAreasOnVertex)
       call mpas_pool_get_array(mesh, 'kiteAreasOnVertex', kiteAreasOnVertex)
@@ -6149,7 +6155,7 @@ call mpas_timer_stop('tangential_wind')
       ! Avoid dividing h_vertex by areaTriangle and move areaTriangle into
       ! numerator for the pv_vertex calculation
       call mpas_timer_start('pv_vertex')
-!$acc parallel copyin(fVertex)
+!$acc parallel
       !$acc loop gang worker
       do iVertex = vertexStart,vertexEnd
          !$acc loop vector
