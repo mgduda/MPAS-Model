@@ -13,6 +13,9 @@ module atm_core_interface
    use mpas_dmpar
    use mpas_io_units
 
+   private :: report_acc_devices
+
+
    contains
 
 
@@ -341,6 +344,10 @@ module atm_core_interface
 #endif
       call mpas_log_write('')
 
+#ifdef MPAS_OPENACC
+      call report_acc_devices()
+#endif
+
    end function atm_setup_log!}}}
 
 
@@ -626,6 +633,55 @@ module atm_core_interface
       call mpas_pool_add_field(block % allFields, 'scalars_tend', scalarsField)
 
    end function atm_allocate_scalars
+
+
+#ifdef MPAS_OPENACC
+   !***********************************************************************
+   !
+   !  function report_acc_devices
+   !
+   !> \brief   Queries OpenACC devices and reports device info to log file
+   !> \author  Michael G. Duda
+   !> \date    28 March 2024
+   !> \details 
+   !>  This routine makes use of the OpenACC runtime library to obtain
+   !>  information about how many and which kind of OpenACC devices are
+   !>  available to the current MPI rank.
+   !>
+   !>  NB: This routine is only compiled and only called if OPENACC=true.
+   !
+   !-----------------------------------------------------------------------
+   subroutine report_acc_devices()
+
+      use openacc, only : acc_get_property_string, acc_get_property, acc_get_num_devices, acc_get_device_num, &
+                          acc_get_device_type, acc_device_kind, acc_device_property, acc_property_vendor, &
+                          acc_property_name, acc_property_driver
+
+      implicit none
+
+      integer(kind=acc_device_kind) :: device
+      character(len=StrKIND) :: device_vendor, device_name, driver_vers
+      integer :: ndevices, device_num
+
+
+      device = acc_get_device_type()
+      ndevices = acc_get_num_devices(device)
+      device_num = acc_get_device_num(device_num)
+      call acc_get_property_string(device_num, device, acc_property_vendor, device_vendor)
+      call acc_get_property_string(device_num, device, acc_property_name, device_name)
+      call acc_get_property_string(device_num, device, acc_property_driver, driver_vers)
+
+      call mpas_log_write('OpenACC configuration:')
+      call mpas_log_write('  Number of devices: $i', intArgs=[ndevices])
+      call mpas_log_write('  Device # for this MPI task: $i', intArgs=[device_num])
+      call mpas_log_write('  Device vendor: '//trim(device_vendor))
+      call mpas_log_write('  Device name: '//trim(device_name))
+      call mpas_log_write('  Device driver version: '//trim(driver_vers))
+      call mpas_log_write('')
+
+   end subroutine report_acc_devices
+#endif
+
 
 #include "setup_immutable_streams.inc"
 
