@@ -653,6 +653,7 @@ module atm_core_interface
    !-----------------------------------------------------------------------
    subroutine report_acc_devices()
 
+      use mpas_c_interfacing, only : mpas_sanitize_string
       use openacc, only : acc_get_property_string, acc_get_property, acc_get_num_devices, acc_get_device_num, &
                           acc_get_device_type, acc_device_kind, acc_device_property, acc_property_vendor, &
                           acc_property_name, acc_property_driver
@@ -670,6 +671,10 @@ module atm_core_interface
       call acc_get_property_string(device_num, device, acc_property_vendor, device_vendor)
       call acc_get_property_string(device_num, device, acc_property_name, device_name)
       call acc_get_property_string(device_num, device, acc_property_driver, driver_vers)
+
+      call mpas_sanitize_string(device_vendor)
+      call mpas_sanitize_string(device_name)
+      call mpas_sanitize_string(driver_vers)
 
       call mpas_log_write('OpenACC configuration:')
       call mpas_log_write('  Number of devices: $i', intArgs=[ndevices])
