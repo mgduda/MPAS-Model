@@ -247,6 +247,8 @@ module init_atm_cases
                call physics_initialize_real(mesh, fg, domain % dminfo, block_ptr % dimensions, block_ptr % configs)
             end if
 
+            call read_aop(block_ptr % configs, domain % dminfo)
+
             block_ptr => block_ptr % next
          end do
 
@@ -7134,5 +7136,102 @@ call mpas_log_write('Done with soil consistency check')
 
    end function read_text_array
 
+
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   ! Example subroutine to use SMIOL for reading of fields from a netCDF file
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   subroutine read_aop(configs, dminfo)
+
+      use SMIOLf
+      use mpas_log
+#include "smiol_codes.inc"
+
+      implicit none
+
+      ! Arguments
+      type (mpas_pool_type), intent(in) :: configs
+      type (dm_info), intent(in) :: dminfo
+
+      ! Local variables
+      integer :: stat
+      type (SMIOLf_context), pointer :: context
+      type (SMIOLf_file), pointer :: aop_file
+      type (SMIOLf_decomp), pointer :: decomp       ! Not used for non-decomposed variables
+      integer (kind=I8KIND) :: radius_size, rh_size, lambda_size
+      real (kind=R4KIND), dimension(:,:,:), pointer :: qsca
+
+
+      !
+      ! Set up a context, within which SMIOL can do parallel I/O
+      !
+#ifdef MPAS_USE_MPI_F08
+      stat = SMIOLf_init(dminfo % comm % mpi_val, 1, dminfo % nprocs, context)
+#else
+      stat = SMIOLf_init(dminfo % comm, 1, dminfo % nprocs, context)
+#endif
+      if (stat /= SMIOL_SUCCESS) then
+          call mpas_log_write('Error initializing SMIOL context', messageType=MPAS_LOG_ERR)
+          call mpas_log_write(trim(SMIOLf_error_string(stat)), messageType=MPAS_LOG_ERR)
+          return
+      end if
+
+      !
+      ! Open the file to be read
+      !
+      stat = SMIOLf_open_file(context, 'opticsBands_SU.v1_3.RRTMG.nc', SMIOL_FILE_READ, aop_file)
+      if (stat /= SMIOL_SUCCESS) then
+          call mpas_log_write('Error opening file opticsBands_SU.v1_3.RRTMG.nc', messageType=MPAS_LOG_ERR)
+          call mpas_log_write(trim(SMIOLf_error_string(stat)), messageType=MPAS_LOG_ERR)
+          stat = SMIOLf_finalize(context)
+          return
+      end if
+
+      !
+      ! Inquire about the size of dimensions
+      !
+      stat = SMIOLf_inquire_dim(aop_file, 'radius', dimsize=radius_size)
+      stat = SMIOLf_inquire_dim(aop_file, 'rh', dimsize=rh_size)
+      stat = SMIOLf_inquire_dim(aop_file, 'lambda', dimsize=lambda_size)
+
+      call mpas_log_write('radius = $i', intArgs=[int(radius_size)])
+      call mpas_log_write('rh     = $i', intArgs=[int(rh_size)])
+      call mpas_log_write('lambda = $i', intArgs=[int(lambda_size)])
+
+      allocate(qsca(radius_size, rh_size, lambda_size))
+
+      !
+      ! Read the variable qsca as a non-decomposed variable
+      ! I.e., every MPI tasks reads the full variable
+      !
+      nullify(decomp)
+      stat = SMIOLf_get_var(aop_file, 'qsca', decomp, qsca)
+      if (stat /= SMIOL_SUCCESS) then
+          call mpas_log_write('Error reading variable qsca', messageType=MPAS_LOG_ERR)
+          call mpas_log_write(trim(SMIOLf_error_string(stat)), messageType=MPAS_LOG_ERR)
+          stat = SMIOLf_close_file(aop_file)
+          stat = SMIOLf_finalize(context)
+          return
+      end if
+
+      call mpas_log_write('min, max qsca = $r, $r', realArgs=[minval(qsca), maxval(qsca)])
+
+      deallocate(qsca)
+
+      stat = SMIOLf_close_file(aop_file)
+      if (stat /= SMIOL_SUCCESS) then
+          call mpas_log_write('Error closing file opticsBands_SU.v1_3.RRTMG.nc', messageType=MPAS_LOG_ERR)
+          call mpas_log_write(trim(SMIOLf_error_string(stat)), messageType=MPAS_LOG_ERR)
+          stat = SMIOLf_finalize(context)
+          return
+      end if
+
+      stat = SMIOLf_finalize(context)
+      if (stat /= SMIOL_SUCCESS) then
+          call mpas_log_write('Error finalizing SMIOL context', messageType=MPAS_LOG_ERR)
+          call mpas_log_write(trim(SMIOLf_error_string(stat)), messageType=MPAS_LOG_ERR)
+          return
+      end if
+
+   end subroutine read_aop
 
 end module init_atm_cases
