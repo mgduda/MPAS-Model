@@ -84,6 +84,8 @@ module mpas_derived_types
 
 #include "mpas_forcing_types.inc"
 
+#include "mpas_bookkeeping_types.inc"
+
    contains
 
 end module mpas_derived_types

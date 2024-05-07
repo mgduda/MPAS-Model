@@ -592,6 +592,7 @@ module atm_core
       use mpas_timer, only : mpas_timer_start, mpas_timer_stop
       use mpas_atm_boundaries, only : mpas_atm_update_bdy_tend
       use mpas_atm_diagnostics_manager, only : mpas_atm_diag_update, mpas_atm_diag_compute, mpas_atm_diag_reset
+      use mpas_bookkeeping
    
       implicit none
    
@@ -619,7 +620,18 @@ module atm_core
       real (kind=R8KIND) :: diag_start_time, diag_stop_time
       real (kind=R8KIND) :: input_start_time, input_stop_time
       real (kind=R8KIND) :: output_start_time, output_stop_time
+
+      type (mpas_bookkeeper), pointer :: atm_bookie
+
       
+      atm_bookie => mpas_bookkeeping_new_bookkeeper()
+
+      ierr = atm_bookie % init()
+      ierr = atm_bookie % declare_requisite('foobar')
+      ierr = atm_bookie % finalize()
+
+      deallocate(atm_bookie)
+
       ierr = 0
 
       clock => domain % clock

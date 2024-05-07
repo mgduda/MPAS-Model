@@ -37,7 +37,11 @@ OBJS = mpas_kind_types.o \
        mpas_halo.o \
        mpas_string_utils.o \
        mpas_stream_inquiry.o \
-       stream_inquiry.o
+       stream_inquiry.o \
+       mpas_bookkeeping.o \
+       bookkeeping.o \
+       hash.o \
+       hash_table.o
 
 all: framework $(DEPS)
 
@@ -113,6 +117,10 @@ xml_stream_parser.o: xml_stream_parser.c
 mpas_halo.o: mpas_derived_types.o mpas_pool_routines.o mpas_log.o
 
 mpas_stream_inquiry.o : mpas_derived_types.o mpas_log.o mpas_c_interfacing.o
+
+mpas_bookkeeping.o : mpas_derived_types.o mpas_log.o mpas_c_interfacing.o
+
+hash_table.o : hash.o
 
 clean:
 	$(RM) *.o *.mod *.f90 libframework.a
