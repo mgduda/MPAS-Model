@@ -5338,11 +5338,27 @@ module mpas_io
       end if
 
 #ifdef MPAS_PIO_SUPPORT
+      if (handle % preexisting_file) then
+         pio_ierr = PIO_redef(handle % pio_file)
+         if (pio_ierr /= PIO_noerr) then
+            io_global_err = pio_ierr
+            return
+         end if
+      end if
+
       pio_ierr = PIO_put_att(handle % pio_file, varid, attName, attValueLocal) 
       if (pio_ierr /= PIO_noerr) then
          io_global_err = pio_ierr
          if (present(ierr)) ierr = MPAS_IO_ERR_BACKEND
          return
+      end if
+
+      if (handle % preexisting_file) then
+         pio_ierr = PIO_enddef(handle % pio_file)
+         if (pio_ierr /= PIO_noerr) then
+            io_global_err = pio_ierr
+            return
+         end if
       end if
 #endif
 
