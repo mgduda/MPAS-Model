@@ -5701,6 +5701,16 @@ module mpas_io
          end if
       end if
 
+#ifdef MPAS_PIO_SUPPORT
+      if (handle % preexisting_file) then
+         pio_ierr = PIO_redef(handle % pio_file)
+         if (pio_ierr /= PIO_noerr) then
+            io_global_err = pio_ierr
+            return
+         end if
+      end if
+#endif
+
       if ((new_attlist_node % attHandle % precision == MPAS_IO_SINGLE_PRECISION) .and. &
           (MPAS_IO_NATIVE_PRECISION /= MPAS_IO_SINGLE_PRECISION)) then
          singleVal = real(attValueLocal,R4KIND)
@@ -5748,6 +5758,14 @@ module mpas_io
          io_global_err = pio_ierr
          if (present(ierr)) ierr = MPAS_IO_ERR_BACKEND
          return
+      end if
+
+      if (handle % preexisting_file) then
+         pio_ierr = PIO_enddef(handle % pio_file)
+         if (pio_ierr /= PIO_noerr) then
+            io_global_err = pio_ierr
+            return
+         end if
       end if
 #endif
 #ifdef MPAS_SMIOL_SUPPORT
