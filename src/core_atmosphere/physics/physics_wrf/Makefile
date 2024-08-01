@@ -96,6 +96,9 @@ module_sf_noah_seaice_drv.o: \
 module_sf_noah_seaice.o: \
         module_sf_noahlsm.o
 
+module_cu_ntiedtke.o: module_cu_ntiedtke.F
+	$(FC) $(CPPFLAGS) $(COREDEF) $(FFLAGS) $(FFLAGS_NOFMA) -c $*.F $(CPPINCLUDES) $(FCINCLUDES) -I.. -I../../../framework -I../../../external/esmf_time_f90
+
 clean:
 	$(RM) *.f90 *.o *.mod
 	@# Certain systems with intel compilers generate *.i files
