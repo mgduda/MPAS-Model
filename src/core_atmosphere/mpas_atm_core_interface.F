@@ -206,9 +206,99 @@ module atm_core_interface
          ierr = ierr + 1
          call mpas_log_write('Package setup failed for atmphys in core_atmosphere', messageType=MPAS_LOG_ERR)
       end if
+
+      !
+      ! Packages for the GF-MONAN scheme
+      !
+      call setup_monan_packages(configs, packages)
 #endif
 
    end function atm_setup_packages
+
+
+   !***********************************************************************
+   !
+   !  function setup_monan_packages
+   !
+   !> \brief   Set up packages specific to the GF-MONAN scheme
+   !> \author  ...
+   !> \date    16 August 2024
+   !> \details
+   !>  ...
+   !
+   !-----------------------------------------------------------------------
+   subroutine setup_monan_packages(configs, packages)
+
+      implicit none
+
+      type (mpas_pool_type), intent(inout) :: configs
+      type (mpas_pool_type), intent(inout) :: packages
+
+      character(len=StrKIND), pointer :: config_convection_scheme
+      integer, pointer :: config_suboption_1, &
+                          config_suboption_2, &
+                          config_suboption_3
+
+      logical, pointer :: gf_monan_opt1, &
+                          gf_monan_opt2, &
+                          gf_monan_opt3
+
+      !
+      ! Retrieve namelist options related to GF-MONAN
+      !
+      nullify(config_convection_scheme)
+      nullify(config_suboption_1)
+      nullify(config_suboption_2)
+      nullify(config_suboption_3)
+      call mpas_pool_get_config(configs, 'config_convection_scheme', config_convection_scheme)
+      call mpas_pool_get_config(configs, 'config_suboption_1', config_suboption_1)
+      call mpas_pool_get_config(configs, 'config_suboption_2', config_suboption_2)
+      call mpas_pool_get_config(configs, 'config_suboption_3', config_suboption_3)
+
+      !
+      ! Retrieve pointers to packages
+      ! NB: the name of the package in the 'packages' pool ends with 'Active'
+      !
+      nullify(gf_monan_opt1)
+      nullify(gf_monan_opt2)
+      nullify(gf_monan_opt3)
+      call mpas_pool_get_package(packages, 'gf_monan_opt1Active', gf_monan_opt1)
+      call mpas_pool_get_package(packages, 'gf_monan_opt2Active', gf_monan_opt2)
+      call mpas_pool_get_package(packages, 'gf_monan_opt3Active', gf_monan_opt3)
+
+      gf_monan_opt1 = .false.
+      gf_monan_opt2 = .false.
+      gf_monan_opt3 = .false.
+      if (trim(config_convection_scheme) == 'cu_gf_monan') then
+
+         call mpas_log_write('')
+         call mpas_log_write('Options for the GF-MONAN scheme:')
+
+         if (config_suboption_1 == 1) then
+            gf_monan_opt1 = .true.
+            call mpas_log_write('  Option 1: Active')
+         else
+            call mpas_log_write('  Option 1: Inactive')
+         end if
+
+         if (config_suboption_2 == 1) then
+            gf_monan_opt2 = .true.
+            call mpas_log_write('  Option 2: Active')
+         else
+            call mpas_log_write('  Option 2: Inactive')
+         end if
+
+         if (config_suboption_3 == 1) then
+            gf_monan_opt3 = .true.
+            call mpas_log_write('  Option 3: Active')
+         else
+            call mpas_log_write('  Option 3: Inactive')
+         end if
+
+         call mpas_log_write('')
+      end if
+
+   end subroutine setup_monan_packages
 
 
    !***********************************************************************
