@@ -298,6 +298,46 @@ module atm_core
    end function atm_core_init
 
 
+   !-----------------------------------------------------------------------
+   !  routine atm_update_sources
+   !
+   !> \brief Updates time-varying sources/sinks for scalars
+   !> \date  27 August 2024
+   !> \details
+   !>  This routine takes as input the block containing all model fields
+   !>  and allows for the updating of any time-varying source/sink fields
+   !>  associated with scalars.
+   !>
+   !>  Ideally, this routine should be called in every model timestep after
+   !>  any input streams have been read.
+   !
+   !-----------------------------------------------------------------------
+   subroutine atm_update_sources(block)
+
+      type (block_type), intent(inout) :: block
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !!! The remainder of this subroutine provides an example of what can be done...
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   
+      type (mpas_pool_type), pointer :: diag_physics
+      integer, pointer :: nCells
+
+      integer :: iCell
+
+      nullify(diag_physics)
+      call mpas_pool_get_subpool(block % structs, 'diag_physics', diag_physics)
+
+      nullify(nCells)
+      call mpas_pool_get_dimension(diag_physics, 'nCells', nCells)
+
+      do iCell = 1, nCells
+         ! ...
+      end do
+
+   end subroutine atm_update_sources
+
+
    subroutine atm_simulation_clock_init(core_clock, configs, ierr)
 
       use mpas_timekeeping
@@ -781,6 +821,11 @@ module atm_core
                end if
             end if
          end do
+
+         !
+         ! After any input streams have been read, update sources/sinks
+         !
+         call atm_update_sources(domain % blocklist)
 
          call mpas_timer_start("time integration")
          call mpas_dmpar_get_time(integ_start_time)
