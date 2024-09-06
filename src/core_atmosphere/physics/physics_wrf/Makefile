@@ -102,6 +102,9 @@ clean:
 	@# This removes them during the clean process
 	$(RM) *.i
 
+$(FMA_MODULE).o: $(FMA_MODULE).F
+	$(FC) $(CPPFLAGS) $(COREDEF) $(FFLAGS_FMA) -c $*.F $(CPPINCLUDES) $(FCINCLUDES) -I.. -I../../../framework -I../../../external/esmf_time_f90
+
 .F.o:
 ifeq "$(GEN_F90)" "true"
 	$(CPP) $(CPPFLAGS) $(COREDEF) $(CPPINCLUDES) $< > $*.f90

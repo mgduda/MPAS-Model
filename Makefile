@@ -215,7 +215,8 @@ ifort:   # BUILDTARGET Intel Fortran, C, and C++ compiler suite
 	"CC_SERIAL = icc" \
 	"CXX_SERIAL = icpc" \
 	"FFLAGS_PROMOTION = -real-size 64" \
-	"FFLAGS_OPT = -O3 -convert big_endian -free -align array64byte" \
+	"FFLAGS_OPT = -O3 -no-fma -convert big_endian -free -align array64byte" \
+	"FFLAGS_FMA = -O3 -fma -convert big_endian -free -align array64byte" \
 	"CFLAGS_OPT = -O3" \
 	"CXXFLAGS_OPT = -O3" \
 	"LDFLAGS_OPT = -O3" \
@@ -314,6 +315,7 @@ intel-mpi:   # BUILDTARGET Intel compiler suite with Intel MPI library
 
 gfortran:   # BUILDTARGET GNU Fortran, C, and C++ compilers
 	( $(MAKE) all \
+	"FMA_MODULE = $(FMA_MODULE)" \
 	"FC_PARALLEL = mpif90" \
 	"CC_PARALLEL = mpicc" \
 	"CXX_PARALLEL = mpicxx" \
@@ -321,7 +323,8 @@ gfortran:   # BUILDTARGET GNU Fortran, C, and C++ compilers
 	"CC_SERIAL = gcc" \
 	"CXX_SERIAL = g++" \
 	"FFLAGS_PROMOTION = -fdefault-real-8 -fdefault-double-8" \
-	"FFLAGS_OPT = -O3 -ffree-line-length-none -fconvert=big-endian -ffree-form" \
+	"FFLAGS_OPT = -O3 -mno-fma -ffree-line-length-none -fconvert=big-endian -ffree-form -fallow-argument-mismatch" \
+	"FFLAGS_FMA = -O3 -mfma -ffree-line-length-none -fconvert=big-endian -ffree-form -fallow-argument-mismatch" \
 	"CFLAGS_OPT = -O3" \
 	"CXXFLAGS_OPT = -O3" \
 	"LDFLAGS_OPT = -O3" \
