@@ -747,6 +747,7 @@ ifeq "$(PRECISION)" "single"
 	PRECISION_MESSAGE="MPAS was built with default single-precision reals."
 else
 	FFLAGS += $(FFLAGS_PROMOTION)
+	override FFLAGS_FMA += $(FFLAGS_PROMOTION)
 	PRECISION_MESSAGE="MPAS was built with default double-precision reals."
 endif #PRECISION IF
 
@@ -998,6 +999,7 @@ endif
                  CFLAGS="$(CFLAGS)" \
                  CXXFLAGS="$(CXXFLAGS)" \
                  FFLAGS="$(FFLAGS)" \
+                 FFLAGS_FMA="$(FFLAGS_FMA)" \
                  LDFLAGS="$(LDFLAGS)" \
                  RM="$(RM)" \
                  CPP="$(CPP)" \
