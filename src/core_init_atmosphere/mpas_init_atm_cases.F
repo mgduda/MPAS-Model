@@ -367,6 +367,27 @@ module init_atm_cases
          !
          call mpas_stream_mgr_reset_alarms(stream_manager, streamID='lbc', direction=MPAS_STREAM_OUTPUT, ierr=ierr)
 
+      else if (config_init_case == 10) then
+
+         call mpas_log_write(' les test case ')
+         block_ptr => domain % blocklist
+         do while (associated(block_ptr))
+
+            call mpas_pool_get_dimension(block_ptr % dimensions, 'nCells', nCells)
+            call mpas_pool_get_dimension(block_ptr % dimensions, 'nVertLevels', nVertLevels)
+
+            call mpas_pool_get_subpool(block_ptr % structs, 'mesh', mesh)
+            call mpas_pool_get_subpool(block_ptr % structs, 'fg', fg)
+            call mpas_pool_get_subpool(block_ptr % structs, 'state', state)
+            call mpas_pool_get_subpool(block_ptr % structs, 'diag', diag)
+
+            call mpas_log_write(' calling test case setup ')
+            call init_atm_case_les(domain % dminfo, mesh, fg, nCells, nVertLevels, state, diag, config_init_case, block_ptr % configs)
+            call decouple_variables(mesh, nCells, nVertLevels, state, diag)
+            call mpas_log_write(' returned from test case setup ')
+            block_ptr => block_ptr % next
+         end do
+
       else if (config_init_case == 13 ) then
 
          call mpas_log_write(' CAM-MPAS grid ')
@@ -393,24 +414,6 @@ module init_atm_cases
             call init_atm_case_cam_mpas(stream_manager, domain % dminfo, block_ptr, &
                                         mesh, block_ptr % dimensions, block_ptr % configs, nVertLevels)
 
-      else if (config_init_case == 10) then
-
-         call mpas_log_write(' les test case ')
-         block_ptr => domain % blocklist
-         do while (associated(block_ptr))
-
-            call mpas_pool_get_dimension(block_ptr % dimensions, 'nCells', nCells)
-            call mpas_pool_get_dimension(block_ptr % dimensions, 'nVertLevels', nVertLevels)
-
-            call mpas_pool_get_subpool(block_ptr % structs, 'mesh', mesh)
-            call mpas_pool_get_subpool(block_ptr % structs, 'fg', fg)
-            call mpas_pool_get_subpool(block_ptr % structs, 'state', state)
-            call mpas_pool_get_subpool(block_ptr % structs, 'diag', diag)
-
-            call mpas_log_write(' calling test case setup ')
-            call init_atm_case_les(domain % dminfo, mesh, fg, nCells, nVertLevels, state, diag, config_init_case, block_ptr % configs)
-            call decouple_variables(mesh, nCells, nVertLevels, state, diag)
-            call mpas_log_write(' returned from test case setup ')
             block_ptr => block_ptr % next
          end do
 

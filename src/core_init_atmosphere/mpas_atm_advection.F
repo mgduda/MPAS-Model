@@ -1023,7 +1023,6 @@ module atm_advection
 
    end subroutine atm_initialize_deformation_weights
 
- end module atm_advection
 !-----------------------
 
       subroutine atm_init_test_coefs( deformation_coef_c2, deformation_coef_s2, &
