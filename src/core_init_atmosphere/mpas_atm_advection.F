@@ -785,11 +785,7 @@ module atm_advection
 
       integer :: iv, ie
       logical :: do_the_cell
-<<<<<<< HEAD
       real (kind=RKIND) :: area_cell, sint2, cost2, sint_cost, dx, dy
-=======
-      real (kind=RKIND) :: area_cell, sint2, cost2, sint_cost
->>>>>>> 94ba9031b (Fixed error in w_x, w_y deformation coefficients.)
 
       logical, pointer :: is_periodic
       real(kind=RKIND), pointer :: x_period, y_period
