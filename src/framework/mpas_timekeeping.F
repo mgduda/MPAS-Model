@@ -1023,7 +1023,7 @@ module mpas_timekeeping
                      if (now > referenceTime) then
                         searchInterval = now - referenceTime
                         call mpas_interval_division(referenceTime, searchInterval, alarmPtr % ringTimeInterval, nDivs, searchRemainder)
-                        alarmPtr % prevRingTime = now - searchRemainder
+                        alarmPtr % prevRingTime = now - (alarmPtr % ringTimeInterval + searchRemainder)
                      else
                         searchInterval = referenceTime - now
                         call mpas_interval_division(referenceTime, searchInterval, alarmPtr % ringTimeInterval, nDivs, searchRemainder)
@@ -1033,7 +1033,7 @@ module mpas_timekeeping
                      if (now < referenceTime) then
                         searchInterval = now - referenceTime
                         call mpas_interval_division(referenceTime, searchInterval, alarmPtr % ringTimeInterval, nDivs, searchRemainder)
-                        alarmPtr % prevRingTime = now - searchRemainder
+                        alarmPtr % prevRingTime = now - (alarmPtr % ringTimeInterval + searchRemainder)
                      else
                         searchInterval = referenceTime - now
                         call mpas_interval_division(referenceTime, searchInterval, alarmPtr % ringTimeInterval, nDivs, searchRemainder)
