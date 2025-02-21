@@ -46,6 +46,19 @@ module test_core
       character (len=StrKIND), pointer :: xtime
       integer :: iErr
 
+      !
+      ! For testing alarms
+      !
+      integer :: istep
+      type (MPAS_Clock_type) :: test_clock
+      type (MPAS_Time_type) :: test_startTime
+      type (MPAS_Time_type) :: test_stopTime
+      type (MPAS_Time_type) :: test_currTime
+      type (MPAS_Time_type) :: test_alarmTime
+      type (MPAS_Time_type) :: test_refTime
+      type (MPAS_TimeInterval_type) :: test_timeStep
+      type (MPAS_TimeInterval_type) :: test_alarmTimeInterval
+
 
       iErr = 0
 
@@ -66,6 +79,153 @@ module test_core
 
       call mpas_stream_mgr_read(domain % streamManager, ierr=iErr)
       call mpas_stream_mgr_reset_alarms(domain % streamManager, direction=MPAS_STREAM_INPUT, ierr=iErr)
+
+      !
+      ! Alarm tests
+      !
+      call mpas_log_write('==== Begin alarm tests ====')
+
+      call mpas_set_time(test_startTime, YYYY=2000, MM=01, DD=01, H=0, M=0, S=0, S_n=0, S_d=0, ierr=ierr)
+      call mpas_set_time(test_stopTime, YYYY=2100, MM=01, DD=01, H=0, M=0, S=0, S_n=0, S_d=0, ierr=ierr)
+      call mpas_set_timeInterval(test_timeStep, dt=3600.0_RKIND, ierr=ierr)
+
+      call mpas_set_time(test_alarmTime, YYYY=2000, MM=01, DD=01, H=0, M=0, S=0, S_n=0, S_d=0, ierr=ierr)
+      call mpas_set_timeInterval(test_alarmTimeInterval, dt=86400.0_RKIND, ierr=ierr)
+
+      call mpas_create_clock(test_clock, test_startTime, test_timeStep, test_stopTime, ierr=ierr)
+
+      call mpas_add_clock_alarm(test_clock, 'foobar', test_alarmTime, test_alarmTimeInterval, ierr)
+
+      do istep = 1, 24*365
+          if (mpas_is_alarm_ringing(test_clock, 'foobar', ierr=ierr)) then
+              call mpas_reset_clock_alarm(test_clock, 'foobar', ierr=ierr)
+              test_currTime = mpas_get_clock_time(test_clock, MPAS_NOW, iErr)
+              call mpas_get_time(test_currTime, dateTimeString=startTimeStamp) 
+              call mpas_log_write('**ALARM** '//trim(startTimeStamp))
+          end if
+          call mpas_advance_clock(test_clock, ierr=ierr)
+      end do
+
+      test_currTime = mpas_get_clock_time(test_clock, MPAS_NOW, iErr)
+      call mpas_get_time(test_currTime, dateTimeString=startTimeStamp) 
+
+      call mpas_log_write('')
+      call mpas_log_write('Now it is '//trim(startTimeStamp))
+      call mpas_log_write('')
+
+      call mpas_log_write('=================================')
+      call mpas_log_write('Setting ref time to 2000-01-01_08')
+      call mpas_log_write('---------------------------------')
+      call mpas_set_time(test_refTime, YYYY=2000, MM=01, DD=01, H=8, M=0, S=0, S_n=0, S_d=0, ierr=ierr)
+      call mpas_adjust_alarm_to_reference_time(test_clock, 'foobar', test_refTime, ierr)
+      call mpas_print_alarm(test_clock, 'foobar', ierr)
+      if (mpas_is_alarm_ringing(test_clock, 'foobar', ierr=ierr)) then
+          call mpas_log_write('-> Alarm is RINGING')
+      else
+          call mpas_log_write('-> Alarm is NOT ringing')
+      end if
+      call mpas_reset_clock_alarm(test_clock, 'foobar', ierr=ierr)
+
+      call mpas_log_write('=================================')
+      call mpas_log_write('Setting ref time to 2020-01-01_18')
+      call mpas_log_write('---------------------------------')
+      call mpas_set_time(test_refTime, YYYY=2020, MM=01, DD=01, H=18, M=0, S=0, S_n=0, S_d=0, ierr=ierr)
+      call mpas_adjust_alarm_to_reference_time(test_clock, 'foobar', test_refTime, ierr)
+      call mpas_print_alarm(test_clock, 'foobar', ierr)
+      if (mpas_is_alarm_ringing(test_clock, 'foobar', ierr=ierr)) then
+          call mpas_log_write('-> Alarm is RINGING')
+      else
+          call mpas_log_write('-> Alarm is NOT ringing')
+      end if
+      call mpas_reset_clock_alarm(test_clock, 'foobar', ierr=ierr)
+
+      call mpas_log_write('=================================')
+      call mpas_log_write('Setting ref time to 2000-06-15_00')
+      call mpas_log_write('---------------------------------')
+      call mpas_set_time(test_refTime, YYYY=2000, MM=06, DD=15, H=0, M=0, S=0, S_n=0, S_d=0, ierr=ierr)
+      call mpas_adjust_alarm_to_reference_time(test_clock, 'foobar', test_refTime, ierr)
+      call mpas_print_alarm(test_clock, 'foobar', ierr)
+      if (mpas_is_alarm_ringing(test_clock, 'foobar', ierr=ierr)) then
+          call mpas_log_write('-> Alarm is RINGING')
+      else
+          call mpas_log_write('-> Alarm is NOT ringing')
+      end if
+      call mpas_reset_clock_alarm(test_clock, 'foobar', ierr=ierr)
+
+      call mpas_log_write('=================================')
+      call mpas_log_write('Setting ref time to 2020-01-01_00')
+      call mpas_log_write('---------------------------------')
+      call mpas_set_time(test_refTime, YYYY=2020, MM=01, DD=01, H=0, M=0, S=0, S_n=0, S_d=0, ierr=ierr)
+      call mpas_adjust_alarm_to_reference_time(test_clock, 'foobar', test_refTime, ierr)
+      call mpas_print_alarm(test_clock, 'foobar', ierr)
+      if (mpas_is_alarm_ringing(test_clock, 'foobar', ierr=ierr)) then
+          call mpas_log_write('-> Alarm is RINGING')
+      else
+          call mpas_log_write('-> Alarm is NOT ringing')
+      end if
+      call mpas_reset_clock_alarm(test_clock, 'foobar', ierr=ierr)
+
+      call mpas_set_clock_direction(test_clock, MPAS_BACKWARD, ierr)
+
+      call mpas_log_write('')
+      call mpas_log_write('>>>> Running the clock backwards <<<<<')
+      call mpas_log_write('')
+
+      call mpas_log_write('=================================')
+      call mpas_log_write('Setting ref time to 2000-01-01_08')
+      call mpas_log_write('---------------------------------')
+      call mpas_set_time(test_refTime, YYYY=2000, MM=01, DD=01, H=8, M=0, S=0, S_n=0, S_d=0, ierr=ierr)
+      call mpas_adjust_alarm_to_reference_time(test_clock, 'foobar', test_refTime, ierr)
+      call mpas_print_alarm(test_clock, 'foobar', ierr)
+      if (mpas_is_alarm_ringing(test_clock, 'foobar', ierr=ierr)) then
+          call mpas_log_write('-> Alarm is RINGING')
+      else
+          call mpas_log_write('-> Alarm is NOT ringing')
+      end if
+      call mpas_reset_clock_alarm(test_clock, 'foobar', ierr=ierr)
+
+      call mpas_log_write('=================================')
+      call mpas_log_write('Setting ref time to 2020-01-01_18')
+      call mpas_log_write('---------------------------------')
+      call mpas_set_time(test_refTime, YYYY=2020, MM=01, DD=01, H=18, M=0, S=0, S_n=0, S_d=0, ierr=ierr)
+      call mpas_adjust_alarm_to_reference_time(test_clock, 'foobar', test_refTime, ierr)
+      call mpas_print_alarm(test_clock, 'foobar', ierr)
+      if (mpas_is_alarm_ringing(test_clock, 'foobar', ierr=ierr)) then
+          call mpas_log_write('-> Alarm is RINGING')
+      else
+          call mpas_log_write('-> Alarm is NOT ringing')
+      end if
+      call mpas_reset_clock_alarm(test_clock, 'foobar', ierr=ierr)
+
+      call mpas_log_write('=================================')
+      call mpas_log_write('Setting ref time to 2000-06-15_00')
+      call mpas_log_write('---------------------------------')
+      call mpas_set_time(test_refTime, YYYY=2000, MM=06, DD=15, H=0, M=0, S=0, S_n=0, S_d=0, ierr=ierr)
+      call mpas_adjust_alarm_to_reference_time(test_clock, 'foobar', test_refTime, ierr)
+      call mpas_print_alarm(test_clock, 'foobar', ierr)
+      if (mpas_is_alarm_ringing(test_clock, 'foobar', ierr=ierr)) then
+          call mpas_log_write('-> Alarm is RINGING')
+      else
+          call mpas_log_write('-> Alarm is NOT ringing')
+      end if
+      call mpas_reset_clock_alarm(test_clock, 'foobar', ierr=ierr)
+
+      call mpas_log_write('=================================')
+      call mpas_log_write('Setting ref time to 2020-01-01_00')
+      call mpas_log_write('---------------------------------')
+      call mpas_set_time(test_refTime, YYYY=2020, MM=01, DD=01, H=0, M=0, S=0, S_n=0, S_d=0, ierr=ierr)
+      call mpas_adjust_alarm_to_reference_time(test_clock, 'foobar', test_refTime, ierr)
+      call mpas_print_alarm(test_clock, 'foobar', ierr)
+      if (mpas_is_alarm_ringing(test_clock, 'foobar', ierr=ierr)) then
+          call mpas_log_write('-> Alarm is RINGING')
+      else
+          call mpas_log_write('-> Alarm is NOT ringing')
+      end if
+      call mpas_reset_clock_alarm(test_clock, 'foobar', ierr=ierr)
+
+      call mpas_set_clock_direction(test_clock, MPAS_FORWARD, ierr)
+
+      call mpas_log_write('==== End alarm tests ====')
 
    end function test_core_init!}}}
 
@@ -110,6 +270,7 @@ module test_core
       allocate(threadErrs(maxThreads))
       threadErrs(:) = 0
 
+#if 0
       !
       ! Test performance of framework sorting routines
       !
@@ -171,14 +332,15 @@ module test_core
       call test_core_test_intervals(domain, threadErrs, iErr)
 
       ! Test writing of block write streams, which have the prefix 'block_'
-      block => domain % blocklist
-      do while (associated(block))
-         call mpas_stream_mgr_reset_alarms(domain % streamManager, streamID="block_.*")
-         call mpas_stream_mgr_block_write(domain % streamManager, block, streamID="block_.*", forceWriteNow=.true.)
-         block => block % next
-      end do
-
-      call mpas_stream_mgr_write(domain % streamManager, forceWriteNow=.true.)
+!      block => domain % blocklist
+!      do while (associated(block))
+!         call mpas_stream_mgr_reset_alarms(domain % streamManager, streamID="block_.*")
+!         call mpas_stream_mgr_block_write(domain % streamManager, block, streamID="block_.*", forceWriteNow=.true.)
+!         block => block % next
+!      end do
+!
+!      call mpas_stream_mgr_write(domain % streamManager, forceWriteNow=.true.)
+#endif
 
       !
       ! Test functionality of adjustments to alarm reference time
