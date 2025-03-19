@@ -25,8 +25,7 @@ CONTAINS
                      ims,ime, jms,jme, kms,kme,                    &
                      its,ite, jts,jte, kts,kte,                    &
                      ustm,ck,cka,cd,cda,                           &
-                     isftcflx,iz0tlnd,scm_force_flux,              &
-                     heat_flux, moisture_flux, specified_flux      )
+                     isftcflx,iz0tlnd,scm_force_flux)
 !-------------------------------------------------------------------
       IMPLICIT NONE
 !-------------------------------------------------------------------
@@ -185,8 +184,6 @@ CONTAINS
 
       INTEGER,  OPTIONAL,  INTENT(IN )   ::     ISFTCFLX, IZ0TLND
       INTEGER,  OPTIONAL,  INTENT(IN )   ::     SCM_FORCE_FLUX
-      REAL,     INTENT(IN   )            ::     heat_flux, moisture_flux
-      LOGICAL,  INTENT(IN   )            ::     specified_flux
 
       REAL,     DIMENSION( ims:ime, jms:jme )                    , &
                 INTENT(INOUT  )             ::               QSFC
@@ -211,7 +208,6 @@ CONTAINS
       REAL,     DIMENSION( its:ite ) ::                      DX2D
 
       INTEGER ::  I,J
-      REAL ::  RHO
 
       DO J=jts,jte
 
@@ -231,14 +227,6 @@ CONTAINS
            T1D(i) =T3D(i,1,j)
         ENDDO
 
-        IF(specified_flux)THEN
-           DO i=its,ite
-              RHO = P1D(i)/R/(T1D(i)*(1.+EP1*QV1D(i)))
-              HFX(i,j)=heat_flux*RHO*CP
-              QFX(i,j)=moisture_flux*RHO
-           ENDDO
-        ENDIF
-
         !  Sending array starting locations of optional variables may cause
         !  troubles, so we explicitly change the call.
 
@@ -255,7 +243,6 @@ CONTAINS
                 GZ1OZ0(ims,j),WSPD(ims,j),BR(ims,j),ISFFLX,DX2D,   &
                 SVP1,SVP2,SVP3,SVPT0,EP1,EP2,KARMAN,EOMEG,STBOLT,  &
                 P1000mb,                                           &
-                specified_flux,                                    &
                 ids,ide, jds,jde, kds,kde,                         &
                 ims,ime, jms,jme, kms,kme,                         &
                 its,ite, jts,jte, kts,kte                          &
@@ -281,7 +268,6 @@ CONTAINS
                      SVP1,SVP2,SVP3,SVPT0,EP1,EP2,                 &
                      KARMAN,EOMEG,STBOLT,                          &
                      P1000mb,                                      &
-                     specified_flux,                               &
                      ids,ide, jds,jde, kds,kde,                    &
                      ims,ime, jms,jme, kms,kme,                    &
                      its,ite, jts,jte, kts,kte,                    &
@@ -303,7 +289,6 @@ CONTAINS
       REAL,     INTENT(IN )   ::        EP1,EP2,KARMAN,EOMEG,STBOLT
       REAL,     INTENT(IN )   ::        P1000mb
 
-      LOGICAL,  INTENT(IN   ) ::        specified_flux
 !
       REAL,     DIMENSION( ims:ime )                             , &
                 INTENT(IN   )               ::             MAVAIL, &
@@ -400,7 +385,6 @@ CONTAINS
       REAL    ::  FLUXC,VSGD,Z0Q,VISC,RESTAR,CZIL,GZ0OZQ,GZ0OZT
       REAL    ::  ZW, ZN1, ZN2
       REAL    ::  Z0T, CZC
-      REAL    ::  USTI
 !-------------------------------------------------------------------
       KL=kte
 
@@ -412,16 +396,10 @@ CONTAINS
 !----CONVERT GROUND TEMPERATURE TO POTENTIAL TEMPERATURE:  
 !                                                            
       DO 5 I=its,ite                                   
-        IF(.not.specified_flux)THEN
-          TGDSA(I)=TSK(I)                                    
+        TGDSA(I)=TSK(I)                                    
 ! PSFC cb
-!          THGB(I)=TSK(I)*(100./PSFC(I))**ROVCP                
-          THGB(I)=TSK(I)*(P1000mb/PSFCPA(I))**ROVCP   
-        ELSE
-! with specified_flux TSK value is not input and given value will not affect USTM
-          TGDSA(I)=300.
-          THGB(I)=300.*(P1000mb/PSFCPA(I))**ROVCP   
-        ENDIF
+!        THGB(I)=TSK(I)*(100./PSFC(I))**ROVCP                
+        THGB(I)=TSK(I)*(P1000mb/PSFCPA(I))**ROVCP   
     5 CONTINUE                                               
 !                                                            
 !-----DECOUPLE FLUX-FORM VARIABLES TO GIVE U,V,T,THETA,THETA-VIR.,
@@ -553,15 +531,6 @@ CONTAINS
 
   260 CONTINUE                                                                   
 
-      IF(specified_flux)THEN
-!     Need to recalculate MOL and BR when HFX is given and TSK is not used
-        DO I=ITS,ITE
-!       MOL is THETA*
-          USTI = MAX(UST(I),0.01)
-          MOL(I) = - HFX(I)/(RHOX(I)*CP*USTI)
-          BR(I) = KARMAN*GOVRTH(I)*ZA(I)*MOL(I)/(USTI*USTI)/GZ1OZ0(I)
-        ENDDO
-      ENDIF
 !                                                                                
 !-----DIAGNOSE BASIC PARAMETERS FOR THE APPROPRIATED STABILITY CLASS:            
 !                                                                                
@@ -827,8 +796,6 @@ CONTAINS
         WSPDI(I)=SQRT(UX(I)*UX(I)+VX(I)*VX(I))
         IF ( PRESENT(USTM) ) THEN
         USTM(I)=0.5*USTM(I)+0.5*KARMAN*WSPDI(I)/PSIX
-! For specified_flux VCONV effect not added to UST that will be used for ZOL
-        IF(specified_flux)UST(I)=USTM(I)
         ENDIF
         U10(I)=UX(I)*PSIX10/PSIX                                    
         V10(I)=VX(I)*PSIX10/PSIX                                   
@@ -854,8 +821,6 @@ CONTAINS
   330 CONTINUE                                                                   
 !                                                                                
   335 CONTINUE                                                                   
-     
-      IF(specified_flux) GOTO 410
                                                                                   
 !-----COMPUTE THE SURFACE SENSIBLE AND LATENT HEAT FLUXES:                       
       IF ( PRESENT(SCM_FORCE_FLUX) ) THEN
