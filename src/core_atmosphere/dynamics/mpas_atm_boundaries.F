@@ -287,7 +287,7 @@ module mpas_atm_boundaries
     !>   tend_scalars(1,:,:) = mpas_atm_get_bdy_tend(clock, domain % blocklist, nVertLevels, nCells, 'qv', 0.0_RKIND)
     !
     !-----------------------------------------------------------------------
-    function mpas_atm_get_bdy_tend(clock, block, vertDim, horizDim, field, delta_t) result(return_tend)
+    subroutine mpas_atm_get_bdy_tend(clock, block, vertDim, horizDim, field, delta_t, return_tend)
 
         implicit none
 
@@ -296,8 +296,7 @@ module mpas_atm_boundaries
         integer, intent(in) :: vertDim, horizDim
         character(len=*), intent(in) :: field
         real (kind=RKIND), intent(in) :: delta_t
-
-        real (kind=RKIND), dimension(vertDim,horizDim+1) :: return_tend
+        real (kind=RKIND), dimension(:,:), intent(out) :: return_tend
 
         type (mpas_pool_type), pointer :: lbc
         integer, pointer :: idx_ptr
@@ -312,7 +311,6 @@ module mpas_atm_boundaries
         call mpas_pool_get_array(lbc, 'lbc_'//trim(field), tend, 1)
 
         MPAS_ACC_TIMER_START('mpas_atm_get_bdy_tend [ACC_data_xfer]')
-        !$acc enter data create(return_tend)
         if (associated(tend)) then
             !$acc enter data copyin(tend)
         else
@@ -344,7 +342,6 @@ module mpas_atm_boundaries
         !$acc end parallel
 
         MPAS_ACC_TIMER_START('mpas_atm_get_bdy_tend [ACC_data_xfer]')
-        !$acc exit data copyout(return_tend)
         if (associated(tend)) then
             !$acc exit data delete(tend)
         else
@@ -352,7 +349,7 @@ module mpas_atm_boundaries
         end if
         MPAS_ACC_TIMER_STOP('mpas_atm_get_bdy_tend [ACC_data_xfer]')
 
-    end function mpas_atm_get_bdy_tend
+    end subroutine mpas_atm_get_bdy_tend
 
 
     !***********************************************************************
