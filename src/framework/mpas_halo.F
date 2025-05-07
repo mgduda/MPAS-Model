@@ -280,11 +280,21 @@ module mpas_halo
 
         call refactor_lists(domain, groupName, iErr)
 
+        ! Always copy in the main data member first
         !$acc enter data copyin(newGroup)
-        !$acc enter data copyin(newGroup % fields(:), newGroup % sendBuf(:))
+        ! Then the data in the members of the type
+        !$acc enter data copyin(newGroup % recvBuf(:), newGroup % sendBuf(:))
+        !$acc enter data copyin(newGroup % fields(:))
         do i = 1, newGroup % nFields
             !$acc enter data copyin(newGroup % fields(i))
+            !$acc enter data copyin(newGroup % fields(i) % nSendLists(:,:))
+            !$acc enter data copyin(newGroup % fields(i) % packOffsets(:))
             !$acc enter data copyin(newGroup % fields(i) % sendListSrc(:,:,:))
+            !$acc enter data copyin(newGroup % fields(i) % sendListDst(:,:,:))
+            !$acc enter data copyin(newGroup % fields(i) % nRecvLists(:,:))
+            !$acc enter data copyin(newGroup % fields(i) % unpackOffsets(:))
+            !$acc enter data copyin(newGroup % fields(i) % recvListSrc(:,:,:))
+            !$acc enter data copyin(newGroup % fields(i) % recvListDst(:,:,:))
         end do
 
     end subroutine mpas_halo_exch_group_complete
@@ -356,14 +366,21 @@ module mpas_halo
             deallocate(cursor % fields(i) % compactHaloInfo)
             deallocate(cursor % fields(i) % compactSendLists)
             deallocate(cursor % fields(i) % compactRecvLists)
+            !$acc exit data delete(cursor % fields(i) % nSendLists(:,:))
             deallocate(cursor % fields(i) % nSendLists)
             !$acc exit data delete(cursor % fields(i) % sendListSrc(:,:,:))
             deallocate(cursor % fields(i) % sendListSrc)
+            !$acc exit data delete(cursor % fields(i) % sendListDst(:,:,:))
             deallocate(cursor % fields(i) % sendListDst)
+            !$acc exit data delete(cursor % fields(i) % packOffsets(:))
             deallocate(cursor % fields(i) % packOffsets)
+            !$acc exit data delete(cursor % fields(i) % nRecvLists(:,:))
             deallocate(cursor % fields(i) % nRecvLists)
+            !$acc exit data delete(cursor % fields(i) % recvListSrc(:,:,:))
             deallocate(cursor % fields(i) % recvListSrc)
+            !$acc exit data delete(cursor % fields(i) % recvListDst(:,:,:))
             deallocate(cursor % fields(i) % recvListDst)
+            !$acc exit data delete(cursor % fields(i) % unpackOffsets(:))
             deallocate(cursor % fields(i) % unpackOffsets)
             !$acc exit data delete(cursor % fields(i))
         end do
@@ -381,10 +398,12 @@ module mpas_halo
         deallocate(cursor % groupRecvCounts)
         !$acc exit data delete(cursor % sendBuf(:))
         deallocate(cursor % sendBuf)
+        !$acc exit data delete(cursor % recvBuf(:))
         deallocate(cursor % recvBuf)
         deallocate(cursor % sendRequests)
         deallocate(cursor % recvRequests)
-        !$acc exit data delete(cursor)
+        ! Finalize here as well, just in-case
+        !$acc exit data finalize delete(cursor)
         deallocate(cursor)
 
     end subroutine mpas_halo_exch_group_destroy
@@ -680,9 +699,7 @@ module mpas_halo
                     ! Use data regions for specificity and so the reference or attachment counters are easier to make sense of
                     ! Present should also cause an attach action. OpenACC Spec2.7 Section 2.7.2 describes 'attach action'
                     ! !$acc data present(group) present(group % fields(i)) present(group % sendBuf(:), group % fields(i) % sendListSrc(:,:,:))
-                    !$acc update device(group % sendBuf(:))
-                    !$acc data copyin(group % fields(i) % r2arr(:,:)) &
-                    !$acc      copyin(group % fields(i) % sendListSrc(:,:,:), group % fields(i) % sendListDst(:,:,:), group % fields(i) % nSendLists(:,:), group % fields(i) % packOffsets(:))
+                    !$acc data copyin(group % fields(i) % r2arr(:,:))
 
                     ! Kernels is good enough, use default present to force a run-time error if programmer forgot something
                     !$acc kernels default(present)
