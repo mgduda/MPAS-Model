@@ -700,6 +700,7 @@ module mpas_halo
                     ! Use data regions for specificity and so the reference or attachment counters are easier to make sense of
                     ! Present should also cause an attach action. OpenACC Spec2.7 Section 2.7.2 describes 'attach action'
                     ! !$acc data present(group) present(group % fields(i)) present(group % sendBuf(:), group % fields(i) % sendListSrc(:,:,:))
+                    !$acc update device(group % sendBuf(:))
                     !$acc data copyin(group % fields(i) % r2arr(:,:))
 
                     ! Kernels is good enough, use default present to force a run-time error if programmer forgot something
