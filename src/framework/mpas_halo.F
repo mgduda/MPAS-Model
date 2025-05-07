@@ -676,6 +676,15 @@ module mpas_halo
                     !
                     ! Pack send buffer for all neighbors for current field
                     !
+
+                    ! Use data regions for specificity and so the reference or attachment counters are easier to make sense of
+                    ! Present should also cause an attach action. OpenACC Spec2.7 Section 2.7.2 describes 'attach action'
+                    !$acc data present(group) present(group % fields(i)) present(group % sendBuf(:), group % fields(i) % sendListSrc(:,:,:))
+                    !$acc data copyin(group % fields(i) % r2arr(:,:)) &
+                    !$acc      copyin(group % fields(i) % sendListSrc(:,:,:), group % fields(i) % sendListDst(:,:,:), group % fields(i) % nSendLists(:,:), group % fields(i) % packOffsets(:))
+
+                    ! Kernels is good enough, use default present to force a run-time error if programmer forgot something
+                    !$acc kernels default(present)
                     do iEndp = 1, nSendEndpts
                         do iHalo = 1, nHalos
                             do j = 1, maxNSendList
@@ -688,6 +697,9 @@ module mpas_halo
                             end do
                         end do
                     end do
+                    !$acc end kernels
+                    !$acc end data
+                    !$acc end data
 
                 !
                 ! Packing code for 3-d real-valued fields
