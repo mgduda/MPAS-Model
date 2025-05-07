@@ -283,7 +283,8 @@ module mpas_halo
         ! Always copy in the main data member first
         !$acc enter data copyin(newGroup)
         ! Then the data in the members of the type
-        !$acc enter data copyin(newGroup % recvBuf(:), newGroup % sendBuf(:))
+        ! !$acc enter data copyin(newGroup % recvBuf(:), newGroup % sendBuf(:))
+        !$acc enter data copyin(newGroup % sendBuf(:))
         !$acc enter data copyin(newGroup % fields(:))
         do i = 1, newGroup % nFields
             !$acc enter data copyin(newGroup % fields(i))
@@ -398,7 +399,7 @@ module mpas_halo
         deallocate(cursor % groupRecvCounts)
         !$acc exit data delete(cursor % sendBuf(:))
         deallocate(cursor % sendBuf)
-        !$acc exit data delete(cursor % recvBuf(:))
+        ! !$acc exit data delete(cursor % recvBuf(:))
         deallocate(cursor % recvBuf)
         deallocate(cursor % sendRequests)
         deallocate(cursor % recvRequests)
