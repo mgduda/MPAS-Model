@@ -564,6 +564,7 @@ module mpas_halo
 
         ! Local variables
         integer :: i, bufstart, bufend
+        integer :: idxBuf, idxArr
         integer :: dim1, dim2
         integer :: i1, i2, j, iNeighbor, iReq
         integer :: iHalo, iEndp
@@ -681,8 +682,9 @@ module mpas_halo
                         do iHalo = 1, nHalos
                             do j = 1, maxNSendList
                                 if (j <= nSendLists(iHalo,iEndp)) then
-                                    group % sendBuf(packOffsets(iEndp) + sendListDst(j,iHalo,iEndp)) = &
-                                        group % fields(i) % r1arr(sendListSrc(j,iHalo,iEndp))
+                                    bufIdx = packOffsets(iEndp) + sendListDst(j,iHalo,iEndp)
+                                    arrIdx = sendListSrc(j,iHalo,iEndp)
+                                    group % sendBuf(bufIdx) = group % fields(i) % r1arr(arrIdx)
                                 end if
                             end do
                         end do
@@ -713,8 +715,9 @@ module mpas_halo
                             do j = 1, maxNSendList
                                 do i1 = 1, dim1
                                     if (j <= nSendLists(iHalo,iEndp)) then
-                                        group % sendBuf(packOffsets(iEndp) + dim1 * (sendListDst(j,iHalo,iEndp) - 1) + i1) = &
-                                            group % fields(i) % r2arr(i1, sendListSrc(j,iHalo,iEndp))
+                                        bufIdx = packOffsets(iEndp) + dim1 * (sendListDst(j,iHalo,iEndp) - 1) + i1
+                                        arrIdx = sendListSrc(j,iHalo,iEndp)
+                                        group % sendBuf(bufIdx) = group % fields(i) % r2arr(i1,arrIdx)
                                     end if
                                 end do
                             end do
@@ -742,9 +745,10 @@ module mpas_halo
                                 do i2 = 1, dim2
                                 do i1 = 1, dim1
                                     if (j <= nSendLists(iHalo,iEndp)) then
-                                        group % sendBuf(packOffsets(iEndp) + dim1*dim2*(sendListDst(j,iHalo,iEndp) - 1) &
-                                                        + dim1*(i2-1) + i1) = &
-                                            group % fields(i) % r3arr(i1, i2, sendListSrc(j,iHalo,iEndp))
+                                        bufIdx = packOffsets(iEndp) + dim1*dim2*(sendListDst(j,iHalo,iEndp) - 1) &
+                                                 + dim1*(i2-1) + i1
+                                        arrIdx = sendListSrc(j,iHalo,iEndp)
+                                        group % sendBuf(bufIdx) = group % fields(i) % r3arr(i1,i2,arrIdx)
                                     end if
                                 end do
                                 end do
@@ -827,8 +831,9 @@ module mpas_halo
                         do iHalo = 1, nHalos
                             do j = 1, maxNRecvList
                                 if (j <= nRecvLists(iHalo,iEndp)) then
-                                    group % fields(i) % r1arr(recvListDst(j,iHalo,iEndp)) = &
-                                        group % recvBuf(unpackOffsets(iEndp) + recvListSrc(j,iHalo,iEndp))
+                                    arrIdx = recvListDst(j,iHalo,iEndp)
+                                    bufIdx = unpackOffsets(iEndp) + recvListSrc(j,iHalo,iEndp)
+                                    group % fields(i) % r1arr(arrIdx) = group % recvBuf(bufIdx)
                                 end if
                             end do
                         end do
@@ -844,8 +849,9 @@ module mpas_halo
                             do j = 1, maxNRecvList
                                 do i1 = 1, dim1
                                     if (j <= nRecvLists(iHalo,iEndp)) then
-                                        group % fields(i) % r2arr(i1, recvListDst(j,iHalo,iEndp)) = &
-                                            group % recvBuf(unpackOffsets(iEndp) + dim1 * (recvListSrc(j,iHalo,iEndp) - 1) + i1)
+                                        arrIdx = recvListDst(j,iHalo,iEndp)
+                                        bufIdx = unpackOffsets(iEndp) + dim1 * (recvListSrc(j,iHalo,iEndp) - 1) + i1
+                                        group % fields(i) % r2arr(i1, arrIdx) = group % recvBuf(bufIdx)
                                     end if
                                 end do
                             end do
@@ -863,9 +869,10 @@ module mpas_halo
                                 do i2 = 1, dim2
                                 do i1 = 1, dim1
                                     if (j <= nRecvLists(iHalo,iEndp)) then
-                                        group % fields(i) % r3arr(i1, i2, recvListDst(j,iHalo,iEndp)) = &
-                                            group % recvBuf(unpackOffsets(iEndp) + dim1*dim2*(recvListSrc(j,iHalo,iEndp) - 1) &
-                                                            + dim1*(i2-1) + i1)
+                                        arrIdx = recvListDst(j,iHalo,iEndp)
+                                        bufIdx = unpackOffsets(iEndp) + dim1*dim2*(recvListSrc(j,iHalo,iEndp) - 1) &
+                                                 + dim1*(i2-1) + i1
+                                        group % fields(i) % r3arr(i1, i2, arrIdx) = group % recvBuf(bufIdx)
                                     end if
                                 end do
                                 end do
