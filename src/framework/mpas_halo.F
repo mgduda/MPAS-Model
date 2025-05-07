@@ -280,6 +280,13 @@ module mpas_halo
 
         call refactor_lists(domain, groupName, iErr)
 
+        !$acc enter data copyin(newGroup)
+        !$acc enter data copyin(newGroup % fields(:), newGroup % sendBuf(:))
+        do i = 1, newGroup % nFields
+            !$acc enter data copyin(newGroup % fields(i))
+            !$acc enter data copyin(newGroup % fields(i) % sendListSrc(:,:,:))
+        end do
+
     end subroutine mpas_halo_exch_group_complete
 
 
@@ -350,6 +357,7 @@ module mpas_halo
             deallocate(cursor % fields(i) % compactSendLists)
             deallocate(cursor % fields(i) % compactRecvLists)
             deallocate(cursor % fields(i) % nSendLists)
+            !$acc exit data delete(cursor % fields(i) % sendListSrc(:,:,:))
             deallocate(cursor % fields(i) % sendListSrc)
             deallocate(cursor % fields(i) % sendListDst)
             deallocate(cursor % fields(i) % packOffsets)
@@ -357,7 +365,10 @@ module mpas_halo
             deallocate(cursor % fields(i) % recvListSrc)
             deallocate(cursor % fields(i) % recvListDst)
             deallocate(cursor % fields(i) % unpackOffsets)
+            !$acc exit data delete(cursor % fields(i))
         end do
+        ! Use finalize here in-case the copyins in ..._complete increment the reference counter
+        !$acc exit data finalize delete(cursor % fields(:))
         deallocate(cursor % fields)
         deallocate(cursor % groupPackOffsets)
         deallocate(cursor % groupSendNeighbors)
@@ -368,10 +379,12 @@ module mpas_halo
         deallocate(cursor % groupToFieldRecvIdx)
         deallocate(cursor % groupRecvOffsets)
         deallocate(cursor % groupRecvCounts)
+        !$acc exit data delete(cursor % sendBuf(:))
         deallocate(cursor % sendBuf)
         deallocate(cursor % recvBuf)
         deallocate(cursor % sendRequests)
         deallocate(cursor % recvRequests)
+        !$acc exit data delete(cursor)
         deallocate(cursor)
 
     end subroutine mpas_halo_exch_group_destroy
