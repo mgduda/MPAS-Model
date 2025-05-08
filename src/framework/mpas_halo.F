@@ -674,7 +674,8 @@ module mpas_halo
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r1arr, timeLevel=group % fields(i) % timeLevel)
 
-                    !$acc data copyin(group % fields(i) % r1arr(:))
+                    ! !$acc data copyin(group % fields(i) % r1arr(:))
+                    !$acc enter data copyin(group % fields(i) % r1arr(:))
                     !
                     ! Pack send buffer for all neighbors for current field
                     !
@@ -691,7 +692,7 @@ module mpas_halo
                         end do
                     end do
                     !$acc end kernels
-                    !$acc end data
+                    ! !$acc end data
 
                 !
                 ! Packing code for 2-d real-valued fields
@@ -707,7 +708,8 @@ module mpas_halo
                     ! Use data regions for specificity and so the reference or attachment counters are easier to make sense of
                     ! Present should also cause an attach action. OpenACC Spec2.7 Section 2.7.2 describes 'attach action'
                     ! !$acc data present(group) present(group % fields(i)) present(group % sendBuf(:), group % fields(i) % sendListSrc(:,:,:))
-                    !$acc data copyin(group % fields(i) % r2arr(:,:))
+                    ! !$acc data copyin(group % fields(i) % r2arr(:,:))
+                    !$acc enter data copyin(group % fields(i) % r2arr(:,:))
 
                     ! Kernels is good enough, use default present to force a run-time error if programmer forgot something
                     !$acc kernels default(present)
@@ -725,7 +727,7 @@ module mpas_halo
                         end do
                     end do
                     !$acc end kernels
-                    !$acc end data
+                    ! !$acc end data
                     ! !$acc end data
 
                 !
@@ -734,7 +736,8 @@ module mpas_halo
                 case (3)
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r3arr, group % fields(i) % timeLevel)
-                    !$acc data copyin(group % fields(i) % r3arr(:,:,:))
+                    ! !$acc data copyin(group % fields(i) % r3arr(:,:,:))
+                    !$acc enter data copyin(group % fields(i) % r3arr(:,:,:))
 
                     !
                     ! Pack send buffer for all neighbors for current field
@@ -757,7 +760,7 @@ module mpas_halo
                         end do
                     end do
                     !$acc end kernels
-                    !$acc end data
+                    ! !$acc end data
 
                 end select
             end if
