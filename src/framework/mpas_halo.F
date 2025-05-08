@@ -633,9 +633,11 @@ module mpas_halo
                 bufstart = group % groupRecvOffsets(i)
                 bufend = group % groupRecvOffsets(i) + group % groupRecvCounts(i) - 1
 !TO DO: how do we determine appropriate type here?
+                !$acc host_data use_device(group % recvBuf)
                 call MPI_Irecv(group % recvBuf(bufstart:bufend), group % groupRecvCounts(i), MPI_REALKIND, &
                                group % groupRecvNeighbors(i), group % groupRecvNeighbors(i), comm, &
                                group % recvRequests(i), mpi_ierr)
+                !$acc end host_data
             else
                 group % recvRequests(i) = MPI_REQUEST_NULL
             end if
@@ -765,7 +767,6 @@ module mpas_halo
                 end select
             end if
         end do
-        !$acc update host(group % sendBuf(:))
 
         !
         ! Initiate non-blocking sends to all neighbors
@@ -775,9 +776,11 @@ module mpas_halo
                 bufstart = group % groupSendOffsets(i)
                 bufend = group % groupSendOffsets(i) + group % groupSendCounts(i) - 1
 !TO DO: how do we determine appropriate type here?
+                !$acc host_data use_device(group % sendBuf)
                 call MPI_Isend(group % sendBuf(bufstart:bufend), group % groupSendCounts(i), MPI_REALKIND, &
                                group % groupSendNeighbors(i), rank, comm, &
                                group % sendRequests(i), mpi_ierr)
+                !$acc end host_data
             else
                 group % sendRequests(i) = MPI_REQUEST_NULL
             end if
