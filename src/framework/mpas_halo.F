@@ -283,8 +283,8 @@ module mpas_halo
         ! Always copy in the main data member first
         !$acc enter data copyin(newGroup)
         ! Then the data in the members of the type
-        ! !$acc enter data copyin(newGroup % recvBuf(:), newGroup % sendBuf(:))
-        !$acc enter data copyin(newGroup % sendBuf(:))
+        !$acc enter data copyin(newGroup % recvBuf(:), newGroup % sendBuf(:))
+        ! !$acc enter data copyin(newGroup % sendBuf(:))
         !$acc enter data copyin(newGroup % fields(:))
         do i = 1, newGroup % nFields
             !$acc enter data copyin(newGroup % fields(i))
@@ -399,7 +399,7 @@ module mpas_halo
         deallocate(cursor % groupRecvCounts)
         !$acc exit data delete(cursor % sendBuf(:))
         deallocate(cursor % sendBuf)
-        ! !$acc exit data delete(cursor % recvBuf(:))
+        !$acc exit data delete(cursor % recvBuf(:))
         deallocate(cursor % recvBuf)
         deallocate(cursor % sendRequests)
         deallocate(cursor % recvRequests)
@@ -623,6 +623,7 @@ module mpas_halo
 #endif
         rank = group % fields(1) % compactHaloInfo(8)
 
+        !$acc data present(group % recvBuf(:), group % sendBuf(:))
 
         !
         ! Initiate non-blocking MPI receives for all neighbors
@@ -682,9 +683,9 @@ module mpas_halo
                         do iHalo = 1, nHalos
                             do j = 1, maxNSendList
                                 if (j <= nSendLists(iHalo,iEndp)) then
-                                    bufIdx = packOffsets(iEndp) + sendListDst(j,iHalo,iEndp)
-                                    arrIdx = sendListSrc(j,iHalo,iEndp)
-                                    group % sendBuf(bufIdx) = group % fields(i) % r1arr(arrIdx)
+                                    idxBuf = packOffsets(iEndp) + sendListDst(j,iHalo,iEndp)
+                                    idxArr = sendListSrc(j,iHalo,iEndp)
+                                    group % sendBuf(idxBuf) = group % fields(i) % r1arr(idxArr)
                                 end if
                             end do
                         end do
@@ -715,9 +716,9 @@ module mpas_halo
                             do j = 1, maxNSendList
                                 do i1 = 1, dim1
                                     if (j <= nSendLists(iHalo,iEndp)) then
-                                        bufIdx = packOffsets(iEndp) + dim1 * (sendListDst(j,iHalo,iEndp) - 1) + i1
-                                        arrIdx = sendListSrc(j,iHalo,iEndp)
-                                        group % sendBuf(bufIdx) = group % fields(i) % r2arr(i1,arrIdx)
+                                        idxBuf = packOffsets(iEndp) + dim1 * (sendListDst(j,iHalo,iEndp) - 1) + i1
+                                        idxArr = sendListSrc(j,iHalo,iEndp)
+                                        group % sendBuf(idxBuf) = group % fields(i) % r2arr(i1,idxArr)
                                     end if
                                 end do
                             end do
@@ -745,10 +746,10 @@ module mpas_halo
                                 do i2 = 1, dim2
                                 do i1 = 1, dim1
                                     if (j <= nSendLists(iHalo,iEndp)) then
-                                        bufIdx = packOffsets(iEndp) + dim1*dim2*(sendListDst(j,iHalo,iEndp) - 1) &
+                                        idxBuf = packOffsets(iEndp) + dim1*dim2*(sendListDst(j,iHalo,iEndp) - 1) &
                                                  + dim1*(i2-1) + i1
-                                        arrIdx = sendListSrc(j,iHalo,iEndp)
-                                        group % sendBuf(bufIdx) = group % fields(i) % r3arr(i1,i2,arrIdx)
+                                        idxArr = sendListSrc(j,iHalo,iEndp)
+                                        group % sendBuf(idxBuf) = group % fields(i) % r3arr(i1,i2,idxArr)
                                     end if
                                 end do
                                 end do
@@ -761,7 +762,7 @@ module mpas_halo
                 end select
             end if
         end do
-        !$acc update host(group % sendBuf(:))
+        ! !$acc update host(group % sendBuf(:))
 
         !
         ! Initiate non-blocking sends to all neighbors
@@ -828,15 +829,18 @@ module mpas_halo
                         !
                         ! Unpack recv buffer from all neighbors for current field
                         !
+                        !$acc kernels default(present)
                         do iHalo = 1, nHalos
                             do j = 1, maxNRecvList
                                 if (j <= nRecvLists(iHalo,iEndp)) then
-                                    arrIdx = recvListDst(j,iHalo,iEndp)
-                                    bufIdx = unpackOffsets(iEndp) + recvListSrc(j,iHalo,iEndp)
-                                    group % fields(i) % r1arr(arrIdx) = group % recvBuf(bufIdx)
+                                    idxArr = recvListDst(j,iHalo,iEndp)
+                                    idxBuf = unpackOffsets(iEndp) + recvListSrc(j,iHalo,iEndp)
+                                    group % fields(i) % r1arr(idxArr) = group % recvBuf(idxBuf)
                                 end if
                             end do
                         end do
+                        !$acc end kernels
+                        !$acc exit data copyout(group % fields(i) % r1arr(:))
 
                     !
                     ! Unpacking code for 2-d real-valued fields
@@ -845,17 +849,20 @@ module mpas_halo
                         !
                         ! Unpack recv buffer from all neighbors for current field
                         !
+                        !$acc kernels default(present)
                         do iHalo = 1, nHalos
                             do j = 1, maxNRecvList
                                 do i1 = 1, dim1
                                     if (j <= nRecvLists(iHalo,iEndp)) then
-                                        arrIdx = recvListDst(j,iHalo,iEndp)
-                                        bufIdx = unpackOffsets(iEndp) + dim1 * (recvListSrc(j,iHalo,iEndp) - 1) + i1
-                                        group % fields(i) % r2arr(i1, arrIdx) = group % recvBuf(bufIdx)
+                                        idxArr = recvListDst(j,iHalo,iEndp)
+                                        idxBuf = unpackOffsets(iEndp) + dim1 * (recvListSrc(j,iHalo,iEndp) - 1) + i1
+                                        group % fields(i) % r2arr(i1, idxArr) = group % recvBuf(idxBuf)
                                     end if
                                 end do
                             end do
                         end do
+                        !$acc end kernels
+                        !$acc exit data copyout(group % fields(i) % r2arr(:,:))
 
                     !
                     ! Unpacking code for 3-d real-valued fields
@@ -864,25 +871,31 @@ module mpas_halo
                         !
                         ! Unpack recv buffer from all neighbors for current field
                         !
+                        !$acc kernels default(present)
                         do iHalo = 1, nHalos
                             do j = 1, maxNRecvList
                                 do i2 = 1, dim2
                                 do i1 = 1, dim1
                                     if (j <= nRecvLists(iHalo,iEndp)) then
-                                        arrIdx = recvListDst(j,iHalo,iEndp)
-                                        bufIdx = unpackOffsets(iEndp) + dim1*dim2*(recvListSrc(j,iHalo,iEndp) - 1) &
+                                        idxArr = recvListDst(j,iHalo,iEndp)
+                                        idxBuf = unpackOffsets(iEndp) + dim1*dim2*(recvListSrc(j,iHalo,iEndp) - 1) &
                                                  + dim1*(i2-1) + i1
-                                        group % fields(i) % r3arr(i1, i2, arrIdx) = group % recvBuf(bufIdx)
+                                        group % fields(i) % r3arr(i1, i2, idxArr) = group % recvBuf(idxBuf)
                                     end if
                                 end do
                                 end do
                             end do
                         end do
+                        !$acc end kernels
+                        !$acc exit data copyout(group % fields(i) % r3arr(:,:,:))
 
                     end select
                 end if
             end do
         end do
+
+        ! For the present(group % recvBuf(:), group % sendBuf(:))
+        !$acc end data
 
         !
         ! Nullify array pointers - not necessary for correctness, but helpful when debugging
