@@ -765,7 +765,7 @@ module mpas_halo
                 end select
             end if
         end do
-        ! !$acc update host(group % sendBuf(:))
+        !$acc update host(group % sendBuf(:))
 
         !
         ! Initiate non-blocking sends to all neighbors
