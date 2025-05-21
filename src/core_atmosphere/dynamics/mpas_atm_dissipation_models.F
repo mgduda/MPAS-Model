@@ -17,9 +17,11 @@ module mpas_atm_dissipation_models
   logical, parameter :: debug_dissipation = .false.
   logical, parameter :: les_test = .true., les_sas_test = .false.
   !! real (kind=RKIND), parameter :: tke_heat_flux = 0.03  ! shear case from Moeng et al., first hour
-  real (kind=RKIND), parameter :: tke_heat_flux = 0.03
+  ! real (kind=RKIND), parameter :: tke_heat_flux = 0.03
+  real (kind=RKIND), parameter :: tke_heat_flux = 0.0
   !! real (kind=RKIND), parameter :: tke_drag_coefficient = 0.0013 ! ocean roughness length
-  real (kind=RKIND), parameter :: tke_drag_coefficient = 0.006
+  ! real (kind=RKIND), parameter :: tke_drag_coefficient = 0.006
+  real (kind=RKIND), parameter :: tke_drag_coefficient = 0.0
   real (kind=RKIND), parameter :: epsilon_bv = 1.e-06
   real (kind=RKIND), parameter :: c_k = 0.1
 

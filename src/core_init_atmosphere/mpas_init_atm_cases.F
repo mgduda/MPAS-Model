@@ -1459,6 +1459,7 @@ module init_atm_cases
       real (kind=RKIND), pointer :: nominalMinDc
       logical, pointer :: on_a_sphere
       real (kind=RKIND), pointer :: sphere_radius
+      real (kind=RKIND), pointer :: config_ztop
 
       real (kind=RKIND), dimension(:,:), pointer :: t_init, w, rw, v, rho, theta
       real (kind=RKIND), dimension(:), pointer :: u_init, qv_init, angleEdge, fEdge, fVertex
@@ -1484,12 +1485,13 @@ module init_atm_cases
       call mpas_pool_get_config(mesh, 'on_a_sphere', on_a_sphere)
       call mpas_pool_get_config(mesh, 'sphere_radius', sphere_radius)
       call mpas_pool_get_config(configs, 'config_interface_projection', config_interface_projection)
+      call mpas_pool_get_config(configs, 'config_ztop', config_ztop)
 
       !
       ! Scale all distances
       !
 
-      a_scale = 1.0
+      a_scale = 11.25
 
       xCell(:) = xCell(:) * a_scale
       yCell(:) = yCell(:) * a_scale
@@ -1593,7 +1595,8 @@ module init_atm_cases
       !     metrics for hybrid coordinate and vertical stretching
 
       str = 1.0
-      zt = 20000.
+!      zt = 20000.
+      zt = config_ztop
       dz = zt/float(nz1)
 
 !      write(0,*) ' dz = ',dz
