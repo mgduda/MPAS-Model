@@ -319,7 +319,7 @@
         </nml_record>
 
         <nml_record name="decomposition" in_defaults="true">
-                <nml_option name="config_block_decomp_file_prefix" type="character" default_value="x1.40962.graph.info.part."
+                <nml_option name="config_block_decomp_file_prefix" type="character" default_value="graph.info.part."
                      units="-"
                      description="Prefix of graph decomposition file, to be suffixed with the MPI task count"
                      possible_values="Any valid filename"/>
@@ -532,7 +532,7 @@
 
 		<stream name="input" 
                         type="input" 
-                        filename_template="x1.40962.init.nc" 
+                        filename_template="init.nc" 
                         input_interval="initial_only"
                         immutable="true">
 
@@ -1111,7 +1111,7 @@
 
 		<stream name="surface" 
                         type="input" 
-                        filename_template="x1.40962.sfc_update.nc" 
+                        filename_template="sfc_update.nc" 
                         input_interval="none"
                         filename_interval="none"
                         runtime_format="separate_file">
@@ -1124,7 +1124,7 @@
 
 	        <stream name="iau" 
                         type="input" 
-                        filename_template="x1.40962.AmB.$Y-$M-$D_$h.$m.$s.nc" 
+                        filename_template="AmB.$Y-$M-$D_$h.$m.$s.nc" 
                         input_interval="initial_only"
                         filename_interval="none"
                         immutable="true"
@@ -1154,7 +1154,7 @@
 #ifdef DO_PHYSICS
                 <stream name="ugwp_oro_data_in"
                         type="input"
-                        filename_template="x1.40962.ugwp_oro_data.nc"
+                        filename_template="ugwp_oro_data.nc"
                         input_interval="initial_only"
                         immutable="true"
                         packages="ugwp_orog_stream">
