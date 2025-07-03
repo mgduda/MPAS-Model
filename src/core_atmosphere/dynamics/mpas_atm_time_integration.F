@@ -3251,9 +3251,7 @@ module atm_time_integration
       real (kind=RKIND) :: dtseps, c2, qtotal, rcv
       real (kind=RKIND), dimension( nVertLevels ) :: b_tri, c_tri
 
-      MPAS_ACC_TIMER_START('atm_compute_vert_imp_coefs_work [ACC_data_xfer]')
       !$acc enter data create(b_tri, c_tri)
-      MPAS_ACC_TIMER_STOP('atm_compute_vert_imp_coefs_work [ACC_data_xfer]')
 
       !  set coefficients
       dtseps = .5*dts*(1.+epssm)
@@ -3333,9 +3331,7 @@ module atm_time_integration
       end do ! loop over cells
       !$acc end parallel
 
-      MPAS_ACC_TIMER_START('atm_compute_vert_imp_coefs_work [ACC_data_xfer]')
-      !$acc exit data copyout(b_tri, c_tri)
-      MPAS_ACC_TIMER_STOP('atm_compute_vert_imp_coefs_work [ACC_data_xfer]')
+      !$acc exit data delete(b_tri, c_tri)
 
    end subroutine atm_compute_vert_imp_coefs_work
 
@@ -8144,9 +8140,7 @@ module atm_time_integration
       divdamp_coef = divdamp_coef_ptr
       vertexDegree = vertexDegree_ptr
 
-      MPAS_ACC_TIMER_START('atm_bdy_adjust_dynamics_relaxzone_tend [ACC_data_xfer]')
       !$acc enter data create(divergence1, divergence2, vorticity1, vorticity2)
-      MPAS_ACC_TIMER_STOP('atm_bdy_adjust_dynamics_relaxzone_tend [ACC_data_xfer]')
       
       !  First, Rayleigh damping terms for ru, rtheta_m and rho_zz
       !$acc parallel default(present)
@@ -8291,9 +8285,7 @@ module atm_time_integration
        end do  !  end of loop over edges
        !$acc end parallel
 
-       MPAS_ACC_TIMER_START('atm_bdy_adjust_dynamics_relaxzone_tend [ACC_data_xfer]')
       !$acc exit data delete(divergence1, divergence2, vorticity1, vorticity2)
-      MPAS_ACC_TIMER_STOP('atm_bdy_adjust_dynamics_relaxzone_tend [ACC_data_xfer]')
        
    end subroutine atm_bdy_adjust_dynamics_relaxzone_tend
       
@@ -8429,9 +8421,7 @@ module atm_time_integration
       integer :: iCell, iEdge, iScalar, i, k, cell1, cell2
 
       !---
-      MPAS_ACC_TIMER_START('atm_bdy_adjust_scalars [ACC_data_xfer]')
       !$acc enter data create(scalars_tmp)
-      MPAS_ACC_TIMER_STOP('atm_bdy_adjust_scalars [ACC_data_xfer]')
 
       !$acc parallel default(present)
       !$acc loop gang worker
@@ -8513,9 +8503,7 @@ module atm_time_integration
       end do
       !$acc end parallel
 
-      MPAS_ACC_TIMER_START('atm_bdy_adjust_scalars [ACC_data_xfer]')
       !$acc exit data delete(scalars_tmp)
-      MPAS_ACC_TIMER_STOP('atm_bdy_adjust_scalars [ACC_data_xfer]')
 
    end subroutine atm_bdy_adjust_scalars_work
 
