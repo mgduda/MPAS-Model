@@ -258,16 +258,6 @@ module mpas_vector_reconstruction
 
     call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere)
 
-    MPAS_ACC_TIMER_START('mpas_reconstruct_2d [ACC_data_xfer]')
-    ! Only use sections needed, nCells may be all cells or only non-halo cells
-    !$acc enter data copyin(coeffs_reconstruct(:,:,1:nCells),nEdgesOnCell(1:nCells), &
-    !$acc                   edgesOnCell(:,1:nCells),latCell(1:nCells),lonCell(1:nCells))
-    !$acc enter data copyin(u(:,:))
-    !$acc enter data create(uReconstructX(:,1:nCells),uReconstructY(:,1:nCells), &
-    !$acc                   uReconstructZ(:,1:nCells),uReconstructZonal(:,1:nCells), &
-    !$acc                   uReconstructMeridional(:,1:nCells))
-    MPAS_ACC_TIMER_STOP('mpas_reconstruct_2d [ACC_data_xfer]')
-
     ! loop over cell centers
     !$omp do schedule(runtime)
     !$acc parallel default(present)
@@ -337,6 +327,109 @@ module mpas_vector_reconstruction
       !$omp end do
     end if
 
+  end subroutine mpas_reconstruct_2d!}}}
+
+
+  subroutine mpas_reconstruct_2d_h2d(meshPool, u, uReconstructX, uReconstructY, uReconstructZ, uReconstructZonal, uReconstructMeridional, includeHalos)!{{{
+
+    implicit none
+
+    type (mpas_pool_type), intent(in) :: meshPool !< Input: Mesh information
+    real (kind=RKIND), dimension(:,:), intent(in) :: u !< Input: Velocity field on edges
+    real (kind=RKIND), dimension(:,:), intent(out) :: uReconstructX !< Output: X Component of velocity reconstructed to cell centers
+    real (kind=RKIND), dimension(:,:), intent(out) :: uReconstructY !< Output: Y Component of velocity reconstructed to cell centers
+    real (kind=RKIND), dimension(:,:), intent(out) :: uReconstructZ !< Output: Z Component of velocity reconstructed to cell centers
+    real (kind=RKIND), dimension(:,:), intent(out) :: uReconstructZonal !< Output: Zonal Component of velocity reconstructed to cell centers
+    real (kind=RKIND), dimension(:,:), intent(out) :: uReconstructMeridional !< Output: Meridional Component of velocity reconstructed to cell centers
+    logical, optional, intent(in) :: includeHalos !< Input: Optional logical that allows reconstruction over halo regions
+
+    logical :: includeHalosLocal
+    integer, dimension(:,:), pointer :: edgesOnCell
+    integer, dimension(:), pointer :: nEdgesOnCell
+    integer :: nCells
+    integer, pointer :: nCells_ptr
+    real(kind=RKIND), dimension(:), pointer :: latCell, lonCell
+    real (kind=RKIND), dimension(:,:,:), pointer :: coeffs_reconstruct
+
+    if ( present(includeHalos) ) then
+       includeHalosLocal = includeHalos
+    else
+       includeHalosLocal = .false.
+    end if
+
+    ! stored arrays used during compute procedure
+    call mpas_pool_get_array(meshPool, 'coeffs_reconstruct', coeffs_reconstruct)
+
+    ! temporary variables
+    call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nEdgesOnCell)
+    call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
+    call mpas_pool_get_array(meshPool, 'latCell', latCell)
+    call mpas_pool_get_array(meshPool, 'lonCell', lonCell)
+
+    if ( includeHalosLocal ) then
+       call mpas_pool_get_dimension(meshPool, 'nCells', nCells_ptr)
+    else
+       call mpas_pool_get_dimension(meshPool, 'nCellsSolve', nCells_ptr)
+    end if
+    nCells = nCells_ptr
+
+    MPAS_ACC_TIMER_START('mpas_reconstruct_2d [ACC_data_xfer]')
+    ! Only use sections needed, nCells may be all cells or only non-halo cells
+    !$acc enter data copyin(coeffs_reconstruct(:,:,1:nCells),nEdgesOnCell(1:nCells), &
+    !$acc                   edgesOnCell(:,1:nCells),latCell(1:nCells),lonCell(1:nCells))
+    !$acc enter data copyin(u(:,:))
+    !$acc enter data create(uReconstructX(:,1:nCells),uReconstructY(:,1:nCells), &
+    !$acc                   uReconstructZ(:,1:nCells),uReconstructZonal(:,1:nCells), &
+    !$acc                   uReconstructMeridional(:,1:nCells))
+    MPAS_ACC_TIMER_STOP('mpas_reconstruct_2d [ACC_data_xfer]')
+
+  end subroutine mpas_reconstruct_2d_h2d
+
+
+
+  subroutine mpas_reconstruct_2d_d2h(meshPool, u, uReconstructX, uReconstructY, uReconstructZ, uReconstructZonal, uReconstructMeridional, includeHalos)!{{{
+
+    implicit none
+
+    type (mpas_pool_type), intent(in) :: meshPool !< Input: Mesh information
+    real (kind=RKIND), dimension(:,:), intent(in) :: u !< Input: Velocity field on edges
+    real (kind=RKIND), dimension(:,:), intent(out) :: uReconstructX !< Output: X Component of velocity reconstructed to cell centers
+    real (kind=RKIND), dimension(:,:), intent(out) :: uReconstructY !< Output: Y Component of velocity reconstructed to cell centers
+    real (kind=RKIND), dimension(:,:), intent(out) :: uReconstructZ !< Output: Z Component of velocity reconstructed to cell centers
+    real (kind=RKIND), dimension(:,:), intent(out) :: uReconstructZonal !< Output: Zonal Component of velocity reconstructed to cell centers
+    real (kind=RKIND), dimension(:,:), intent(out) :: uReconstructMeridional !< Output: Meridional Component of velocity reconstructed to cell centers
+    logical, optional, intent(in) :: includeHalos !< Input: Optional logical that allows reconstruction over halo regions
+
+    logical :: includeHalosLocal
+    integer, dimension(:,:), pointer :: edgesOnCell
+    integer, dimension(:), pointer :: nEdgesOnCell
+    integer :: nCells
+    integer, pointer :: nCells_ptr
+    real(kind=RKIND), dimension(:), pointer :: latCell, lonCell
+    real (kind=RKIND), dimension(:,:,:), pointer :: coeffs_reconstruct
+
+    if ( present(includeHalos) ) then
+       includeHalosLocal = includeHalos
+    else
+       includeHalosLocal = .false.
+    end if
+
+    ! stored arrays used during compute procedure
+    call mpas_pool_get_array(meshPool, 'coeffs_reconstruct', coeffs_reconstruct)
+
+    ! temporary variables
+    call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nEdgesOnCell)
+    call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
+    call mpas_pool_get_array(meshPool, 'latCell', latCell)
+    call mpas_pool_get_array(meshPool, 'lonCell', lonCell)
+
+    if ( includeHalosLocal ) then
+       call mpas_pool_get_dimension(meshPool, 'nCells', nCells_ptr)
+    else
+       call mpas_pool_get_dimension(meshPool, 'nCellsSolve', nCells_ptr)
+    end if
+    nCells = nCells_ptr
+
     MPAS_ACC_TIMER_START('mpas_reconstruct_2d [ACC_data_xfer]')
     !$acc exit data delete(coeffs_reconstruct(:,:,1:nCells),nEdgesOnCell(1:nCells), &
     !$acc                   edgesOnCell(:,1:nCells),latCell(1:nCells),lonCell(1:nCells))
@@ -346,7 +439,7 @@ module mpas_vector_reconstruction
     !$acc                   uReconstructMeridional(:,1:nCells))
     MPAS_ACC_TIMER_STOP('mpas_reconstruct_2d [ACC_data_xfer]')
 
-  end subroutine mpas_reconstruct_2d!}}}
+  end subroutine mpas_reconstruct_2d_d2h
 
 
 !***********************************************************************

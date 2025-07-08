@@ -543,6 +543,8 @@ module atm_core
       call mpas_pool_get_array(diag, 'uReconstructZ', uReconstructZ)
       call mpas_pool_get_array(diag, 'uReconstructZonal', uReconstructZonal)
       call mpas_pool_get_array(diag, 'uReconstructMeridional', uReconstructMeridional)
+      call mpas_reconstruct_2d_h2d(mesh, u, uReconstructX, uReconstructY, uReconstructZ, &
+                                   uReconstructZonal, uReconstructMeridional)
       call mpas_reconstruct(mesh, u,                   &
                             uReconstructX,             &
                             uReconstructY,             &
@@ -550,6 +552,8 @@ module atm_core
                             uReconstructZonal,         &
                             uReconstructMeridional     &
                            )
+      call mpas_reconstruct_2d_d2h(mesh, u, uReconstructX, uReconstructY, uReconstructZ, &
+               uReconstructZonal, uReconstructMeridional)
    
 #ifdef DO_PHYSICS
       !proceed with initialization of physics parameterization if moist_physics is set to true:

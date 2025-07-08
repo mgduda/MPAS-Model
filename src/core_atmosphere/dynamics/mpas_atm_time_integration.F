@@ -846,6 +846,7 @@ module atm_time_integration
 
 
 #ifdef MPAS_OPENACC
+      type (mpas_pool_type), pointer :: mesh
       type (mpas_pool_type), pointer :: state
       type (mpas_pool_type), pointer :: diag
       type (mpas_pool_type), pointer :: tend
@@ -879,6 +880,10 @@ module atm_time_integration
       real (kind=RKIND), dimension(:,:,:), pointer :: scalars_1, scalars_2
       real (kind=RKIND), dimension(:,:), pointer :: ruAvg, wwAvg, ruAvg_split, wwAvg_split
 
+      integer, pointer :: nCells_ptr
+      integer :: nCells
+      real (kind=RKIND), dimension(:,:), pointer :: uReconstructZonal, uReconstructMeridional, uReconstructX, uReconstructY, uReconstructZ
+
       real (kind=RKIND), dimension(:,:), pointer :: tend_ru, tend_rt, tend_rho, tend_rw, rt_diabatic_tend
       real (kind=RKIND), dimension(:,:), pointer :: tend_u_euler, tend_w_euler, tend_theta_euler
       real(kind=RKIND), dimension(:,:), pointer :: tend_w_pgf, tend_w_buoy
@@ -892,11 +897,13 @@ module atm_time_integration
 
       real (kind=RKIND), dimension(:,:,:), pointer :: lbc_scalars, lbc_tend_scalars
 
+      nullify(mesh)
       nullify(state)
       nullify(diag)
       nullify(tend)
       nullify(tend_physics)
       nullify(lbc)
+      call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', mesh)
       call mpas_pool_get_subpool(domain % blocklist % structs, 'state', state)
       call mpas_pool_get_subpool(domain % blocklist % structs, 'diag', diag)
       call mpas_pool_get_subpool(domain % blocklist % structs, 'tend', tend)
@@ -1006,6 +1013,19 @@ module atm_time_integration
       call mpas_pool_get_array(diag, 'wwAvg_split', wwAvg_split)
       !$acc enter data copyin(wwAvg_split)
 
+      call mpas_pool_get_dimension(mesh, 'nCellsSolve', nCells_ptr)
+      nCells = nCells_ptr
+      call mpas_pool_get_array(diag, 'uReconstructX', uReconstructX)
+      !$acc enter data create(uReconstructX(:,1:nCells))
+      call mpas_pool_get_array(diag, 'uReconstructY', uReconstructY)
+      !$acc enter data create(uReconstructY(:,1:nCells))
+      call mpas_pool_get_array(diag, 'uReconstructZ', uReconstructZ)
+      !$acc enter data create(uReconstructZ(:,1:nCells))
+      call mpas_pool_get_array(diag, 'uReconstructZonal', uReconstructZonal)
+      !$acc enter data create(uReconstructZonal(:,1:nCells))
+      call mpas_pool_get_array(diag, 'uReconstructMeridional', uReconstructMeridional)
+      !$acc enter data create(uReconstructMeridional(:,1:nCells))
+
       call mpas_pool_get_array(state, 'u', u_1, 1)
       !$acc enter data copyin(u_1)
       call mpas_pool_get_array(state, 'u', u_2, 2)
@@ -1108,6 +1128,7 @@ module atm_time_integration
 
 
 #ifdef MPAS_OPENACC
+      type (mpas_pool_type), pointer :: mesh
       type (mpas_pool_type), pointer :: state
       type (mpas_pool_type), pointer :: diag
       type (mpas_pool_type), pointer :: tend
@@ -1141,6 +1162,10 @@ module atm_time_integration
       real (kind=RKIND), dimension(:,:,:), pointer :: scalars_1, scalars_2
       real (kind=RKIND), dimension(:,:), pointer :: ruAvg, wwAvg, ruAvg_split, wwAvg_split
 
+      integer, pointer :: nCells_ptr
+      integer :: nCells
+      real (kind=RKIND), dimension(:,:), pointer :: uReconstructZonal, uReconstructMeridional, uReconstructX, uReconstructY, uReconstructZ
+
       real (kind=RKIND), dimension(:,:), pointer :: tend_ru, tend_rt, tend_rho, tend_rw, rt_diabatic_tend
       real (kind=RKIND), dimension(:,:), pointer :: tend_u_euler, tend_w_euler, tend_theta_euler
       real(kind=RKIND), dimension(:,:), pointer :: tend_w_pgf, tend_w_buoy
@@ -1154,11 +1179,13 @@ module atm_time_integration
 
       real (kind=RKIND), dimension(:,:,:), pointer :: lbc_scalars, lbc_tend_scalars
 
+      nullify(mesh)
       nullify(state)
       nullify(diag)
       nullify(tend)
       nullify(tend_physics)
       nullify(lbc)
+      call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', mesh)
       call mpas_pool_get_subpool(domain % blocklist % structs, 'state', state)
       call mpas_pool_get_subpool(domain % blocklist % structs, 'diag', diag)
       call mpas_pool_get_subpool(domain % blocklist % structs, 'tend', tend)
@@ -1267,6 +1294,19 @@ module atm_time_integration
       !$acc exit data copyout(wwAvg)
       call mpas_pool_get_array(diag, 'wwAvg_split', wwAvg_split)
       !$acc exit data copyout(wwAvg_split)
+
+      call mpas_pool_get_dimension(mesh, 'nCellsSolve', nCells_ptr)
+      nCells = nCells_ptr
+      call mpas_pool_get_array(diag, 'uReconstructX', uReconstructX)
+      !$acc exit data copyout(uReconstructX(:,1:nCells))
+      call mpas_pool_get_array(diag, 'uReconstructY', uReconstructY)
+      !$acc exit data copyout(uReconstructY(:,1:nCells))
+      call mpas_pool_get_array(diag, 'uReconstructZ', uReconstructZ)
+      !$acc exit data copyout(uReconstructZ(:,1:nCells))
+      call mpas_pool_get_array(diag, 'uReconstructZonal', uReconstructZonal)
+      !$acc exit data copyout(uReconstructZonal(:,1:nCells))
+      call mpas_pool_get_array(diag, 'uReconstructMeridional', uReconstructMeridional)
+      !$acc exit data copyout(uReconstructMeridional(:,1:nCells))
 
       call mpas_pool_get_array(state, 'u', u_1, 1)
       !$acc exit data copyout(u_1)
