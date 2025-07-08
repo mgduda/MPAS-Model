@@ -5096,9 +5096,7 @@ module atm_time_integration
 
       end if
 
-      MPAS_ACC_TIMER_START('atm_advance_scalars_mono [ACC_data_xfer]')
       !$acc enter data create(scale_arr)
-      MPAS_ACC_TIMER_STOP('atm_advance_scalars_mono [ACC_data_xfer]')
 
       do iScalar = 1, num_scalars
 
@@ -5601,9 +5599,7 @@ module atm_time_integration
 
       end do !  loop over scalars
 
-      MPAS_ACC_TIMER_START('atm_advance_scalars_mono [ACC_data_xfer]')
       !$acc exit data delete(scale_arr)
-      MPAS_ACC_TIMER_STOP('atm_advance_scalars_mono [ACC_data_xfer]')
 
    end subroutine atm_advance_scalars_mono_work
 
