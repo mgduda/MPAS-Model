@@ -86,6 +86,7 @@ module atm_time_integration
    !$acc declare create(s_max_arr, s_min_arr)
    !$acc declare create(flux_array, flux_upwind_tmp_arr)
    !$acc declare create(flux_tmp_arr, wdtn_arr)
+   !$acc declare create(rho_zz_int)
 
    real (kind=RKIND), dimension(:,:), allocatable :: ru_driving_tend ! regional_MPAS addition 
    real (kind=RKIND), dimension(:,:), allocatable :: rt_driving_tend ! regional_MPAS addition 
@@ -5011,12 +5012,6 @@ module atm_time_integration
       !  The transport will maintain this positive definite solution and optionally, shape preservation (monotonicity).
 
 
-      MPAS_ACC_TIMER_START('atm_advance_scalars_mono [ACC_data_xfer]')
-      if (local_advance_density) then
-         !$acc enter data copyin(rho_zz_int)
-      end if
-      MPAS_ACC_TIMER_STOP('atm_advance_scalars_mono [ACC_data_xfer]')
-
       !$acc parallel
 
       !$acc loop gang worker
@@ -5607,9 +5602,6 @@ module atm_time_integration
       end do !  loop over scalars
 
       MPAS_ACC_TIMER_START('atm_advance_scalars_mono [ACC_data_xfer]')
-      if (local_advance_density) then
-         !$acc exit data copyout(rho_zz_int)
-      end if
       !$acc exit data delete(scale_arr)
       MPAS_ACC_TIMER_STOP('atm_advance_scalars_mono [ACC_data_xfer]')
 
