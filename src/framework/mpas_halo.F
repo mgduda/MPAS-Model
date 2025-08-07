@@ -788,19 +788,6 @@ module mpas_halo
             end if
         end do
 
-        do i = 1, group % nFields
-         if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
-          select case (group % fields(i) % nDims)
-           case (1)  
-            !$acc exit data delete(group % fields(i) % r1arr(:))
-           case (2)  
-            !$acc exit data delete(group % fields(i) % r2arr(:,:))
-           case (3)  
-            !$acc exit data delete(group % fields(i) % r3arr(:,:,:))
-          end select
-         end if
-        end do
-
         !
         ! Initiate non-blocking sends to all neighbors
         !
@@ -872,9 +859,9 @@ module mpas_halo
                         !
                         ! Unpack recv buffer from all neighbors for current field
                         !
-                        !$acc update host(group % recvBuf(:))
-                        !$acc wait
-                        !!$acc kernels default(present)
+                        !!$acc update host(group % recvBuf(:))
+                        !!$acc wait
+                        !$acc kernels default(present) 
                         do iHalo = 1, nHalos
                             do j = 1, maxNRecvList
                                 if (j <= nRecvLists(iHalo,iEndp)) then
@@ -884,7 +871,7 @@ module mpas_halo
                                 end if
                             end do
                         end do
-                        !!$acc end kernels
+                        !$acc end kernels
                         !!$acc exit data copyout(group % fields(i) % r1arr(:))
 
                     !
@@ -894,9 +881,9 @@ module mpas_halo
                         !
                         ! Unpack recv buffer from all neighbors for current field
                         !
-                        !$acc update host(group % recvBuf(:))
-                        !$acc wait
-                        !!$acc kernels default(present)
+                        !!$acc update host(group % recvBuf(:))
+                        !!$acc wait
+                        !$acc kernels default(present)
                         do iHalo = 1, nHalos
                             do j = 1, maxNRecvList
                                 do i1 = 1, dim1
@@ -908,7 +895,7 @@ module mpas_halo
                                 end do
                             end do
                         end do
-                        !!$acc end kernels
+                        !$acc end kernels
                         !!$acc exit data copyout(group % fields(i) % r2arr(:,:))
 
                     !
@@ -918,9 +905,9 @@ module mpas_halo
                         !
                         ! Unpack recv buffer from all neighbors for current field
                         !
-                        !$acc update host(group % recvBuf(:))
-                        !$acc wait
-                        !!$acc kernels default(present)
+                        !!$acc update host(group % recvBuf(:))
+                        !!$acc wait
+                        !$acc kernels default(present)
                         do iHalo = 1, nHalos
                             do j = 1, maxNRecvList
                                 do i2 = 1, dim2
@@ -935,7 +922,7 @@ module mpas_halo
                                 end do
                             end do
                         end do
-                        !!$acc end kernels
+                        !$acc end kernels
                         !!$acc exit data copyout(group % fields(i) % r3arr(:,:,:))
 
                     end select
@@ -943,9 +930,35 @@ module mpas_halo
             end do
         end do
 
+        do i = 1, group % nFields
+         if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
+          select case (group % fields(i) % nDims)
+           case (1)  
+            !$acc update self(group % fields(i) % r1arr(:))
+           case (2)  
+            !$acc update self(group % fields(i) % r2arr(:,:))
+           case (3)  
+            !$acc update self(group % fields(i) % r3arr(:,:,:))
+          end select
+         end if
+        end do
+
+        do i = 1, group % nFields
+         if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
+          select case (group % fields(i) % nDims)
+           case (1)  
+            !$acc exit data delete(group % fields(i) % r1arr(:))
+           case (2)  
+            !$acc exit data delete(group % fields(i) % r2arr(:,:))
+           case (3)  
+            !$acc exit data delete(group % fields(i) % r3arr(:,:,:))
+          end select
+         end if
+        end do
+
         ! For the present(group % recvBuf(:), group % sendBuf(:))
         !$acc end data
-
+        ! !$acc wait
         ! do i = 1, group % nFields
         !  if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
         !   select case (group % fields(i) % nDims)
@@ -958,7 +971,7 @@ module mpas_halo
         !   end select
         !  end if
         ! end do
-
+        ! !$acc wait
         
         !
         ! Nullify array pointers - not necessary for correctness, but helpful when debugging
