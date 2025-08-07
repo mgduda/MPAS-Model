@@ -17,6 +17,15 @@
 !>  communicating the halos of all fields in a group.
 !
 !-----------------------------------------------------------------------
+
+#ifdef MPAS_OPENACC
+#define MPAS_ACC_TIMER_START(X) call mpas_timer_start(X)
+#define MPAS_ACC_TIMER_STOP(X) call mpas_timer_stop(X)
+#else
+#define MPAS_ACC_TIMER_START(X)
+#define MPAS_ACC_TIMER_STOP(X)
+#endif
+
 module mpas_halo
 
     implicit none
@@ -281,9 +290,8 @@ module mpas_halo
         call refactor_lists(domain, groupName, iErr)
 
         if ( newGroup% nGroupSendNeighbors <=0 ) then
-            !call mpas_log_write('No send neighbors for halo exchange group '//trim(groupName))
             return
-        end if    
+        end if
 
 
         ! Always copy in the main data member first
@@ -547,7 +555,8 @@ module mpas_halo
         use mpas_derived_types, only : domain_type, mpas_halo_group, MPAS_HALO_REAL, MPAS_LOG_CRIT
         use mpas_pool_routines, only : mpas_pool_get_array
         use mpas_log, only : mpas_log_write
-        use mpas_kind_types, only : RKIND
+        use mpas_timer, only : mpas_timer_start, mpas_timer_stop
+
 
         ! Parameters
 #ifdef MPAS_USE_MPI_F08
@@ -595,12 +604,13 @@ module mpas_halo
         integer :: maxNRecvList
         integer, dimension(:,:,:), CONTIGUOUS pointer :: recvListSrc, recvListDst
         integer, dimension(:), CONTIGUOUS pointer :: unpackOffsets
-        real (kind=RKIND), dimension(:), pointer :: sendBufptr, recvBufptr
+
 
         if (present(iErr)) then
            iErr = 0
         end if
 
+        
         !
         ! Find this halo exhange group in the list of groups
         !
@@ -618,10 +628,11 @@ module mpas_halo
                                 messageType=MPAS_LOG_CRIT)
         end if
 
-        if ( group% nGroupSendNeighbors <=0 ) then
-            !call mpas_log_write('group has no halo exchanges: '//trim(groupName))
+        if ( group% nGroupSendNeighbors <= 0 ) then
             return
-        end if    
+        end if
+
+        call mpas_timer_start('full_halo_exch')
         !
         ! Get the rank of this task and the MPI communicator to use from the first field in
         ! the group; all fields should be using the same communicator, so this should not
@@ -634,11 +645,7 @@ module mpas_halo
 #endif
         rank = group % fields(1) % compactHaloInfo(8)
 
-        sendBufptr => group % sendBuf
-        recvBufptr => group % recvBuf
-
-        !!!$acc data present(group % recvBuf(:), group % sendBuf(:))
-        !$acc data present(sendBufptr,recvBufptr)
+        !$acc data present(group % recvBuf(:), group % sendBuf(:))
 
         !
         ! Initiate non-blocking MPI receives for all neighbors
@@ -648,12 +655,8 @@ module mpas_halo
                 bufstart = group % groupRecvOffsets(i)
                 bufend = group % groupRecvOffsets(i) + group % groupRecvCounts(i) - 1
 !TO DO: how do we determine appropriate type here?
-                ! !$acc host_data use_device(group % recvBuf)
-                ! call MPI_Irecv(group % recvBuf(bufstart:bufend), group % groupRecvCounts(i), MPI_REALKIND, &
-                !                group % groupRecvNeighbors(i), group % groupRecvNeighbors(i), comm, &
-                !                group % recvRequests(i), mpi_ierr)
-                !$acc host_data use_device(recvBufptr)
-                call MPI_Irecv(recvBufptr(bufstart:bufend), group % groupRecvCounts(i), MPI_REALKIND, &
+                !$acc host_data use_device(group % recvBuf)
+                call MPI_Irecv(group % recvBuf(bufstart:bufend), group % groupRecvCounts(i), MPI_REALKIND, &
                                group % groupRecvNeighbors(i), group % groupRecvNeighbors(i), comm, &
                                group % recvRequests(i), mpi_ierr)
                 !$acc end host_data
@@ -695,14 +698,18 @@ module mpas_halo
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r1arr, timeLevel=group % fields(i) % timeLevel)
 
-                    ! !$acc data copyin(group % fields(i) % r1arr(:))
+                    MPAS_ACC_TIMER_START('halo_exch [ACC_data_xfer]')
                     !$acc enter data copyin(group % fields(i) % r1arr(:))
+                    MPAS_ACC_TIMER_STOP('halo_exch [ACC_data_xfer]')
                     !
                     ! Pack send buffer for all neighbors for current field
                     !
-                    !$acc kernels default(present)
+                    call mpas_timer_start('packing_halo_exch')
+                    !$acc parallel default(present)
+                    !$acc loop gang collapse(2)
                     do iEndp = 1, nSendEndpts
                         do iHalo = 1, nHalos
+                            !$acc loop vector
                             do j = 1, maxNSendList
                                 if (j <= nSendLists(iHalo,iEndp)) then
                                     idxBuf = packOffsets(iEndp) + sendListDst(j,iHalo,iEndp)
@@ -712,9 +719,9 @@ module mpas_halo
                             end do
                         end do
                     end do
-                    !$acc end kernels
-                    ! !$acc end data
-                    !!$acc update device(group % sendBuf(:))
+                    !$acc end parallel
+                    call mpas_timer_stop('packing_halo_exch')
+                    
                 !
                 ! Packing code for 2-d real-valued fields
                 !
@@ -725,18 +732,23 @@ module mpas_halo
                     !
                     ! Pack send buffer for all neighbors for current field
                     !
-
+                                             
                     ! Use data regions for specificity and so the reference or attachment counters are easier to make sense of
                     ! Present should also cause an attach action. OpenACC Spec2.7 Section 2.7.2 describes 'attach action'
                     ! !$acc data present(group) present(group % fields(i)) present(group % sendBuf(:), group % fields(i) % sendListSrc(:,:,:))
                     ! !$acc data copyin(group % fields(i) % r2arr(:,:))
+                    MPAS_ACC_TIMER_START('halo_exch [ACC_data_xfer]')
                     !$acc enter data copyin(group % fields(i) % r2arr(:,:))
+                    MPAS_ACC_TIMER_STOP('halo_exch [ACC_data_xfer]')
 
+                    call mpas_timer_start('packing_halo_exch')
                     ! Kernels is good enough, use default present to force a run-time error if programmer forgot something
-                    !$acc kernels default(present)
+                    !$acc parallel default(present)
+                    !$acc loop gang collapse(3)
                     do iEndp = 1, nSendEndpts
                         do iHalo = 1, nHalos
                             do j = 1, maxNSendList
+                                !$acc loop vector
                                 do i1 = 1, dim1
                                     if (j <= nSendLists(iHalo,iEndp)) then
                                         idxBuf = packOffsets(iEndp) + dim1 * (sendListDst(j,iHalo,iEndp) - 1) + i1
@@ -747,27 +759,30 @@ module mpas_halo
                             end do
                         end do
                     end do
-                    !$acc end kernels
-                    ! !$acc end data
-                    ! !$acc end data
-                    !!$acc update device(group % sendBuf(:))
+                    !$acc end parallel
+                    call mpas_timer_stop('packing_halo_exch')
+                    
                 !
                 ! Packing code for 3-d real-valued fields
                 !
                 case (3)
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r3arr, group % fields(i) % timeLevel)
-                    ! !$acc data copyin(group % fields(i) % r3arr(:,:,:))
+                    MPAS_ACC_TIMER_START('halo_exch [ACC_data_xfer]')
                     !$acc enter data copyin(group % fields(i) % r3arr(:,:,:))
+                    MPAS_ACC_TIMER_STOP('halo_exch [ACC_data_xfer]')
 
                     !
                     ! Pack send buffer for all neighbors for current field
                     !
-                    !$acc kernels default(present)
+                    call mpas_timer_start('packing_halo_exch')
+                    !$acc parallel default(present)
+                    !$acc loop gang collapse(4)
                     do iEndp = 1, nSendEndpts
                         do iHalo = 1, nHalos
                             do j = 1, maxNSendList
                                 do i2 = 1, dim2
+                                !$acc loop vector
                                 do i1 = 1, dim1
                                     if (j <= nSendLists(iHalo,iEndp)) then
                                         idxBuf = packOffsets(iEndp) + dim1*dim2*(sendListDst(j,iHalo,iEndp) - 1) &
@@ -780,9 +795,8 @@ module mpas_halo
                             end do
                         end do
                     end do
-                    !$acc end kernels
-                    ! !$acc end data
-                    !!$acc update device(group % sendBuf(:))
+                    !$acc end parallel
+                    call mpas_timer_stop('packing_halo_exch')
 
                 end select
             end if
@@ -796,12 +810,8 @@ module mpas_halo
                 bufstart = group % groupSendOffsets(i)
                 bufend = group % groupSendOffsets(i) + group % groupSendCounts(i) - 1
 !TO DO: how do we determine appropriate type here?
-                ! !$acc host_data use_device(group % sendBuf)
-                ! call MPI_Isend(group % sendBuf(bufstart:bufend), group % groupSendCounts(i), MPI_REALKIND, &
-                !                group % groupSendNeighbors(i), rank, comm, &
-                !                group % sendRequests(i), mpi_ierr)
-                !$acc host_data use_device(sendBufptr)
-                call MPI_Isend(sendBufptr(bufstart:bufend), group % groupSendCounts(i), MPI_REALKIND, &
+                !$acc host_data use_device(group % sendBuf)
+                call MPI_Isend(group % sendBuf(bufstart:bufend), group % groupSendCounts(i), MPI_REALKIND, &
                                group % groupSendNeighbors(i), rank, comm, &
                                group % sendRequests(i), mpi_ierr)
                 !$acc end host_data
@@ -859,10 +869,11 @@ module mpas_halo
                         !
                         ! Unpack recv buffer from all neighbors for current field
                         !
-                        !!$acc update host(group % recvBuf(:))
-                        !!$acc wait
-                        !$acc kernels default(present) 
+                        call mpas_timer_start('unpacking_halo_exch')
+                        !$acc parallel default(present)
+                        !$acc loop gang
                         do iHalo = 1, nHalos
+                            !$acc loop vector
                             do j = 1, maxNRecvList
                                 if (j <= nRecvLists(iHalo,iEndp)) then
                                     idxArr = recvListDst(j,iHalo,iEndp)
@@ -871,8 +882,8 @@ module mpas_halo
                                 end if
                             end do
                         end do
-                        !$acc end kernels
-                        !!$acc exit data copyout(group % fields(i) % r1arr(:))
+                        !$acc end parallel
+                        call mpas_timer_stop('unpacking_halo_exch')
 
                     !
                     ! Unpacking code for 2-d real-valued fields
@@ -881,11 +892,13 @@ module mpas_halo
                         !
                         ! Unpack recv buffer from all neighbors for current field
                         !
-                        !!$acc update host(group % recvBuf(:))
-                        !!$acc wait
-                        !$acc kernels default(present)
+                        call mpas_timer_start('unpacking_halo_exch')
+                        !$acc parallel default(present)
+                        !$acc loop gang
                         do iHalo = 1, nHalos
+                            !$acc loop worker
                             do j = 1, maxNRecvList
+                                !$acc loop vector
                                 do i1 = 1, dim1
                                     if (j <= nRecvLists(iHalo,iEndp)) then
                                         idxArr = recvListDst(j,iHalo,iEndp)
@@ -895,8 +908,8 @@ module mpas_halo
                                 end do
                             end do
                         end do
-                        !$acc end kernels
-                        !!$acc exit data copyout(group % fields(i) % r2arr(:,:))
+                        !$acc end parallel
+                        call mpas_timer_stop('unpacking_halo_exch')
 
                     !
                     ! Unpacking code for 3-d real-valued fields
@@ -905,11 +918,12 @@ module mpas_halo
                         !
                         ! Unpack recv buffer from all neighbors for current field
                         !
-                        !!$acc update host(group % recvBuf(:))
-                        !!$acc wait
-                        !$acc kernels default(present)
+                        call mpas_timer_start('unpacking_halo_exch')
+                        !$acc parallel default(present)
+                        !$acc loop gang collapse(2)
                         do iHalo = 1, nHalos
                             do j = 1, maxNRecvList
+                                !$acc loop vector collapse(2)
                                 do i2 = 1, dim2
                                 do i1 = 1, dim1
                                     if (j <= nRecvLists(iHalo,iEndp)) then
@@ -922,14 +936,15 @@ module mpas_halo
                                 end do
                             end do
                         end do
-                        !$acc end kernels
-                        !!$acc exit data copyout(group % fields(i) % r3arr(:,:,:))
+                        !$acc end parallel
+                        call mpas_timer_stop('unpacking_halo_exch')
 
                     end select
                 end if
             end do
         end do
 
+        MPAS_ACC_TIMER_START('halo_exch [ACC_data_xfer]')
         do i = 1, group % nFields
          if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
           select case (group % fields(i) % nDims)
@@ -958,20 +973,7 @@ module mpas_halo
 
         ! For the present(group % recvBuf(:), group % sendBuf(:))
         !$acc end data
-        ! !$acc wait
-        ! do i = 1, group % nFields
-        !  if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
-        !   select case (group % fields(i) % nDims)
-        !    case (1)  
-        !     !$acc exit data copyout(group % fields(i) % r1arr(:))
-        !    case (2)  
-        !     !$acc exit data copyout(group % fields(i) % r2arr(:,:))
-        !    case (3)  
-        !     !$acc exit data copyout(group % fields(i) % r3arr(:,:,:))
-        !   end select
-        !  end if
-        ! end do
-        ! !$acc wait
+        MPAS_ACC_TIMER_STOP('halo_exch [ACC_data_xfer]')
         
         !
         ! Nullify array pointers - not necessary for correctness, but helpful when debugging
@@ -991,6 +993,8 @@ module mpas_halo
         ! Wait for all sends to complete before returning
         !
         call MPI_Waitall(group % nGroupSendNeighbors, group % sendRequests, MPI_STATUSES_IGNORE, mpi_ierr)
+
+        call mpas_timer_stop('full_halo_exch')
 
     end subroutine mpas_halo_exch_group_full_halo_exch
 
