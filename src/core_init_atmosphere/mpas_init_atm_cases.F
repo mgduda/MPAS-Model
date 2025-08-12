@@ -1429,7 +1429,7 @@ module init_atm_cases
       integer, dimension(:), pointer :: nEdgesOnEdge 
       integer, dimension(:,:), pointer :: edgesOnEdge, cellsOnEdge
       real (kind=RKIND), dimension(:,:), pointer :: weightsOnEdge
-
+      real (kind=RKIND), pointer :: x_period, y_period
       integer :: iCell, iCell1, iCell2 , iEdge, ivtx, i, k, nz, nz1, itr, cell1, cell2
       integer, pointer :: nEdges, nVertices, maxEdges, nCellsSolve
       integer, pointer :: index_qv
@@ -1482,7 +1482,9 @@ module init_atm_cases
       call mpas_pool_get_array(mesh, 'areaTriangle', areaTriangle)
       call mpas_pool_get_array(mesh, 'kiteAreasOnVertex', kiteAreasOnVertex)
       call mpas_pool_get_array(mesh, 'nominalMinDc', nominalMinDc)
-
+     
+      call mpas_pool_get_config(mesh, 'x_period', x_period)
+      call mpas_pool_get_config(mesh, 'y_period', y_period)
       call mpas_pool_get_config(mesh, 'on_a_sphere', on_a_sphere)
       call mpas_pool_get_config(mesh, 'sphere_radius', sphere_radius)
       call mpas_pool_get_config(configs, 'config_interface_projection', config_interface_projection)
@@ -1509,6 +1511,8 @@ module init_atm_cases
       areaTriangle(:) = areaTriangle(:) * a_scale**2.0
       kiteAreasOnVertex(:,:) = kiteAreasOnVertex(:,:) * a_scale**2.0
       nominalMinDc = nominalMinDc * a_scale
+      x_period = x_period * a_scale
+      y_period = y_period * a_scale
 
       call mpas_pool_get_array(mesh, 'weightsOnEdge', weightsOnEdge)
       call mpas_pool_get_array(mesh, 'nEdgesOnEdge', nEdgesOnEdge)
@@ -2051,6 +2055,7 @@ module init_atm_cases
       integer, dimension(:), pointer :: nEdgesOnEdge, nEdgesOnCell
       integer, dimension(:,:), pointer :: edgesOnEdge, cellsOnEdge, cellsOnCell
       real (kind=RKIND), dimension(:,:), pointer :: weightsOnEdge
+      real (kind=RKIND), pointer :: x_period, y_period
 
       integer :: iCell, iCell1, iCell2 , iEdge, ivtx, i, k, nz, itr, cell1, cell2, nz1
       integer, pointer :: nEdges, maxEdges, nCellsSolve, nVertices
@@ -2109,6 +2114,8 @@ module init_atm_cases
       call mpas_pool_get_array(mesh, 'kiteAreasOnVertex', kiteAreasOnVertex)
       call mpas_pool_get_array(mesh, 'nominalMinDc', nominalMinDc)
 
+      call mpas_pool_get_config(mesh, 'x_period', x_period)
+      call mpas_pool_get_config(mesh, 'y_period', y_period)
       call mpas_pool_get_config(mesh, 'on_a_sphere', on_a_sphere)
       call mpas_pool_get_config(mesh, 'sphere_radius', sphere_radius)
 
@@ -2150,6 +2157,8 @@ module init_atm_cases
       areaTriangle(:) = areaTriangle(:) * a_scale**2.0
       kiteAreasOnVertex(:,:) = kiteAreasOnVertex(:,:) * a_scale**2.0
       nominalMinDc = nominalMinDc * a_scale
+      x_period = x_period * a_scale
+      y_period = y_period * a_scale
 
       
       call mpas_pool_get_dimension(mesh, 'nEdges', nEdges)
@@ -6258,6 +6267,7 @@ call mpas_log_write('Done with soil consistency check')
       integer, dimension(:), pointer :: nEdgesOnEdge 
       integer, dimension(:,:), pointer :: edgesOnEdge, cellsOnEdge
       real (kind=RKIND), dimension(:,:), pointer :: weightsOnEdge
+      real (kind=RKIND), pointer :: x_period, y_period
 
       integer :: iCell, iCell1, iCell2 , iEdge, vtx1, vtx2, ivtx, i, k, nz, nz1, itr, cell1, cell2
       integer, pointer :: nEdges, nVertices, maxEdges, nCellsSolve
@@ -6312,6 +6322,8 @@ call mpas_log_write('Done with soil consistency check')
       call mpas_pool_get_array(mesh, 'areaTriangle', areaTriangle)
       call mpas_pool_get_array(mesh, 'kiteAreasOnVertex', kiteAreasOnVertex)
 
+      call mpas_pool_get_config(mesh, 'x_period', x_period)
+      call mpas_pool_get_config(mesh, 'y_period', y_period)
       call mpas_pool_get_config(mesh, 'on_a_sphere', on_a_sphere)
       call mpas_pool_get_config(mesh, 'sphere_radius', sphere_radius)
       call mpas_pool_get_config(configs, 'config_ztop', config_ztop)
@@ -6336,6 +6348,8 @@ call mpas_log_write('Done with soil consistency check')
       areaCell(:) = areaCell(:) * a_scale**2.0
       areaTriangle(:) = areaTriangle(:) * a_scale**2.0
       kiteAreasOnVertex(:,:) = kiteAreasOnVertex(:,:) * a_scale**2.0
+      x_period = x_period * a_scale
+      y_period = y_period * a_scale
 
       call mpas_pool_get_array(mesh, 'weightsOnEdge', weightsOnEdge)
       call mpas_pool_get_array(mesh, 'nEdgesOnEdge', nEdgesOnEdge)
