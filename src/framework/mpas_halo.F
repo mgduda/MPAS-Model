@@ -17,15 +17,6 @@
 !>  communicating the halos of all fields in a group.
 !
 !-----------------------------------------------------------------------
-
-#ifdef MPAS_OPENACC
-#define MPAS_ACC_TIMER_START(X) call mpas_timer_start(X)
-#define MPAS_ACC_TIMER_STOP(X) call mpas_timer_stop(X)
-#else
-#define MPAS_ACC_TIMER_START(X)
-#define MPAS_ACC_TIMER_STOP(X)
-#endif
-
 module mpas_halo
 
     implicit none
@@ -556,8 +547,6 @@ module mpas_halo
         use mpas_pool_routines, only : mpas_pool_get_array
         use mpas_log, only : mpas_log_write
         use mpas_timer, only : mpas_timer_start, mpas_timer_stop
-        use openacc
-
 
         ! Parameters
 #ifdef MPAS_USE_MPI_F08
@@ -607,7 +596,6 @@ module mpas_halo
         integer :: maxNRecvList
         integer, dimension(:,:,:), CONTIGUOUS pointer :: recvListSrc, recvListDst
         integer, dimension(:), CONTIGUOUS pointer :: unpackOffsets
-
         
 
         if (present(iErr)) then
@@ -618,7 +606,6 @@ module mpas_halo
         if (present(withGPUAwareMPI)) then
            useGPUAwareMPI = withGPUAwareMPI
         end if
-
         
         !
         ! Find this halo exhange group in the list of groups
@@ -708,9 +695,7 @@ module mpas_halo
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r1arr, timeLevel=group % fields(i) % timeLevel)
                     
-                    if( useGPUAwareMPI ) then
-                        call acc_attach(group % fields(i) % r1arr)
-                    end if                    
+                    !$acc enter data attach(group % fields(i) % r1arr) if(useGPUAwareMPI)
                     !
                     ! Pack send buffer for all neighbors for current field
                     !
@@ -738,17 +723,14 @@ module mpas_halo
                 case (2)
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r2arr, timeLevel=group % fields(i) % timeLevel)
-
+                    
+                    !$acc enter data attach(group % fields(i) % r2arr) if(useGPUAwareMPI)
                     !
                     ! Pack send buffer for all neighbors for current field
                     !                                             
                     ! Use data regions for specificity and so the reference or attachment counters are easier to make sense of
                     ! Present should also cause an attach action. OpenACC Spec2.7 Section 2.7.2 describes 'attach action'
                     ! !$acc data present(group) present(group % fields(i)) present(group % sendBuf(:), group % fields(i) % sendListSrc(:,:,:))
-                    
-                    if( useGPUAwareMPI ) then
-                        call acc_attach(group % fields(i) % r2arr)
-                    end if
                     
 
                     call mpas_timer_start('packing_halo_exch')
@@ -778,10 +760,8 @@ module mpas_halo
                 case (3)
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r3arr, group % fields(i) % timeLevel)                    
-                    if( useGPUAwareMPI ) then
-                        call acc_attach(group % fields(i) % r3arr)
-                    end if
 
+                    !$acc enter data attach(group % fields(i) % r3arr) if(useGPUAwareMPI)
                     !
                     ! Pack send buffer for all neighbors for current field
                     !
