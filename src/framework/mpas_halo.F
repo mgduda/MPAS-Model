@@ -695,12 +695,11 @@ module mpas_halo
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r1arr, timeLevel=group % fields(i) % timeLevel)
                     
-                    !$acc enter data attach(group % fields(i) % r1arr) if(useGPUAwareMPI)
                     !
                     ! Pack send buffer for all neighbors for current field
                     !
                     call mpas_timer_start('packing_halo_exch')
-                    !$acc parallel default(present) if(useGPUAwareMPI)
+                    !$acc parallel default(present) attach(group % fields(i) % r1arr) if(useGPUAwareMPI)
                     !$acc loop gang collapse(2)
                     do iEndp = 1, nSendEndpts
                         do iHalo = 1, nHalos
@@ -724,7 +723,6 @@ module mpas_halo
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r2arr, timeLevel=group % fields(i) % timeLevel)
                     
-                    !$acc enter data attach(group % fields(i) % r2arr) if(useGPUAwareMPI)
                     !
                     ! Pack send buffer for all neighbors for current field
                     !                                             
@@ -735,7 +733,7 @@ module mpas_halo
 
                     call mpas_timer_start('packing_halo_exch')
                     ! Kernels is good enough, use default present to force a run-time error if programmer forgot something
-                    !$acc parallel default(present) if(useGPUAwareMPI)
+                    !$acc parallel default(present) attach(group % fields(i) % r2arr) if(useGPUAwareMPI)
                     !$acc loop gang collapse(3)
                     do iEndp = 1, nSendEndpts
                         do iHalo = 1, nHalos
@@ -760,13 +758,12 @@ module mpas_halo
                 case (3)
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r3arr, group % fields(i) % timeLevel)                    
-
-                    !$acc enter data attach(group % fields(i) % r3arr) if(useGPUAwareMPI)
+                    
                     !
                     ! Pack send buffer for all neighbors for current field
                     !
                     call mpas_timer_start('packing_halo_exch')
-                    !$acc parallel default(present) if(useGPUAwareMPI)
+                    !$acc parallel default(present) attach(group % fields(i) % r3arr) if(useGPUAwareMPI)
                     !$acc loop gang collapse(4)
                     do iEndp = 1, nSendEndpts
                         do iHalo = 1, nHalos
@@ -860,7 +857,7 @@ module mpas_halo
                         ! Unpack recv buffer from all neighbors for current field
                         !
                         call mpas_timer_start('unpacking_halo_exch')
-                        !$acc parallel default(present) if(useGPUAwareMPI)
+                        !$acc parallel default(present) attach(group % fields(i) % r1arr) if(useGPUAwareMPI)
                         !$acc loop gang
                         do iHalo = 1, nHalos
                             !$acc loop vector
@@ -883,7 +880,7 @@ module mpas_halo
                         ! Unpack recv buffer from all neighbors for current field
                         !
                         call mpas_timer_start('unpacking_halo_exch')
-                        !$acc parallel default(present) if(useGPUAwareMPI)
+                        !$acc parallel default(present) attach(group % fields(i) % r2arr) if(useGPUAwareMPI)
                         !$acc loop gang
                         do iHalo = 1, nHalos
                             !$acc loop worker
@@ -909,7 +906,7 @@ module mpas_halo
                         ! Unpack recv buffer from all neighbors for current field
                         !
                         call mpas_timer_start('unpacking_halo_exch')
-                        !$acc parallel default(present) if(useGPUAwareMPI)
+                        !$acc parallel default(present) attach(group % fields(i) % r3arr) if(useGPUAwareMPI)
                         !$acc loop gang collapse(2)
                         do iHalo = 1, nHalos
                             do j = 1, maxNRecvList
