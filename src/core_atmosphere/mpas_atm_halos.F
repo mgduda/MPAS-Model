@@ -62,18 +62,23 @@ module mpas_atm_halos
 
       ! Local variables
       character(len=StrKIND), pointer :: config_halo_exch_method
+      logical, pointer :: config_gpu_aware_mpi
 
 
       !
       ! Determine from the namelist option config_halo_exch_method which halo exchange method to employ
       !
       call mpas_pool_get_config(domain % blocklist % configs, 'config_halo_exch_method', config_halo_exch_method)
+      call mpas_pool_get_config(domain % blocklist % configs, 'config_gpu_aware_mpi', config_gpu_aware_mpi)
 
       if (trim(config_halo_exch_method) == 'mpas_dmpar') then
          call mpas_log_write('')
          call mpas_log_write('*** Using ''mpas_dmpar'' routines for exchanging halos')
          call mpas_log_write('')
 
+         if (config_gpu_aware_mpi) then
+            call mpas_log_write('GPU-aware MPI is not presently supported with config_halo_exch_method = mpas_dmpar',MPAS_LOG_CRIT)
+         end if
          !
          ! Set up halo exchange groups used during atmosphere core initialization
          !

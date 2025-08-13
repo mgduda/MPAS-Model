@@ -392,6 +392,10 @@
                      units="-"
                      description="Method to use for exchanging halos"
                      possible_values="`mpas_dmpar', `mpas_halo'"/>
+               <nml_option name="config_gpu_aware_mpi" type="logical" default_value="false"
+                     units="-"
+                     description="Whether to use GPU-aware MPI for halo exchanges"
+                     possible_values=".true. or .false."/>
         </nml_record>
 
 <!-- **************************************************************************************** -->
