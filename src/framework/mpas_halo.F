@@ -556,6 +556,7 @@ module mpas_halo
         use mpas_pool_routines, only : mpas_pool_get_array
         use mpas_log, only : mpas_log_write
         use mpas_timer, only : mpas_timer_start, mpas_timer_stop
+        use openacc
 
 
         ! Parameters
@@ -636,6 +637,7 @@ module mpas_halo
                                 messageType=MPAS_LOG_CRIT)
         end if
 
+        ! Logic to return early if there no neighbors to send to
         if ( group% nGroupSendNeighbors <= 0 ) then
             return
         end if
@@ -662,9 +664,6 @@ module mpas_halo
             if (group % groupRecvCounts(i) > 0) then
                 bufstart = group % groupRecvOffsets(i)
                 bufend = group % groupRecvOffsets(i) + group % groupRecvCounts(i) - 1
-
-                !!$acc update self(group % recvBuf(bufstart:bufend)) if(useGPUAwareMPI)
-
 !TO DO: how do we determine appropriate type here?
                 !$acc host_data use_device(group % recvBuf) if(useGPUAwareMPI)
                 call MPI_Irecv(group % recvBuf(bufstart:bufend), group % groupRecvCounts(i), MPI_REALKIND, &
@@ -708,10 +707,10 @@ module mpas_halo
                 case (1)
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
                                              group % fields(i) % r1arr, timeLevel=group % fields(i) % timeLevel)
-
-                    !MPAS_ACC_TIMER_START('halo_exch [ACC_data_xfer]')
-                    !$acc enter data copyin(group % fields(i) % r1arr(:)) if(useGPUAwareMPI)
-                    !MPAS_ACC_TIMER_STOP('halo_exch [ACC_data_xfer]')
+                    
+                    if( useGPUAwareMPI ) then
+                        call acc_attach(group % fields(i) % r1arr)
+                    end if                    
                     !
                     ! Pack send buffer for all neighbors for current field
                     !
@@ -742,15 +741,15 @@ module mpas_halo
 
                     !
                     ! Pack send buffer for all neighbors for current field
-                    !
-                                             
+                    !                                             
                     ! Use data regions for specificity and so the reference or attachment counters are easier to make sense of
                     ! Present should also cause an attach action. OpenACC Spec2.7 Section 2.7.2 describes 'attach action'
                     ! !$acc data present(group) present(group % fields(i)) present(group % sendBuf(:), group % fields(i) % sendListSrc(:,:,:))
-                    ! !$acc data copyin(group % fields(i) % r2arr(:,:))
-                    ! MPAS_ACC_TIMER_START('halo_exch [ACC_data_xfer]')
-                    !$acc enter data copyin(group % fields(i) % r2arr(:,:)) if (useGPUAwareMPI)
-                    ! MPAS_ACC_TIMER_STOP('halo_exch [ACC_data_xfer]')
+                    
+                    if( useGPUAwareMPI ) then
+                        call acc_attach(group % fields(i) % r2arr)
+                    end if
+                    
 
                     call mpas_timer_start('packing_halo_exch')
                     ! Kernels is good enough, use default present to force a run-time error if programmer forgot something
@@ -778,10 +777,10 @@ module mpas_halo
                 !
                 case (3)
                     call mpas_pool_get_array(domain % blocklist % allFields, trim(group % fields(i) % fieldName), &
-                                             group % fields(i) % r3arr, group % fields(i) % timeLevel)
-                    ! MPAS_ACC_TIMER_START('halo_exch [ACC_data_xfer]')
-                    !$acc enter data copyin(group % fields(i) % r3arr(:,:,:)) if (useGPUAwareMPI)
-                    ! MPAS_ACC_TIMER_STOP('halo_exch [ACC_data_xfer]')
+                                             group % fields(i) % r3arr, group % fields(i) % timeLevel)                    
+                    if( useGPUAwareMPI ) then
+                        call acc_attach(group % fields(i) % r3arr)
+                    end if
 
                     !
                     ! Pack send buffer for all neighbors for current field
@@ -820,8 +819,6 @@ module mpas_halo
             if (group % groupSendCounts(i) > 0) then
                 bufstart = group % groupSendOffsets(i)
                 bufend = group % groupSendOffsets(i) + group % groupSendCounts(i) - 1
-
-                !!$acc update self(group % sendBuf(bufstart:bufend)) if(.not. useGPUAwareMPI)
 !TO DO: how do we determine appropriate type here?
                 !$acc host_data use_device(group % sendBuf) if(useGPUAwareMPI)
                 call MPI_Isend(group % sendBuf(bufstart:bufend), group % groupSendCounts(i), MPI_REALKIND, &
@@ -872,10 +869,6 @@ module mpas_halo
                 if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
                     dim1 = compactHaloInfo(2)
                     dim2 = compactHaloInfo(3)
-
-                    bufstart = group % groupSendOffsets(iNeighbor)
-                    bufend = group % groupSendOffsets(iNeighbor) + group % groupSendCounts(iNeighbor) - 1
-                    !!!$acc update device(group % recvBuf(bufstart:bufend)) if(.not. useGPUAwareMPI)
 
                     select case (group % fields(i) % nDims)
 
@@ -960,37 +953,8 @@ module mpas_halo
                 end if
             end do
         end do
-
-        MPAS_ACC_TIMER_START('halo_exch [ACC_data_xfer]')
-        do i = 1, group % nFields
-         if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
-          select case (group % fields(i) % nDims)
-           case (1)  
-            !$acc update self(group % fields(i) % r1arr(:)) if (useGPUAwareMPI)
-           case (2)  
-            !$acc update self(group % fields(i) % r2arr(:,:)) if (useGPUAwareMPI)
-           case (3)  
-            !$acc update self(group % fields(i) % r3arr(:,:,:)) if (useGPUAwareMPI)
-          end select
-         end if
-        end do
-
-        do i = 1, group % nFields
-         if (group % fields(i) % fieldType == MPAS_HALO_REAL) then
-          select case (group % fields(i) % nDims)
-           case (1)  
-            !$acc exit data delete(group % fields(i) % r1arr(:)) if (useGPUAwareMPI)
-           case (2)  
-            !$acc exit data delete(group % fields(i) % r2arr(:,:)) if (useGPUAwareMPI)
-           case (3)  
-            !$acc exit data delete(group % fields(i) % r3arr(:,:,:)) if (useGPUAwareMPI)
-          end select
-         end if
-        end do
-
         ! For the present(group % recvBuf(:), group % sendBuf(:))
         !$acc end data
-        MPAS_ACC_TIMER_STOP('halo_exch [ACC_data_xfer]')
         
         !
         ! Nullify array pointers - not necessary for correctness, but helpful when debugging
