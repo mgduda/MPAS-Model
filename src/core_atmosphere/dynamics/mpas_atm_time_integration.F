@@ -1311,11 +1311,11 @@ module atm_time_integration
       call mpas_pool_get_array(state, 'u', u_1, 1)
       !$acc exit data copyout(u_1)
       call mpas_pool_get_array(state, 'u', u_2, 2)
-      !$acc exit data delete(u_2)
+      !$acc exit data copyout(u_2)
       call mpas_pool_get_array(state, 'w', w_1, 1)
       !$acc exit data copyout(w_1)
       call mpas_pool_get_array(state, 'w', w_2, 2)
-      !$acc exit data delete(w_2)
+      !$acc exit data copyout(w_2)
       call mpas_pool_get_array(state, 'theta_m', theta_m_1, 1)  
       !$acc exit data copyout(theta_m_1)   ! use values from atm_init_coupled_diagnostics
       call mpas_pool_get_array(state, 'theta_m', theta_m_2, 2)
