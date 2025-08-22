@@ -1022,9 +1022,9 @@ module atm_time_integration
       call mpas_pool_get_array(diag, 'uReconstructZ', uReconstructZ)
       !$acc enter data create(uReconstructZ(:,1:nCells))
       call mpas_pool_get_array(diag, 'uReconstructZonal', uReconstructZonal)
-      !$acc enter data create(uReconstructZonal(:,1:nCells))
+      !$acc enter data copyin(uReconstructZonal(:,1:nCells))
       call mpas_pool_get_array(diag, 'uReconstructMeridional', uReconstructMeridional)
-      !$acc enter data create(uReconstructMeridional(:,1:nCells))
+      !$acc enter data copyin(uReconstructMeridional(:,1:nCells))
 
       call mpas_pool_get_array(state, 'u', u_1, 1)
       !$acc enter data copyin(u_1)
@@ -6071,12 +6071,7 @@ module atm_time_integration
                 coef3*abs(ua)*((q_ip1 - q_im2)-3.*(q_i-q_im1))/12.0
 
 
-      MPAS_ACC_TIMER_START('atm_compute_dyn_tend_work [ACC_data_xfer]')
       !$acc enter data create(rayleigh_damp_coef)
-      #ifdef CURVATURE
-      !$acc enter data copyin(ur_cell, vr_cell)
-      #endif
-      MPAS_ACC_TIMER_STOP('atm_compute_dyn_tend_work [ACC_data_xfer]')
 
       prandtl_inv = 1.0_RKIND / prandtl
       invDt = 1.0_RKIND / dt
@@ -7074,12 +7069,7 @@ module atm_time_integration
       end do
       !$acc end parallel
 
-      MPAS_ACC_TIMER_START('atm_compute_dyn_tend_work [ACC_data_xfer]')
       !$acc exit data delete(rayleigh_damp_coef)
-      #ifdef CURVATURE
-      !$acc exit data delete(ur_cell, vr_cell)
-      #endif
-      MPAS_ACC_TIMER_STOP('atm_compute_dyn_tend_work [ACC_data_xfer]')
 
    end subroutine atm_compute_dyn_tend_work
 
