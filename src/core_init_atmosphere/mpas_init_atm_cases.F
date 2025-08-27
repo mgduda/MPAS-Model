@@ -1494,7 +1494,7 @@ module init_atm_cases
       ! Scale all distances
       !
 
-      a_scale = 11.25
+      a_scale = 1.0
 
       xCell(:) = xCell(:) * a_scale
       yCell(:) = yCell(:) * a_scale
