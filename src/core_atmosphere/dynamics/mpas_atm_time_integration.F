@@ -4827,6 +4827,7 @@ module atm_time_integration
       logical, pointer :: config_mix_full
       character (len=StrKIND), pointer :: config_horiz_mixing
       character (len=StrKIND), pointer :: config_les_model
+      character (len=StrKIND), pointer :: config_les_surface
       real (kind=RKIND), pointer :: config_del4u_div_factor
       real (kind=RKIND), pointer :: config_h_theta_eddy_visc4
       real (kind=RKIND), pointer :: config_h_mom_eddy_visc4
@@ -4849,6 +4850,7 @@ module atm_time_integration
       call mpas_pool_get_config(configs, 'config_mix_full', config_mix_full)
       call mpas_pool_get_config(configs, 'config_horiz_mixing', config_horiz_mixing)
       call mpas_pool_get_config(configs, 'config_les_model', config_les_model)
+      call mpas_pool_get_config(configs, 'config_les_surface', config_les_surface)
       call mpas_pool_get_config(configs, 'config_del4u_div_factor', config_del4u_div_factor)
       call mpas_pool_get_config(configs, 'config_h_theta_eddy_visc4', config_h_theta_eddy_visc4)
       call mpas_pool_get_config(configs, 'config_h_mom_eddy_visc4', config_h_mom_eddy_visc4)
@@ -5004,7 +5006,7 @@ module atm_time_integration
          rdzu, rdzw, fzm, fzp, qv_init, t_init, cf1, cf2, cf3, r_earth, ur_cell, vr_cell, defc_a, defc_b, &
          deformation_coef_c2,deformation_coef_s2,deformation_coef_cs,deformation_coef_c,deformation_coef_s, &
          tend_w_pgf, tend_w_buoy, coef_3rd_order, c_s, config_mix_full, config_horiz_mixing, config_les_model, &
-         prandtl_3d_inv, config_del4u_div_factor, &
+         config_les_surface, prandtl_3d_inv, config_del4u_div_factor, &
          config_h_mom_eddy_visc2, config_v_mom_eddy_visc2, config_h_theta_eddy_visc2, config_v_theta_eddy_visc2, &
          config_h_theta_eddy_visc4, config_h_mom_eddy_visc4, config_visc4_2dsmag, config_len_disp, rk_step, dt, &
          config_mpas_cam_coef, &
@@ -5032,7 +5034,7 @@ module atm_time_integration
       rdzu, rdzw, fzm, fzp, qv_init, t_init, cf1, cf2, cf3, r_earth, ur_cell, vr_cell, defc_a, defc_b, &
       deformation_coef_c2,deformation_coef_s2,deformation_coef_cs,deformation_coef_c,deformation_coef_s, &
       tend_w_pgf, tend_w_buoy, coef_3rd_order, c_s, config_mix_full, config_horiz_mixing, config_les_model, &
-      prandtl_3d_inv, config_del4u_div_factor, &
+      config_les_surface, prandtl_3d_inv, config_del4u_div_factor, &
       config_h_mom_eddy_visc2, config_v_mom_eddy_visc2, config_h_theta_eddy_visc2, config_v_theta_eddy_visc2, &
       config_h_theta_eddy_visc4, config_h_mom_eddy_visc4, config_visc4_2dsmag, config_len_disp, rk_step, dt, &
       config_mpas_cam_coef, &
@@ -5156,6 +5158,7 @@ module atm_time_integration
       logical :: config_mix_full
       character (len=StrKIND) :: config_horiz_mixing
       character (len=StrKIND) :: config_les_model
+      character (len=StrKIND) :: config_les_surface
       real (kind=RKIND) :: config_del4u_div_factor
       real (kind=RKIND) :: config_h_theta_eddy_visc4
       real (kind=RKIND) :: config_h_mom_eddy_visc4
@@ -5318,7 +5321,7 @@ module atm_time_integration
                  time_of_day_seconds = real(H)*3600. + real(M)*60. + real(S) + real(S_n)/real(S_d) + 0.5*dt
                  ! call mpas_log_write(' les integration, timestep midpoint time of day in seconds, $r ', realArgs=(/time_of_day_seconds/))
       
-                 call les_models( config_les_model, eddy_visc_horz, eddy_visc_vert,                  &
+                 call les_models( config_les_model, config_les_surface, eddy_visc_horz, eddy_visc_vert,                  &
                                   u, v, ur_cell, vr_cell,                                            &
                                   w, c_s, bn2, zgrid, config_len_disp,                               &
                                   deformation_coef_c2, deformation_coef_s2, deformation_coef_cs,     &
@@ -5537,7 +5540,7 @@ module atm_time_integration
                                     config_mix_full, h_mom_eddy_visc4, v_mom_eddy_visc2,                         &
                                     config_del4u_div_factor, zgrid,                                              &
                                     eddy_visc_horz, eddy_visc_vert, zz, rdzu, rdzw,                              &
-                                    fzm, fzp, config_les_model,                                                  &
+                                    fzm, fzp, config_les_model, config_les_surface,                              &
                                     delsq_u, delsq_vorticity, delsq_divergence,                                  &
                                     u, v, divergence, vorticity, rho_edge, rho_zz, u_init, v_init, ustm, tend_u_euler )
 
@@ -5694,7 +5697,7 @@ module atm_time_integration
                                     delsq_w,                                                  &
                                     w, rho_edge, rho_zz, zz,                                  &
                                     eddy_visc_horz, eddy_visc_vert,                           &
-                                    config_les_model,                                         &
+                                    config_les_model, config_les_surface,                     &
                                     tend_w_euler                                             )
 
 !          else
@@ -5885,7 +5888,7 @@ module atm_time_integration
                                             eddy_visc_horz, eddy_visc_vert,                           &
                                             bn2, config_len_disp, scalars, tend_scalars,              &
                                             index_tke, index_qv, num_scalars, mix_scalars,            &
-                                            config_les_model, time_of_day_seconds,                    &
+                                            config_les_model, config_les_surface, time_of_day_seconds,&
                                             ur_cell, vr_cell,                                         &
                                             hfx, qfx,                                                 &
                                             tend_theta_euler                                         )

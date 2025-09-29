@@ -149,7 +149,12 @@
                 <nml_option name="config_les_model" type="character" default_value="none"
                      units="-"
                      description="LES dissipation model"
-                     possible_values="`none'' or `3d_smagorinsky'"/>
+                     possible_values="`none', `3d_smagorinsky', 'prognostic_1.5_order'"/>
+
+                <nml_option name="config_les_surface" type="character" default_value="none"
+                     units="-"
+                     description="LES surface flux option"
+                     possible_values="`free', 'fixed', `varying'"/>
 
                 <nml_option name="config_len_disp" type="real" default_value="0.0" in_defaults="false"
                      units="m"

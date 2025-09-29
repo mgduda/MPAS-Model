@@ -97,7 +97,7 @@ module mpas_atm_dissipation_models
 
 !---------------------------------------
 
-      subroutine les_models( config_les_model, eddy_visc_horz, eddy_visc_vert,                  &
+      subroutine les_models( config_les_model, config_les_surface, eddy_visc_horz, eddy_visc_vert,                  &
                              u, v, uCell, vCell,                                                &
                              w, c_s, bv_freq2, zgrid, config_len_disp,                          &
                              deformation_coef_c2, deformation_coef_s2, deformation_coef_cs,     &
@@ -110,6 +110,7 @@ module mpas_atm_dissipation_models
       implicit none
       
       character (len=StrKIND), intent(in) :: config_les_model
+      character (len=StrKIND), intent(in) :: config_les_surface
 
       integer, intent(in) :: cellStart, cellEnd, nCells, nEdges, nVertLevels, maxEdges, index_tke, num_scalars
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(in) :: u
@@ -155,6 +156,7 @@ module mpas_atm_dissipation_models
 
       if(debug_dissipation)  call mpas_log_write(' begin les_models ')
       if(debug_dissipation)  call mpas_log_write(' les scheme is '//trim(config_les_model))
+      if(debug_dissipation)  call mpas_log_write(' les surface scheme is '//trim(config_les_surface))
 
       pr_inv = 1./prandtl
 
@@ -633,7 +635,7 @@ module mpas_atm_dissipation_models
                                    config_mix_full, h_mom_eddy_visc4, v_mom_eddy_visc2,                         &
                                    config_del4u_div_factor, zgrid,                                              &
                                    eddy_visc_horz, eddy_visc_vert, zz, rdzu, rdzw,                              &
-                                   fzm, fzp, config_les_model,                                                  &
+                                   fzm, fzp, config_les_model, config_les_surface,                              &
                                    delsq_u, delsq_vorticity, delsq_divergence,                                  &
                                    u, v, divergence, vorticity, rho_edge, rho_zz, u_init, v_init, ustm, tend_u_euler )
 
@@ -648,6 +650,7 @@ module mpas_atm_dissipation_models
       logical, intent(in) :: config_mix_full
 
       character (len=StrKIND) :: config_les_model
+      character (len=StrKIND) :: config_les_surface
 
       integer, dimension(2,nEdges+1), intent(in) :: cellsOnEdge
       integer, dimension(2,nEdges+1), intent(in) :: verticesOnEdge
@@ -714,6 +717,7 @@ module mpas_atm_dissipation_models
         if(debug_dissipation) then
             call mpas_log_write(' begin u_dissipation_3d ')
             call mpas_log_write(' les model is '//trim(config_les_model))
+            call mpas_log_write(' les surface is '//trim(config_les_surface))
             call mpas_log_write(' 4th order hyperviscosity is $r ', realArgs=(/h_mom_eddy_visc4/))
             call mpas_log_write(' 4th order divergence factor is $r ', realArgs=(/config_del4u_div_factor/))
         end if
@@ -1060,7 +1064,7 @@ module mpas_atm_dissipation_models
                                    delsq_w,                                                  &
                                    w, rho_edge, rho_zz, zz,                                  &
                                    eddy_visc_horz, eddy_visc_vert,                           &
-                                   config_les_model,                                         &
+                                   config_les_model, config_les_surface,                     &
                                    tend_w_euler                                             )
 
 
@@ -1081,6 +1085,7 @@ module mpas_atm_dissipation_models
       integer, dimension(2,nEdges+1), intent(in) :: cellsOnEdge
 
       character (len=StrKIND) :: config_les_model
+      character (len=StrKIND) :: config_les_surface
 
       real (kind=RKIND), intent(in) :: h_mom_eddy_visc4
       real (kind=RKIND), intent(in) :: v_mom_eddy_visc2
@@ -1122,6 +1127,7 @@ module mpas_atm_dissipation_models
         if(debug_dissipation) then
             call mpas_log_write(' begin w_dissipation_3d ')
             call mpas_log_write(' les model is '//trim(config_les_model))
+            call mpas_log_write(' les surface is '//trim(config_les_surface))
             call mpas_log_write(' 4th order hyperviscosity is $r ', realArgs=(/h_mom_eddy_visc4/))
         end if
 
@@ -1587,7 +1593,7 @@ module mpas_atm_dissipation_models
                                             eddy_visc_horz, eddy_visc_vert,                           &
                                             bv_freq2, config_len_disp, scalars, tend_scalars,         &
                                             index_tke, index_qv, num_scalars_dummy, mix_scalars,      &
-                                            config_les_model, time_of_day_seconds,                    &
+                                            config_les_model, config_les_surface, time_of_day_seconds,&
                                             uReconstructZonal, uReconstructMeridional,                &
                                             hfx, qfx,                                                 &
                                             tend_theta_euler                                         )
@@ -1610,6 +1616,7 @@ module mpas_atm_dissipation_models
       logical, intent(in) :: config_mix_full, mix_scalars
 
       character (len=StrKIND) :: config_les_model
+      character (len=StrKIND) :: config_les_surface
 
       integer, dimension(nCells+1), intent(in) :: nEdgesOnCell
       integer, dimension(maxEdges,nCells+1), intent(in) :: EdgesOnCell
@@ -1671,6 +1678,7 @@ module mpas_atm_dissipation_models
         if(debug_dissipation) then
             call mpas_log_write(' begin scalar_dissipation_3d ')
             call mpas_log_write(' les model is '//trim(config_les_model))
+            call mpas_log_write(' les surface is '//trim(config_les_surface))
             call mpas_log_write(' 4th order hyperviscosity is $r ', realArgs=(/h_theta_eddy_visc4/))
         end if
 
