@@ -2630,7 +2630,8 @@ module atm_time_integration
                             uReconstructY,          &
                             uReconstructZ,          &
                             uReconstructZonal,      &
-                            uReconstructMeridional  &
+                            uReconstructMeridional, &
+                            lACC = .true.           &
                            )
 
 

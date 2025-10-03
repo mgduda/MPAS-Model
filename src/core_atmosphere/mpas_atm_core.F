@@ -550,7 +550,8 @@ module atm_core
                             uReconstructY,             &
                             uReconstructZ,             &
                             uReconstructZonal,         &
-                            uReconstructMeridional     &
+                            uReconstructMeridional,    &
+                            lACC = .true.              &
                            )
       call mpas_reconstruct_2d_d2h(mesh, u, uReconstructX, uReconstructY, uReconstructZ, &
                uReconstructZonal, uReconstructMeridional)
