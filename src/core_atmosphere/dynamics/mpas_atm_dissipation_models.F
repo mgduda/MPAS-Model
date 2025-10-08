@@ -898,13 +898,12 @@ module mpas_atm_dissipation_models
                      turb_vflux(k) = - rho_k_at_w*zz_at_w*rdzu(k)*(u(k,iEdge)-u(k-1,iEdge))
                   end do
 
-                if( les_test ) then
+                if( config_les_surface == "specified" ) then
                   velocity_magnitude = sqrt(u(1,iEdge)**2 + v(1,iEdge)**2)
                   turb_vflux(1) = -rho_edge(1,iEdge)*tke_drag_coefficient*u(1,iEdge)*velocity_magnitude
                   turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
-                else if (les_sas_test) then
+                else if ( config_les_surface == "varying" ) then
                   ust_edge = 0.5*(ustm(cell1) + ustm(cell2))
-                  if(iEdge == 1) call mpas_log_write(' SAS ust_edge, $r ', realArgs=(/ust_edge/))
                   velocity_magnitude = max(sqrt(u(1,iEdge)**2 + v(1,iEdge)**2),0.1)
                   turb_vflux(1) = -rho_edge(1,iEdge)*ust_edge*ust_edge*(u(1,iEdge)/velocity_magnitude)
                   turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
@@ -1879,34 +1878,22 @@ module mpas_atm_dissipation_models
 
                 ! test boundary conditions for supercell and les test cases
 
-                if( les_test ) then
+                if( config_les_surface == "specified" .or. config_les_surface == "varying" ) then
 
-                  moisture_flux = 0.
-                  heat_flux = tke_heat_flux
-
-                  qv_cell = scalars(index_qv,1,iCell)
-                  theta_m_cell = theta_m(1,iCell)
-                  theta_cell = theta_m_cell/(1.0+(rv/rgas)*qv_cell)
-                  ! bulk formulation will go here.
-
-!                 theta_m_flux = heat_flux*(1.0+(rv/rgas)*scalars(index_qv,1,iCell))  &
-!                                   +(rv/rgas)*theta_m(1,iCell)*moisture_flux/rho_zz(k,iCell)
-                  theta_m_flux = heat_flux*(1.0+(rv/rgas)*qv_cell)+(rv/rgas)*theta_cell*moisture_flux
-                  ! turb_vflux(1) = tke_heat_flux*rho_zz(1,iCell)  ! this is correct for DRY CASE ONLY
-                  turb_vflux(1) = theta_m_flux*rho_zz(1,iCell)
-                  turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
-
-                else if (les_sas_test) then
-
-                  ! if(iCell == 1)  call mpas_log_write(' les_sas_test for theta and qv surface fluxes ')
-                  qv_cell = scalars(index_qv,1,iCell)
-                  theta_m_cell = theta_m(1,iCell)
-                  theta_cell = theta_m_cell/(1.0+(rv/rgas)*qv_cell)
-
+                  if( config_les_surface == "specified" ) then
+                    moisture_flux = 0.
+                    heat_flux = tke_heat_flux
+!                 place holder routine for time-varying specified                  
 !                 call flux_les_sas( heat_flux, moisture_flux, time_of_day_seconds )
-                  heat_flux = hfx(iCell)/rho_zz(1,iCell)/cp
-                  moisture_flux = qfx(iCell)/rho_zz(1,iCell)
-                  if(iCell == 1) call mpas_log_write(' SAS t and qv fluxes, $r, $r ', realArgs=(/heat_flux, moisture_flux/))
+
+                  else if ( config_les_surface == "varying" ) then
+                    heat_flux = hfx(iCell)/rho_zz(1,iCell)/cp
+                    moisture_flux = qfx(iCell)/rho_zz(1,iCell)
+                  endif
+
+                  qv_cell = scalars(index_qv,1,iCell)
+                  theta_m_cell = theta_m(1,iCell)
+                  theta_cell = theta_m_cell/(1.0+(rv/rgas)*qv_cell)
 
                   theta_m_flux = heat_flux*(1.0+(rv/rgas)*qv_cell)+(rv/rgas)*theta_cell*moisture_flux
                   turb_vflux(1) = theta_m_flux*rho_zz(1,iCell)
@@ -1941,7 +1928,7 @@ module mpas_atm_dissipation_models
                   end do
                 end do
 
-                if( les_test .or. les_sas_test ) turb_vflux_scalars(index_qv,1) = moisture_flux ! lower b.c. for qv
+                if( config_les_surface == "specified" .or.  config_les_surface == "varying" ) turb_vflux_scalars(index_qv,1) = moisture_flux ! lower b.c. for qv
 
                 do k=1,nVertLevels
                   do iScalar=1,num_scalars
