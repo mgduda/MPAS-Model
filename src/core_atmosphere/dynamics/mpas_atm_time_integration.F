@@ -1173,7 +1173,7 @@ module atm_time_integration
 !$OMP PARALLEL DO
                do thread=1,nThreads
                   call atm_compute_dyn_tend( tend, tend_physics, state, diag, mesh, diag_physics, &
-                                             block % configs, nVertLevels, rk_step, dt, & 
+                                             block % configs, nVertLevels, rk_step, dynamics_substep, dt, & 
                                              cellThreadStart(thread), cellThreadEnd(thread), &
                                              vertexThreadStart(thread), vertexThreadEnd(thread), &
                                              edgeThreadStart(thread), edgeThreadEnd(thread), &
@@ -4736,7 +4736,7 @@ module atm_time_integration
    end subroutine atm_advance_scalars_mono_work
 
 
-   subroutine atm_compute_dyn_tend(tend, tend_physics, state, diag, mesh, diag_physics, configs, nVertLevels, rk_step, dt, &
+   subroutine atm_compute_dyn_tend(tend, tend_physics, state, diag, mesh, diag_physics, configs, nVertLevels, rk_step, dynamics_substep, dt, &
                                    cellStart, cellEnd, vertexStart, vertexEnd, edgeStart, edgeEnd, &
                                    cellSolveStart, cellSolveEnd, vertexSolveStart, vertexSolveEnd, edgeSolveStart, edgeSolveEnd)
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
@@ -4765,7 +4765,7 @@ module atm_time_integration
       type (mpas_pool_type), intent(in) :: diag_physics
       type (mpas_pool_type), intent(in) :: configs
       integer, intent(in) :: nVertLevels              ! for allocating stack variables
-      integer, intent(in) :: rk_step
+      integer, intent(in) :: rk_step, dynamics_substep
       real (kind=RKIND), intent(in) :: dt
       integer, intent(in) :: cellStart, cellEnd, vertexStart, vertexEnd, edgeStart, edgeEnd
       integer, intent(in) :: cellSolveStart, cellSolveEnd, vertexSolveStart, vertexSolveEnd, edgeSolveStart, edgeSolveEnd
@@ -4825,6 +4825,7 @@ module atm_time_integration
 
       real (kind=RKIND), pointer :: coef_3rd_order, c_s
       logical, pointer :: config_mix_full
+      logical, pointer :: config_mix_scalars
       character (len=StrKIND), pointer :: config_horiz_mixing
       character (len=StrKIND), pointer :: config_les_model
       character (len=StrKIND), pointer :: config_les_surface
@@ -4848,6 +4849,7 @@ module atm_time_integration
       call mpas_pool_get_config(mesh, 'sphere_radius', r_earth)
       call mpas_pool_get_config(configs, 'config_coef_3rd_order', coef_3rd_order)
       call mpas_pool_get_config(configs, 'config_mix_full', config_mix_full)
+      call mpas_pool_get_config(configs, 'config_mix_scalars', config_mix_scalars)
       call mpas_pool_get_config(configs, 'config_horiz_mixing', config_horiz_mixing)
       call mpas_pool_get_config(configs, 'config_les_model', config_les_model)
       call mpas_pool_get_config(configs, 'config_les_surface', config_les_surface)
@@ -5005,10 +5007,10 @@ module atm_time_integration
          latCell, latEdge, angleEdge, u_init, v_init, advCellsForEdge, nAdvCellsForEdge, adv_coefs, adv_coefs_3rd, &
          rdzu, rdzw, fzm, fzp, qv_init, t_init, cf1, cf2, cf3, r_earth, ur_cell, vr_cell, defc_a, defc_b, &
          deformation_coef_c2,deformation_coef_s2,deformation_coef_cs,deformation_coef_c,deformation_coef_s, &
-         tend_w_pgf, tend_w_buoy, coef_3rd_order, c_s, config_mix_full, config_horiz_mixing, config_les_model, &
+         tend_w_pgf, tend_w_buoy, coef_3rd_order, c_s, config_mix_full, config_mix_scalars, config_horiz_mixing, config_les_model, &
          config_les_surface, prandtl_3d_inv, config_del4u_div_factor, &
          config_h_mom_eddy_visc2, config_v_mom_eddy_visc2, config_h_theta_eddy_visc2, config_v_theta_eddy_visc2, &
-         config_h_theta_eddy_visc4, config_h_mom_eddy_visc4, config_visc4_2dsmag, config_len_disp, rk_step, dt, &
+         config_h_theta_eddy_visc4, config_h_mom_eddy_visc4, config_visc4_2dsmag, config_len_disp, rk_step, dynamics_substep, dt, &
          config_mpas_cam_coef, &
          config_rayleigh_damp_u, config_rayleigh_damp_u_timescale_days, & 
          config_number_rayleigh_damp_u_levels, config_number_cam_damping_levels, &
@@ -5033,10 +5035,10 @@ module atm_time_integration
       latCell, latEdge, angleEdge, u_init, v_init, advCellsForEdge, nAdvCellsForEdge, adv_coefs, adv_coefs_3rd, &
       rdzu, rdzw, fzm, fzp, qv_init, t_init, cf1, cf2, cf3, r_earth, ur_cell, vr_cell, defc_a, defc_b, &
       deformation_coef_c2,deformation_coef_s2,deformation_coef_cs,deformation_coef_c,deformation_coef_s, &
-      tend_w_pgf, tend_w_buoy, coef_3rd_order, c_s, config_mix_full, config_horiz_mixing, config_les_model, &
+      tend_w_pgf, tend_w_buoy, coef_3rd_order, c_s, config_mix_full, config_mix_scalars, config_horiz_mixing, config_les_model, &
       config_les_surface, prandtl_3d_inv, config_del4u_div_factor, &
       config_h_mom_eddy_visc2, config_v_mom_eddy_visc2, config_h_theta_eddy_visc2, config_v_theta_eddy_visc2, &
-      config_h_theta_eddy_visc4, config_h_mom_eddy_visc4, config_visc4_2dsmag, config_len_disp, rk_step, dt, &
+      config_h_theta_eddy_visc4, config_h_mom_eddy_visc4, config_visc4_2dsmag, config_len_disp, rk_step, dynamics_substep, dt, &
       config_mpas_cam_coef, &
       config_rayleigh_damp_u, config_rayleigh_damp_u_timescale_days, &
       config_number_rayleigh_damp_u_levels, config_number_cam_damping_levels, &
@@ -5155,7 +5157,7 @@ module atm_time_integration
       real (kind=RKIND), dimension(nVertLevels+1,nCells+1) :: tend_w_buoy
 
       real (kind=RKIND) :: coef_3rd_order, c_s
-      logical :: config_mix_full
+      logical :: config_mix_full, config_mix_scalars
       character (len=StrKIND) :: config_horiz_mixing
       character (len=StrKIND) :: config_les_model
       character (len=StrKIND) :: config_les_surface
@@ -5166,9 +5168,8 @@ module atm_time_integration
       real (kind=RKIND) :: config_len_disp
       real (kind=RKIND) :: config_h_mom_eddy_visc2, config_v_mom_eddy_visc2, config_h_theta_eddy_visc2, config_v_theta_eddy_visc2
       logical, parameter :: test_dissipation_3d=.true.
-      logical, parameter :: mix_scalars = .true.
 
-      integer, intent(in) :: rk_step
+      integer, intent(in) :: rk_step, dynamics_substep
       real (kind=RKIND), intent(in) :: dt
 
       real (kind=RKIND) :: config_mpas_cam_coef
@@ -5321,7 +5322,7 @@ module atm_time_integration
                  time_of_day_seconds = real(H)*3600. + real(M)*60. + real(S) + real(S_n)/real(S_d) + 0.5*dt
                  ! call mpas_log_write(' les integration, timestep midpoint time of day in seconds, $r ', realArgs=(/time_of_day_seconds/))
       
-                 call les_models( config_les_model, config_les_surface, eddy_visc_horz, eddy_visc_vert,                  &
+                 call les_models( config_les_model, config_les_surface, dynamics_substep, eddy_visc_horz, eddy_visc_vert,                  &
                                   u, v, ur_cell, vr_cell,                                            &
                                   w, c_s, bn2, zgrid, config_len_disp,                               &
                                   deformation_coef_c2, deformation_coef_s2, deformation_coef_cs,     &
@@ -5695,7 +5696,7 @@ module atm_time_integration
                                     rdzw, rdzu,                                               &
                                     v_mom_eddy_visc2, h_mom_eddy_visc4,                       &
                                     delsq_w,                                                  &
-                                    w, rho_edge, rho_zz, zz,                                  &
+                                    w, rho_edge, rho_zz, divergence, zz,                      &
                                     eddy_visc_horz, eddy_visc_vert,                           &
                                     config_les_model, config_les_surface,                     &
                                     tend_w_euler                                             )
@@ -5887,11 +5888,11 @@ module atm_time_integration
                                             theta_m, rho_edge, rho_zz, zz,                            &
                                             eddy_visc_horz, eddy_visc_vert,                           &
                                             bn2, config_len_disp, scalars, tend_scalars,              &
-                                            index_tke, index_qv, num_scalars, mix_scalars,            &
+                                            index_tke, index_qv, num_scalars, config_mix_scalars,     &
                                             config_les_model, config_les_surface, time_of_day_seconds,&
                                             ur_cell, vr_cell,                                         &
                                             hfx, qfx,                                                 &
-                                            tend_theta_euler                                         )
+                                            tend_theta_euler, dynamics_substep                       )
 
 
 !          else  ! this is the original MPAS dissipation code
