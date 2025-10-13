@@ -27,6 +27,8 @@
  private
  public:: allocate_forall_physics,   &
           deallocate_forall_physics, &
+          update_d2h_pre_microphysics, &
+          update_h2d_post_microphysics, &
           MPAS_to_physics,           &
           microphysics_from_MPAS,    &
           microphysics_to_MPAS

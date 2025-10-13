@@ -6,13 +6,13 @@
 ! distributed with this code, or at http://mpas-dev.github.com/license.html
 !
 
- #ifdef MPAS_OPENACC
- #define MPAS_ACC_TIMER_START(X) call mpas_timer_start(X)
- #define MPAS_ACC_TIMER_STOP(X) call mpas_timer_stop(X)
- #else
- #define MPAS_ACC_TIMER_START(X)
- #define MPAS_ACC_TIMER_STOP(X)
- #endif
+#ifdef MPAS_OPENACC
+#define MPAS_ACC_TIMER_START(X) call mpas_timer_start(X)
+#define MPAS_ACC_TIMER_STOP(X) call mpas_timer_stop(X)
+#else
+#define MPAS_ACC_TIMER_START(X)
+#define MPAS_ACC_TIMER_STOP(X)
+#endif
 
 module mpas_atm_iau
 
