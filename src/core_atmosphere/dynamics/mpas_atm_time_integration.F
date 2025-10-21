@@ -4829,6 +4829,9 @@ module atm_time_integration
       character (len=StrKIND), pointer :: config_horiz_mixing
       character (len=StrKIND), pointer :: config_les_model
       character (len=StrKIND), pointer :: config_les_surface
+      real (kind=RKIND), pointer :: config_surface_heat_flux
+      real (kind=RKIND), pointer :: config_surface_moisture_flux
+      real (kind=RKIND), pointer :: config_surface_drag_coefficient
       real (kind=RKIND), pointer :: config_del4u_div_factor
       real (kind=RKIND), pointer :: config_h_theta_eddy_visc4
       real (kind=RKIND), pointer :: config_h_mom_eddy_visc4
@@ -4853,6 +4856,9 @@ module atm_time_integration
       call mpas_pool_get_config(configs, 'config_horiz_mixing', config_horiz_mixing)
       call mpas_pool_get_config(configs, 'config_les_model', config_les_model)
       call mpas_pool_get_config(configs, 'config_les_surface', config_les_surface)
+      call mpas_pool_get_config(configs, 'config_surface_heat_flux', config_surface_heat_flux)
+      call mpas_pool_get_config(configs, 'config_surface_moisture_flux', config_surface_moisture_flux)
+      call mpas_pool_get_config(configs, 'config_surface_drag_coefficient', config_surface_drag_coefficient)
       call mpas_pool_get_config(configs, 'config_del4u_div_factor', config_del4u_div_factor)
       call mpas_pool_get_config(configs, 'config_h_theta_eddy_visc4', config_h_theta_eddy_visc4)
       call mpas_pool_get_config(configs, 'config_h_mom_eddy_visc4', config_h_mom_eddy_visc4)
@@ -5014,6 +5020,7 @@ module atm_time_integration
          config_mpas_cam_coef, &
          config_rayleigh_damp_u, config_rayleigh_damp_u_timescale_days, & 
          config_number_rayleigh_damp_u_levels, config_number_cam_damping_levels, &
+         config_surface_heat_flux, config_surface_moisture_flux, config_surface_drag_coefficient, &
          rthdynten, ustm, hfx, qfx, &
          cellStart, cellEnd, vertexStart, vertexEnd, edgeStart, edgeEnd, &
          cellSolveStart, cellSolveEnd, vertexSolveStart, vertexSolveEnd, edgeSolveStart, edgeSolveEnd)
@@ -5042,6 +5049,7 @@ module atm_time_integration
       config_mpas_cam_coef, &
       config_rayleigh_damp_u, config_rayleigh_damp_u_timescale_days, &
       config_number_rayleigh_damp_u_levels, config_number_cam_damping_levels, &
+      config_surface_heat_flux, config_surface_moisture_flux, config_surface_drag_coefficient, &
       rthdynten, ustm, hfx, qfx, &
       cellStart, cellEnd, vertexStart, vertexEnd, edgeStart, edgeEnd, &
       cellSolveStart, cellSolveEnd, vertexSolveStart, vertexSolveEnd, edgeSolveStart, edgeSolveEnd)
@@ -5161,6 +5169,9 @@ module atm_time_integration
       character (len=StrKIND) :: config_horiz_mixing
       character (len=StrKIND) :: config_les_model
       character (len=StrKIND) :: config_les_surface
+      real (kind=RKIND) :: config_surface_heat_flux
+      real (kind=RKIND) :: config_surface_moisture_flux
+      real (kind=RKIND) :: config_surface_drag_coefficient
       real (kind=RKIND) :: config_del4u_div_factor
       real (kind=RKIND) :: config_h_theta_eddy_visc4
       real (kind=RKIND) :: config_h_mom_eddy_visc4
@@ -5542,6 +5553,7 @@ module atm_time_integration
                                     config_del4u_div_factor, zgrid,                                              &
                                     eddy_visc_horz, eddy_visc_vert, zz, rdzu, rdzw,                              &
                                     fzm, fzp, config_les_model, config_les_surface,                              &
+                                    config_surface_drag_coefficient,                                             &
                                     delsq_u, delsq_vorticity, delsq_divergence,                                  &
                                     u, v, divergence, vorticity, rho_edge, rho_zz, u_init, v_init, ustm, tend_u_euler )
 
@@ -5890,6 +5902,7 @@ module atm_time_integration
                                             bn2, config_len_disp, scalars, tend_scalars,              &
                                             index_tke, index_qv, num_scalars, config_mix_scalars,     &
                                             config_les_model, config_les_surface, time_of_day_seconds,&
+                                            config_surface_heat_flux, config_surface_moisture_flux,   &
                                             ur_cell, vr_cell,                                         &
                                             hfx, qfx,                                                 &
                                             tend_theta_euler, dynamics_substep                       )

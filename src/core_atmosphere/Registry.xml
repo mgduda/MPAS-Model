@@ -154,7 +154,22 @@
                 <nml_option name="config_les_surface" type="character" default_value="none"
                      units="-"
                      description="LES surface flux option"
-                     possible_values="`free', 'specified', `varying'"/>
+                     possible_values="'specified', `varying'"/>
+
+                <nml_option name="config_surface_heat_flux" type="real" default_value="0.0"
+                     units="K m s-1"
+                     description="specified surface heat flux w'theta'"
+                     possible_values="real number"/>
+
+                <nml_option name="config_surface_moisture_flux" type="real" default_value="0.0"
+                     units="kg m s-1"
+                     description="specified surface moisture flux w'q'"
+                     possible_values="real number"/>
+
+                <nml_option name="config_surface_drag_coefficient" type="real" default_value="0.0"
+                     units="-"
+                     description="Cd 10m drag coefficient"
+                     possible_values="real number"/>
 
                 <nml_option name="config_len_disp" type="real" default_value="0.0" in_defaults="false"
                      units="m"

@@ -18,10 +18,10 @@ module mpas_atm_dissipation_models
   logical, parameter :: les_test = .true., les_sas_test = .false.
   !! real (kind=RKIND), parameter :: tke_heat_flux = 0.03  ! shear case from Moeng et al., first hour
   ! real (kind=RKIND), parameter :: tke_heat_flux = 0.03
-  real (kind=RKIND), parameter :: tke_heat_flux = 0.0
+  !  real (kind=RKIND), parameter :: tke_heat_flux = 0.0
   !! real (kind=RKIND), parameter :: tke_drag_coefficient = 0.0013 ! ocean roughness length
   ! real (kind=RKIND), parameter :: tke_drag_coefficient = 0.006
-  real (kind=RKIND), parameter :: tke_drag_coefficient = 0.0
+  ! real (kind=RKIND), parameter :: tke_drag_coefficient = 0.0
   real (kind=RKIND), parameter :: epsilon_bv = 1.e-06
   ! real (kind=RKIND), parameter :: c_k = 0.1
   real (kind=RKIND), parameter :: c_k = 0.25
@@ -420,6 +420,7 @@ module mpas_atm_dissipation_models
                                    config_del4u_div_factor, zgrid,                                              &
                                    eddy_visc_horz, eddy_visc_vert, zz, rdzu, rdzw,                              &
                                    fzm, fzp, config_les_model, config_les_surface,                              &
+                                   config_surface_drag_coefficient,                                             &
                                    delsq_u, delsq_vorticity, delsq_divergence,                                  &
                                    u, v, divergence, vorticity, rho_edge, rho_zz, u_init, v_init, ustm,         &
                                    tend_u_euler                                                                )
@@ -446,6 +447,7 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), intent(in) :: h_mom_eddy_visc4
       real (kind=RKIND), intent(in) :: v_mom_eddy_visc2
       real (kind=RKIND), intent(in) :: config_del4u_div_factor
+      real (kind=RKIND), intent(in) :: config_surface_drag_coefficient
 
       real (kind=RKIND), dimension(maxEdges,nCells+1), intent(in) :: edgesOnCell_sign
       real (kind=RKIND), dimension(vertexDegree,nVertices+1), intent(in) :: edgesOnVertex_sign
@@ -691,7 +693,7 @@ module mpas_atm_dissipation_models
 
                 if( config_les_surface == "specified" ) then
                   velocity_magnitude = sqrt(u(1,iEdge)**2 + v(1,iEdge)**2)
-                  turb_vflux(1) = -rho_edge(1,iEdge)*tke_drag_coefficient*u(1,iEdge)*velocity_magnitude
+                  turb_vflux(1) = -rho_edge(1,iEdge)*config_surface_drag_coefficient*u(1,iEdge)*velocity_magnitude
                   turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
                 else if ( config_les_surface == "varying" ) then
                   ust_edge = 0.5*(ustm(cell1) + ustm(cell2))
@@ -898,6 +900,7 @@ module mpas_atm_dissipation_models
                                             bv_freq2, config_len_disp, scalars, tend_scalars,         &
                                             index_tke, index_qv, num_scalars_dummy, mix_scalars,      &
                                             config_les_model, config_les_surface, time_of_day_seconds,&
+                                            config_surface_heat_flux, config_surface_moisture_flux,   &
                                             uReconstructZonal, uReconstructMeridional,                &
                                             hfx, qfx,                                                 &
                                             tend_theta_euler, dynamics_substep                       )
@@ -917,6 +920,8 @@ module mpas_atm_dissipation_models
       integer, intent(in) :: dynamics_substep
 
       real (kind=RKIND), intent(in) :: time_of_day_seconds
+      real (kind=RKIND), intent(in) :: config_surface_heat_flux
+      real (kind=RKIND), intent(in) :: config_surface_moisture_flux
 
       logical, intent(in) :: config_mix_full, mix_scalars
 
@@ -1185,8 +1190,8 @@ module mpas_atm_dissipation_models
                 if( config_les_surface == "specified" .or. config_les_surface == "varying" ) then
 
                   if( config_les_surface == "specified" ) then
-                    moisture_flux = 0.
-                    heat_flux = tke_heat_flux
+                    moisture_flux = config_surface_moisture_flux
+                    heat_flux = config_surface_heat_flux
 !                 place holder routine for time-varying specified                  
 !                 call flux_les_sas( heat_flux, moisture_flux, time_of_day_seconds )
 
