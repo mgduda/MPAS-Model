@@ -474,12 +474,14 @@ module atm_core_interface
       integer :: ierr
 
       type (MPAS_var) :: new_var
-      type (MPAS_var) :: qv, qc, qr, qi, qs, qg, ni, nr, nc, nifa, nwfa
       type (MPAS_var_array) :: scalars, scalars_tend
       type (mpas_pool_type), pointer :: diagPool, meshPool, statePool, tendPool
 
       integer, pointer :: cam_pcnst
       integer :: err_level
+
+      integer, pointer :: num_passive_tracers
+      integer :: iscalar
 
       ierr = 0
 
@@ -516,103 +518,15 @@ module atm_core_interface
       nullify(tendPool)
       call mpas_pool_get_subpool(block % structs, 'tend', tendPool)
 
+      call mpas_pool_get_config(block % domain % configs, 'config_num_passive_tracers', num_passive_tracers)
+      call mpas_log_write('Instantiating $i passive tracers', intArgs=[num_passive_tracers])
+
       scalars % name = 'scalars'
       scalars % nTimeLevels = 2
 
       scalars_tend % name = 'scalars_tend'
       scalars_tend % nTimeLevels = 1
 
-#if 0
-      qv % name = 'qv'
-      qv % vartype = MPAS_VAR_REAL
-      qv % units = 'kg kg^-1'
-      qv % description = 'Water vapor mixing ratio'
-      qv % dimensions = 'nVertLevels nCells'
-      call scalars % add_constituent(qv, 'moist')
-
-      qc % name = 'qc'
-      qc % vartype = MPAS_VAR_REAL
-      qc % units = 'kg kg^-1'
-      qc % description = 'Cloud water mixing ratio'
-      qc % packages = 'bl_mynn_in;bl_ysu_in;cu_ntiedtke_in;mp_kessler_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
-      qc % dimensions = 'nVertLevels nCells'
-      call scalars % add_constituent(qc, 'moist')
-
-      qr % name = 'qr'
-      qr % vartype = MPAS_VAR_REAL
-      qr % units = 'kg kg^-1'
-      qr % description = 'Rain water mixing ratio'
-      qr % packages = 'mp_kessler_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
-      qr % dimensions = 'nVertLevels nCells'
-      call scalars % add_constituent(qr, 'moist')
-
-      qi % name = 'qi'
-      qi % vartype = MPAS_VAR_REAL
-      qi % units = 'kg kg^-1'
-      qi % description = 'Ice mixing ratio'
-      qi % packages = 'bl_mynn_in;bl_ysu_in;cu_ntiedtke_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
-      qi % dimensions = 'nVertLevels nCells'
-      call scalars % add_constituent(qi, 'moist')
-
-      qs % name = 'qs'
-      qs % vartype = MPAS_VAR_REAL
-      qs % units = 'kg kg^-1'
-      qs % description = 'Snow mixing ratio'
-      qs % packages = 'bl_mynn_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
-      qs % dimensions = 'nVertLevels nCells'
-      call scalars % add_constituent(qs, 'moist')
-
-      qg % name = 'qg'
-      qg % vartype = MPAS_VAR_REAL
-      qg % units = 'kg kg^-1'
-      qg % description = 'Graupel mixing ratio'
-      qg % packages = 'mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
-      qg % dimensions = 'nVertLevels nCells'
-      call scalars % add_constituent(qg, 'moist')
-
-      ni % name = 'ni'
-      ni % vartype = MPAS_VAR_REAL
-      ni % units = 'nb kg^-1'
-      ni % description = 'Cloud ice number concentration'
-      ni % packages = 'bl_mynn_in;mp_thompson_in;mp_thompson_aers_in'
-      ni % dimensions = 'nVertLevels nCells'
-      call scalars % add_constituent(ni, 'number')
-
-      nr % name = 'nr'
-      nr % vartype = MPAS_VAR_REAL
-      nr % units = 'nb kg^-1'
-      nr % description = 'Rain number concentration'
-      nr % packages = 'mp_thompson_in;mp_thompson_aers_in'
-      nr % dimensions = 'nVertLevels nCells'
-      call scalars % add_constituent(nr, 'number')
-
-      nc % name = 'nc'
-      nc % vartype = MPAS_VAR_REAL
-      nc % units = 'nb kg^-1'
-      nc % description = 'Cloud water number concentration'
-      nc % packages = 'mp_thompson_aers_in'
-      nc % dimensions = 'nVertLevels nCells'
-      call scalars % add_constituent(nc, 'number')
-
-      nifa % name = 'nifa'
-      nifa % vartype = MPAS_VAR_REAL
-      nifa % units = 'nb kg^-1'
-      nifa % description = 'Ice-friendly aerosol number concentration'
-      nifa % packages = 'mp_thompson_aers_in'
-      nifa % dimensions = 'nVertLevels nCells'
-      call scalars % add_constituent(nifa, 'number')
-
-      nwfa % name = 'nwfa'
-      nwfa % vartype = MPAS_VAR_REAL
-      nwfa % units = 'nb kg^-1'
-      nwfa % description = 'Water-friendly aerosol number concentration'
-      nwfa % packages = 'mp_thompson_aers_in'
-      nwfa % dimensions = 'nVertLevels nCells'
-      call scalars % add_constituent(nwfa, 'number')
-
-      call scalars % add_to_pool(block, block % allFields, block % packages, addIndices=.false.)
-      call scalars % add_to_pool(block, statePool, block % packages, useNameInCode=.true.)
-#else
       new_var % name = 'qv'
       new_var % vartype = MPAS_VAR_REAL
       new_var % units = 'kg kg^-1'
@@ -710,6 +624,16 @@ module atm_core_interface
       new_var % dimensions = 'nVertLevels nCells'
       call scalars % add_constituent(new_var, 'number')
       call new_var % reset()
+
+      do iscalar = 1, num_passive_tracers
+         write(new_var % name, fmt='(a,i3.3)') 'passive', iscalar
+         new_var % vartype = MPAS_VAR_REAL
+         new_var % units = 'kg kg^-1'
+         write(new_var % description, fmt='(a,i3.3)') 'Passive tracer number ', iscalar
+         new_var % dimensions = 'nVertLevels nCells'
+         call scalars % add_constituent(new_var, 'passive')
+         call new_var % reset()
+      end do
 
       call scalars % add_to_pool(block, block % allFields, block % packages, addIndices=.false.)
       call scalars % add_to_pool(block, statePool, block % packages, useNameInCode=.true.)
@@ -825,19 +749,19 @@ module atm_core_interface
       call scalars_tend % add_constituent(new_var, 'number')
       call new_var % reset()
 
+      do iscalar = 1, num_passive_tracers
+         write(new_var % name, fmt='(a,i3.3)') 'tend_passive', iscalar
+         write(new_var % name_in_code, fmt='(a,i3.3)') 'passive', iscalar
+         new_var % vartype = MPAS_VAR_REAL
+         new_var % units = 'kg m^{-3} s^{-1}'
+         write(new_var % description, fmt='(a,i3.3)') 'Tendency of passive tracer number ', iscalar
+         new_var % dimensions = 'nVertLevels nCells'
+         call scalars_tend % add_constituent(new_var, 'passive')
+         call new_var % reset()
+      end do
+
       call scalars_tend % add_to_pool(block, block % allFields, block % packages, addIndices=.false.)
       call scalars_tend % add_to_pool(block, tendPool, block % packages, useNameInCode=.true.)
-#endif
-
-      new_var % name = 'foo'
-      new_var % vartype = MPAS_VAR_INTEGER
-      new_var % dimensions = 'nVertLevels nCells'
-      new_var % units = 'nb kg^-1'
-      new_var % description = 'Foo-friendly aerosol number concentration'
-      new_var % isPersistent = .false.
-      call new_var % add_to_pool(block, block % allFields, block % packages)
-      call new_var % add_to_pool(block, diagPool, block % packages, useNameInCode=.true.)
-      call new_var % reset()
 
    end function atm_setup_block
 

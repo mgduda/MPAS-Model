@@ -68,8 +68,6 @@ module atm_core
       character (len=StrKIND), pointer :: xtime
       character (len=StrKIND), pointer :: initial_time1, initial_time2
       type (MPAS_Time_Type) :: startTime
-      type (field2DInteger), pointer :: fooField
-      integer, dimension(:,:), pointer :: foo
 
       real (kind=RKIND), pointer :: nominalMinDc
       real (kind=RKIND), pointer :: config_len_disp
@@ -78,6 +76,11 @@ module atm_core
       integer, pointer :: nVertLevels, maxEdges, maxEdges2, num_scalars
       character (len=ShortStrKIND) :: init_stream_name
       real (kind=R8KIND) :: input_start_time, input_stop_time
+
+      real (kind=RKIND), dimension(:), pointer :: latCell, lonCell
+      real (kind=RKIND), dimension(:,:,:), pointer :: scalars
+      integer :: iCell
+      integer, pointer :: nCells, passive_start, passive_end
 
 
       ierr = 0
@@ -90,20 +93,6 @@ module atm_core
       if ( ierr /= 0 ) then
          call mpas_log_write('Threading setup failed for core '//trim(domain % core % coreName), messageType=MPAS_LOG_CRIT)
       end if
-
-      call mpas_pool_get_subpool(domain % blocklist % structs, 'diag', diag)
-      nullify(fooField)
-      call mpas_pool_get_field(diag, 'foo', fooField)
-      if (.not. associated(fooField)) then
-          call mpas_log_write('MGD foo is not associated!', messageType=MPAS_LOG_ERR)
-      else
-          call mpas_log_write('MGD Found foo in diag pool!')
-      end if
-      call mpas_allocate_scratch_field(fooField)
-      nullify(foo)
-      call mpas_pool_get_array(diag, 'foo', foo)
-      call mpas_log_write('MGD allocated size of foo is $i', intArgs=[int(size(foo))])
-      call mpas_deallocate_scratch_field(fooField)
 
 
       !
@@ -312,6 +301,22 @@ module atm_core
       ! Prepare the dynamics for integration
       !
       call mpas_atm_dynamics_init(domain)
+
+      nullify(passive_start)
+      nullify(passive_end)
+      call mpas_pool_get_array(mesh, 'latCell', latCell)
+      call mpas_pool_get_array(mesh, 'lonCell', lonCell)
+      call mpas_pool_get_array(state, 'scalars', scalars)
+      call mpas_pool_get_dimension(state, 'passive_start', passive_start)
+      call mpas_pool_get_dimension(state, 'passive_end', passive_end)
+      call mpas_pool_get_dimension(state, 'nCells', nCells)
+
+      if (associated(passive_start) .and. associated(passive_end)) then
+          call mpas_log_write('passive_start, passive_end = $i $i', intArgs=[passive_start, passive_end])
+          do iCell = 1, nCells
+              scalars(passive_start:passive_end,:,iCell) = 0.01 * 0.5 * (1.0 + sin(4.0 * latCell(iCell)) * sin(4.0 * lonCell(iCell)))
+          end do
+      end if
 
    end function atm_core_init
 

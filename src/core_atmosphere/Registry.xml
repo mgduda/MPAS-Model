@@ -397,6 +397,11 @@
                      units="-"
                      description="Method to use for exchanging halos"
                      possible_values="`mpas_dmpar', `mpas_halo'"/>
+
+                <nml_option name="config_num_passive_tracers" type="integer" default_value="0"
+                     units="-"
+                     description="Number of passive tracers to be added to simulation"
+                     possible_values="Non-negative integers"/>
         </nml_record>
 
 <!-- **************************************************************************************** -->
