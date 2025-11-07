@@ -13,6 +13,10 @@ module atm_core_interface
    use mpas_dmpar
    use mpas_io_units
 
+   integer, pointer :: num_passive_tracers
+   private ::          num_passive_tracers
+
+
    contains
 
 
@@ -462,36 +466,50 @@ module atm_core_interface
 
        ! Local variables
        type (MPAS_var) :: newVar
+       integer :: iscalar
 
-       call mpas_log_write('MGD Here is our callback!')
-       call mpas_log_write('MGD pool='//trim(poolName))
-       call mpas_log_write('MGD var_array='//trim(varArrayName))
 
        if (trim(varArrayName) == 'scalars') then
-           call mpas_log_write('Adding new scalar foo')
+           do iscalar = 1, num_passive_tracers
+               newVar % vartype = MPAS_VAR_REAL
+               write(newVar % name, fmt='(a,i3.3)') 'passive', iscalar
+               newVar % hasTimeDimension = .true.
+               newVar % dimensions = 'nVertLevels nCells'
+               newVar % units = 'kg kg^{-1}'
+               write(newVar % description, fmt='(a,i3.3)') 'Passive tracer number ', iscalar
+               newVar % isPersistent = .true.
+               call newVarArray % add_constituent(newVar, 'passive')
+               call newVar % reset()
+           end do
 
-           newVar % name = 'foo'
-           newVar % hasTimeDimension = .true.
-           newVar % vartype = MPAS_VAR_REAL
-           newVar % dimensions = 'nVertLevels nCells'
-           newVar % units = 'kg kg^{-1}'
-           newVar % description = 'Foo mixing ratio'
-           newVar % isPersistent = .true.
-           call newVarArray % add_constituent(newVar, 'chemistry')
-           call newVar % reset()
        else if (trim(varArrayName) == 'scalars_tend') then
-           call mpas_log_write('Adding new scalar tendency tend_foo')
+           do iscalar = 1, num_passive_tracers
+               newVar % vartype = MPAS_VAR_REAL
+               write(newVar % name, fmt='(a,i3.3)') 'tend_passive', iscalar
+               write(newVar % name_in_code, fmt='(a,i3.3)') 'passive', iscalar
+               newVar % hasTimeDimension = .true.
+               newVar % dimensions = 'nVertLevels nCells'
+               newVar % units = 'kg m^{-3} s^{-1}'
+               write(newVar % description, fmt='(a,i3.3)') 'Tendency of passive tracer number ', iscalar
+               newVar % isPersistent = .true.
+               call newVarArray % add_constituent(newVar, 'passive')
+               call newVar % reset()
+           end do
 
-           newVar % name = 'tend_foo'
-           newVar % name_in_code = 'foo'
-           newVar % hasTimeDimension = .true.
-           newVar % vartype = MPAS_VAR_REAL
-           newVar % dimensions = 'nVertLevels nCells'
-           newVar % units = 'kg m^{-3} s^{-1}'
-           newVar % description = 'Tendency of mixing ratio'
-           newVar % isPersistent = .true.
-           call newVarArray % add_constituent(newVar, 'chemistry')
-           call newVar % reset()
+       else if (trim(varArrayName) == 'lbc_scalars') then
+           do iscalar = 1, num_passive_tracers
+               newVar % vartype = MPAS_VAR_REAL
+               write(newVar % name, fmt='(a,i3.3)') 'lbc_passive', iscalar
+               write(newVar % name_in_code, fmt='(a,i3.3)') 'passive', iscalar
+               newVar % hasTimeDimension = .true.
+               newVar % dimensions = 'nVertLevels nCells'
+               newVar % units="kg kg^{-1} s^{-1}"
+               write(newVar % description, fmt='(a,i3.3)') 'Lateral boundary tendency of passive tracer number ', iscalar
+               newVar % isPersistent = .true.
+               call newVarArray % add_constituent(newVar, 'passive')
+               call newVar % reset()
+           end do
+
        end if
 
    end subroutine cb
@@ -526,6 +544,11 @@ module atm_core_interface
 
       ierr = 0
 
+      !
+      ! Register a callback function, to be called during the instantiation
+      ! of every var_array and pool
+      !
+      call mpas_pool_get_config(block % domain % configs, 'config_num_passive_tracers', num_passive_tracers)
       call MPAS_var_add_callback('any pool', 'any var_array', cb)
 
 !      call atm_generate_structs(block, block % structs, block % dimensions, block % packages)

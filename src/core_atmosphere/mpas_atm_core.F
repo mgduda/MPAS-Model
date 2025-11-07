@@ -68,6 +68,11 @@ module atm_core
       character (len=ShortStrKIND) :: init_stream_name
       real (kind=R8KIND) :: input_start_time, input_stop_time
 
+      real (kind=RKIND), dimension(:), pointer :: latCell, lonCell
+      real (kind=RKIND), dimension(:,:,:), pointer :: scalars
+      integer :: iCell
+      integer, pointer :: nCells, passive_start, passive_end
+
 
       ierr = 0
 
@@ -292,6 +297,25 @@ module atm_core
 #ifdef DO_CHEMISTRY
       call chemistry_init(domain % blocklist % configs, domain % blocklist % dimensions)
 #endif
+
+      !
+      ! Initialize any passive tracers that have been requested
+      !
+      nullify(passive_start)
+      nullify(passive_end)
+      call mpas_pool_get_array(mesh, 'latCell', latCell)
+      call mpas_pool_get_array(mesh, 'lonCell', lonCell)
+      call mpas_pool_get_array(state, 'scalars', scalars)
+      call mpas_pool_get_dimension(state, 'passive_start', passive_start)
+      call mpas_pool_get_dimension(state, 'passive_end', passive_end)
+      call mpas_pool_get_dimension(state, 'nCells', nCells)
+
+      if (associated(passive_start) .and. associated(passive_end)) then
+          call mpas_log_write('passive_start, passive_end = $i $i', intArgs=[passive_start, passive_end])
+          do iCell = 1, nCells
+              scalars(passive_start:passive_end,:,iCell) = 0.01 * 0.5 * (1.0 + sin(4.0 * latCell(iCell)) * sin(4.0 * lonCell(iCell)))
+          end do
+      end if
 
    end function atm_core_init
 

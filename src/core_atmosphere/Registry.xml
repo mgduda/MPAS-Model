@@ -448,6 +448,11 @@
                      units="-"
                      description="Whether to use GPU-aware MPI for halo exchanges. GPU-aware MPI is only implemented for config_halo_exch_method='mpas_halo'"
                      possible_values=".true. or .false."/>
+
+                <nml_option name="config_num_passive_tracers" type="integer" default_value="0"
+                     units="-"
+                     description="Number of passive tracers to be added to simulation"
+                     possible_values="Non-negative integers"/>
         </nml_record>
 
 #ifdef MPAS_USE_MUSICA
