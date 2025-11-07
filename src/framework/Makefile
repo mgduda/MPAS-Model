@@ -111,7 +111,7 @@ mpas_c_interfacing.o:
 xml_stream_parser.o: xml_stream_parser.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(CPPINCLUDES) -I../external/ezxml -c xml_stream_parser.c
 
-mpas_halo.o: mpas_derived_types.o mpas_pool_routines.o mpas_log.o
+mpas_halo.o: mpas_derived_types.o mpas_pool_routines.o mpas_log.o mpas_timer.o
 
 mpas_stream_inquiry.o : mpas_derived_types.o mpas_log.o mpas_c_interfacing.o
 
