@@ -4781,6 +4781,8 @@ module atm_time_integration
                                                     rt_diabatic_tend, tend_theta, tend_w, w, cqw, rb, rr, pp, pressure_b, zz, zxu, cqu, & 
                                                     h_divergence, kdiff, bn2, edgesOnCell_sign, edgesOnVertex_sign, rw_save, ru_save
 
+      real (kind=RKIND), dimension(:,:), pointer :: eddy_visc_horz, eddy_visc_vert
+
       real (kind=RKIND), dimension(:,:), pointer :: theta_m_save
 
       real (kind=RKIND), dimension(:,:), pointer :: exner
@@ -4874,6 +4876,8 @@ module atm_time_integration
       call mpas_pool_get_array(diag, 'rho_p_save', rr_save)
       call mpas_pool_get_array(diag, 'v', v)
       call mpas_pool_get_array(diag, 'kdiff', kdiff)
+      call mpas_pool_get_array(diag, 'eddy_visc_horz', eddy_visc_horz)
+      call mpas_pool_get_array(diag, 'eddy_visc_vert', eddy_visc_vert)
       call mpas_pool_get_array(diag, 'bn2', bn2)
       call mpas_pool_get_array(diag, 'ru', ru)
       call mpas_pool_get_array(diag, 'ru_save', ru_save)
@@ -4978,7 +4982,8 @@ module atm_time_integration
          weightsOnEdge, zgrid, rho_edge, rho_zz, ru, u, v, tend_u, &
          divergence, vorticity, ke, pv_edge, theta_m, rw, tend_rho, &
          rt_diabatic_tend, tend_theta, tend_w, w, cqw, rb, rr, pp, pressure_b, zz, zxu, cqu, & 
-         h_divergence, kdiff, bn2, edgesOnCell_sign, edgesOnVertex_sign, rw_save, ru_save, &
+         h_divergence, kdiff, bn2, eddy_visc_horz, eddy_visc_vert,  &
+         edgesOnCell_sign, edgesOnVertex_sign, rw_save, ru_save, &
          theta_m_save, exner, rr_save, scalars, tend_u_euler, tend_w_euler, tend_theta_euler, deriv_two, &
          cellsOnEdge, verticesOnEdge, edgesOnCell, edgesOnEdge, cellsOnCell, edgesOnVertex, nEdgesOnCell, nEdgesOnEdge, &
          latCell, latEdge, angleEdge, u_init, v_init, advCellsForEdge, nAdvCellsForEdge, adv_coefs, adv_coefs_3rd, &
@@ -5004,7 +5009,8 @@ module atm_time_integration
       weightsOnEdge, zgrid, rho_edge, rho_zz, ru, u, v, tend_u, &
       divergence, vorticity, ke, pv_edge, theta_m, rw, tend_rho, &
       rt_diabatic_tend, tend_theta, tend_w, w, cqw, rb, rr, pp, pressure_b, zz, zxu, cqu, & 
-      h_divergence, kdiff, bn2, edgesOnCell_sign, edgesOnVertex_sign, rw_save, ru_save, &
+      h_divergence, kdiff, bn2, eddy_visc_horz, eddy_visc_vert,  &
+      edgesOnCell_sign, edgesOnVertex_sign, rw_save, ru_save, &
       theta_m_save, exner, rr_save, scalars, tend_u_euler, tend_w_euler, tend_theta_euler, deriv_two, &
       cellsOnEdge, verticesOnEdge, edgesOnCell, edgesOnEdge, cellsOnCell, edgesOnVertex, nEdgesOnCell, nEdgesOnEdge, &
       latCell, latEdge, angleEdge, u_init, v_init, advCellsForEdge, nAdvCellsForEdge, adv_coefs, adv_coefs_3rd, &
@@ -5072,6 +5078,8 @@ module atm_time_integration
       real (kind=RKIND), dimension(nVertLevels,nEdges+1) :: cqu
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: h_divergence
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: kdiff
+      real (kind=RKIND), dimension(nVertLevels,nCells+1) :: eddy_visc_horz
+      real (kind=RKIND), dimension(nVertLevels,nCells+1) :: eddy_visc_vert
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: bn2
       real (kind=RKIND), dimension(maxEdges,nCells+1) :: edgesOnCell_sign
       real (kind=RKIND), dimension(vertexDegree,nVertices+1) :: edgesOnVertex_sign
@@ -5136,6 +5144,7 @@ module atm_time_integration
       real (kind=RKIND) :: config_visc4_2dsmag
       real (kind=RKIND) :: config_len_disp
       real (kind=RKIND) :: config_h_mom_eddy_visc2, config_v_mom_eddy_visc2, config_h_theta_eddy_visc2, config_v_theta_eddy_visc2
+      logical, parameter :: test_dissipation_3d=.true.
 
       integer, intent(in) :: rk_step
       real (kind=RKIND), intent(in) :: dt
@@ -5261,6 +5270,19 @@ module atm_time_integration
                                     invDt, h_mom_eddy_visc4, config_visc4_2dsmag, h_theta_eddy_visc4,  &
                                     cellStart, cellEnd, nEdgesOnCell, edgesOnCell,                     &
                                     nCells, nEdges                                                    )
+
+! testing - 3D smagorinsky computation
+                 call calculate_n2( bn2, theta_m, exner, pressure_b, pp, zgrid, scalars, index_qv, index_qc, qtot, &
+                                    cellStart, cellEnd, nCells)
+
+                 call smagorinsky_3d( eddy_visc_horz, eddy_visc_vert, u, v, ur_cell, vr_cell,            &
+                                      w, c_s, bn2, zgrid, config_len_disp,                               &
+                                      deformation_coef_c2, deformation_coef_s2, deformation_coef_cs,     &
+                                      deformation_coef_c, deformation_coef_s,                            &
+                                      invDt, h_mom_eddy_visc4, config_visc4_2dsmag, h_theta_eddy_visc4,  &
+                                      cellStart, cellEnd, nEdgesOnCell, edgesOnCell, cellsOnEdge,        &
+                                      nCells, nEdges, nVertLevels, maxEdges                             )
+! testing
 
             else if(config_horiz_mixing == "2d_fixed") then
 
@@ -5476,6 +5498,23 @@ module atm_time_integration
 
 !$OMP BARRIER
 
+          if(test_dissipation_3d) then
+
+            call  u_dissipation_3d( edgeStart, edgeEnd, edgeSolveStart, edgeSolveEnd, vertexStart, vertexEnd,    &
+                                    cellStart, cellEnd, nCells, nEdges, nVertices, vertexDegree,                 &
+                                    cellsOnEdge, verticesOnEdge, edgesOnCell, edgesOnVertex,                     &
+                                    nEdgesOnCell, edgesOnCell_sign, edgesOnVertex_sign,                          &
+                                    invAreaCell, invAreaTriangle, invDvEdge, invDcEdge,                          &
+                                    angleEdge, dcEdge, dvEdge, meshScalingDel2, meshScalingDel4,                 &
+                                    config_mix_full, h_mom_eddy_visc4, v_mom_eddy_visc2,                         &
+                                    config_del4u_div_factor, zgrid,                                              &
+                                    eddy_visc_horz, eddy_visc_vert, zz, rdzu, rdzw,                              &
+                                    fzm, fzp, config_les_model,                                                  &
+                                    delsq_u, delsq_vorticity, delsq_divergence,                                  &
+                                    u, divergence, vorticity, rho_edge, rho_zz, u_init, v_init, tend_u_euler    )
+
+          else
+
             call  u_dissipation( edgeStart, edgeEnd, edgeSolveStart, edgeSolveEnd, vertexStart, vertexEnd,    &
                                  cellStart, cellEnd, nCells, nEdges, nVertices, vertexDegree,                 &
                                  cellsOnEdge, verticesOnEdge, edgesOnCell, edgesOnVertex,                     &
@@ -5486,6 +5525,8 @@ module atm_time_integration
                                  config_del4u_div_factor, zgrid, kdiff,                                       &
                                  delsq_u, delsq_vorticity, delsq_divergence,                                  &
                                  u, divergence, vorticity, rho_edge, u_init, v_init, tend_u_euler            )
+
+          end if
 
       end if ! (rk_step 1 test for computing mixing terms)
 
@@ -5613,16 +5654,35 @@ module atm_time_integration
 
       if (rk_step == 1) then
 
-         call  w_dissipation( cellStart, cellEnd, cellSolveStart, cellSolveEnd,         &
-                              nCells, nEdges,                                           &
-                              nEdgesOnCell, edgesOnCell, cellsOnEdge, edgesOnCell_sign, &
-                              invAreaCell, invDcEdge, dvEdge,                           &
-                              meshScalingDel2, meshScalingDel4,                         &
-                              rdzw, rdzu,                                               &
-                              v_mom_eddy_visc2, h_mom_eddy_visc4,                       &
-                              delsq_w,                                                  &
-                              w, rho_edge, kdiff, rho_zz,                               &
-                              tend_w_euler                                             )
+          if(test_dissipation_3d) then
+
+            call  w_dissipation_3d( cellStart, cellEnd, cellSolveStart, cellSolveEnd,         &
+                                    nCells, nEdges,                                           &
+                                    nEdgesOnCell, edgesOnCell, cellsOnEdge, edgesOnCell_sign, &
+                                    invAreaCell, invDcEdge, dvEdge,                           &
+                                    meshScalingDel2, meshScalingDel4,                         &
+                                    rdzw, rdzu,                                               &
+                                    v_mom_eddy_visc2, h_mom_eddy_visc4,                       &
+                                    delsq_w,                                                  &
+                                    w, rho_edge, rho_zz, zz,                                  &
+                                    eddy_visc_horz, eddy_visc_vert,                           &
+                                    config_les_model,                                         &
+                                    tend_w_euler                                             )
+
+          else
+
+            call  w_dissipation( cellStart, cellEnd, cellSolveStart, cellSolveEnd,         &
+                                 nCells, nEdges,                                           &
+                                 nEdgesOnCell, edgesOnCell, cellsOnEdge, edgesOnCell_sign, &
+                                 invAreaCell, invDcEdge, dvEdge,                           &
+                                 meshScalingDel2, meshScalingDel4,                         &
+                                 rdzw, rdzu,                                               &
+                                 v_mom_eddy_visc2, h_mom_eddy_visc4,                       &
+                                 delsq_w,                                                  &
+                                 w, rho_edge, kdiff, rho_zz,                               &
+                                 tend_w_euler                                             )
+
+          end if
 
       end if ! horizontal mixing for w computed in first rk_step
 
@@ -5767,17 +5827,37 @@ module atm_time_integration
 
       if (rk_step == 1) then
 
-          call theta_dissipation( cellStart, cellEnd, cellSolveStart, cellSolveEnd,         &
-                                  nCells, nEdges,                                           &
-                                  nEdgesOnCell, edgesOnCell, cellsOnEdge, edgesOnCell_sign, &
-                                  invAreaCell, invDcEdge, dvEdge,                           &
-                                  meshScalingDel2, meshScalingDel4,                         &
-                                  config_mix_full, t_init, zgrid,                           &
-                                  rdzw, rdzu,                                               &
-                                  v_theta_eddy_visc2, h_theta_eddy_visc4, prandtl_inv,      &
-                                  delsq_theta,                                              &
-                                  theta_m, rho_edge, kdiff, rho_zz,                         &
-                                  tend_theta_euler                                         )
+          if(test_dissipation_3d) then
+
+            call theta_dissipation_3d( cellStart, cellEnd, cellSolveStart, cellSolveEnd,         &
+                                       nCells, nEdges,                                           &
+                                       nEdgesOnCell, edgesOnCell, cellsOnEdge, edgesOnCell_sign, &
+                                       invAreaCell, invDcEdge, dvEdge,                           &
+                                       meshScalingDel2, meshScalingDel4,                         &
+                                       config_mix_full, t_init, zgrid,                           &
+                                       rdzw, rdzu, fzm, fzp,                                              &
+                                       v_theta_eddy_visc2, h_theta_eddy_visc4, prandtl_inv,      &
+                                       delsq_theta,                                              &
+                                       theta_m, rho_edge, rho_zz, zz,                            &
+                                       eddy_visc_horz, eddy_visc_vert,                           &
+                                       config_les_model,                                         &
+                                       tend_theta_euler                                         )
+
+          else
+
+            call theta_dissipation( cellStart, cellEnd, cellSolveStart, cellSolveEnd,         &
+                                    nCells, nEdges,                                           &
+                                    nEdgesOnCell, edgesOnCell, cellsOnEdge, edgesOnCell_sign, &
+                                    invAreaCell, invDcEdge, dvEdge,                           &
+                                    meshScalingDel2, meshScalingDel4,                         &
+                                    config_mix_full, t_init, zgrid,                           &
+                                    rdzw, rdzu,                                               &
+                                    v_theta_eddy_visc2, h_theta_eddy_visc4, prandtl_inv,      &
+                                    delsq_theta,                                              &
+                                    theta_m, rho_edge, kdiff, rho_zz,                         &
+                                    tend_theta_euler                                         )
+
+          end if
 
       end if ! theta mixing calculated first rk_step
 
