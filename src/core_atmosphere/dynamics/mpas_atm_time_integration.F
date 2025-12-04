@@ -5147,6 +5147,10 @@ module atm_time_integration
       real (kind=RKIND), dimension( nVertLevels+1 ) :: d_diag, d_off_diag, flux_arr
       real (kind=RKIND), dimension( nVertLevels + 1 ) :: wduz, wdwz, wdtz, dpzx
       real (kind=RKIND), dimension( nVertLevels ) :: ru_edge_w, q, u_mix
+
+      real (kind=RKIND), dimension( nVertLevels+1 ) :: d_11, d_22, d_12
+      real (kind=RKIND), dimension( nVertLevels+1 ) :: dudx, dudy, dvdx, dvdy
+
       real (kind=RKIND) :: theta_turb_flux, w_turb_flux, r
       real (kind=RKIND) :: scalar_weight
       real (kind=RKIND) :: inv_r_earth
@@ -5246,6 +5250,11 @@ module atm_time_integration
                   d_off_diag(k) = 0.0_RKIND
                end do
 
+               dudx(1:nVertLevels) = 0.0
+               dudy(1:nVertLevels) = 0.0
+               dvdx(1:nVertLevels) = 0.0
+               dvdy(1:nVertLevels) = 0.0
+
                !$acc loop seq
                do iEdge=1,nEdgesOnCell(iCell)
                   !$acc loop vector
@@ -5254,6 +5263,14 @@ module atm_time_integration
                                                    - defc_b(iEdge,iCell)*v(k,EdgesOnCell(iEdge,iCell))
                      d_off_diag(k) = d_off_diag(k) + defc_b(iEdge,iCell)*u(k,EdgesOnCell(iEdge,iCell))  &
                                                    + defc_a(iEdge,iCell)*v(k,EdgesOnCell(iEdge,iCell))
+                     dudx(k) = dudx(k) + deformation_coef_c2(iEdge,iCell)*u(k,EdgesOnCell(iEdge,iCell)) &
+                                       - deformation_coef_cs(iEdge,iCell)*v(k,EdgesOnCell(iEdge,iCell))
+                     dudy(k) = dudy(k) + deformation_coef_cs(iEdge,iCell)*u(k,EdgesOnCell(iEdge,iCell)) &
+                                       - deformation_coef_s2(iEdge,iCell)*v(k,EdgesOnCell(iEdge,iCell))
+                     dvdx(k) = dvdx(k) + deformation_coef_cs(iEdge,iCell)*u(k,EdgesOnCell(iEdge,iCell)) &
+                                       + deformation_coef_c2(iEdge,iCell)*v(k,EdgesOnCell(iEdge,iCell))
+                     dvdy(k) = dvdy(k) + deformation_coef_s2(iEdge,iCell)*u(k,EdgesOnCell(iEdge,iCell)) &
+                                       + deformation_coef_cs(iEdge,iCell)*v(k,EdgesOnCell(iEdge,iCell))
                   end do
                end do
 !DIR$ IVDEP
@@ -5261,7 +5278,12 @@ module atm_time_integration
                do k=1, nVertLevels
                   ! here is the Smagorinsky formulation, 
                   ! followed by imposition of an upper bound on the eddy viscosity
-                  kdiff(k,iCell) = min((c_s * config_len_disp)**2 * sqrt(d_diag(k)**2 + d_off_diag(k)**2),(0.01*config_len_disp**2) * invDt)
+              !   kdiff(k,iCell) = min((c_s * config_len_disp)**2 * sqrt(d_diag(k)**2 + d_off_diag(k)**2),(0.01*config_len_disp**2) * invDt)
+                  ! deformation formulation
+                  d_11(k) = 2*dudx(k)
+                  d_22(k) = 2*dvdy(k)
+                  d_12(k) = dudy(k) + dvdx(k)
+                  kdiff(k,iCell) = min((c_s * config_len_disp)**2 * sqrt(0.25*(d_11(k)-d_22(k))**2 + d_12(k)**2),(0.01*config_len_disp**2) * invDt)
                end do
             end do
             !$acc end parallel
