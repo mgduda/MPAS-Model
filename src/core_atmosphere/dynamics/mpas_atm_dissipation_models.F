@@ -11,6 +11,12 @@ module mpas_atm_dissipation_models
   use mpas_kind_types, only : RKIND
   use mpas_atmphys_constants
   use mpas_constants
+  use mpas_log
+
+  logical, parameter :: debug_dissipation = .true.
+  logical, parameter :: les_test = .true.
+  real (kind=RKIND), parameter :: tke_heat_flux = 0.24
+  real (kind=RKIND), parameter :: tke_drag_coefficient = 0.0013
 
     contains
 
@@ -41,6 +47,9 @@ module mpas_atm_dissipation_models
 
       integer :: iCell, iEdge, k
       real (kind=RKIND), dimension(nVertLevels) :: d_11, d_22, d_12, dudx, dudy, dvdx, dvdy
+
+        if(debug_dissipation)  call mpas_log_write(' begin smagorinsky_2d ')
+
 
             do iCell = cellStart,cellEnd
                dudx(1:nVertLevels) = 0.0
@@ -73,6 +82,8 @@ module mpas_atm_dissipation_models
 
             h_mom_eddy_visc4   = config_visc4_2dsmag * config_len_disp**3
             h_theta_eddy_visc4 = h_mom_eddy_visc4
+
+        if(debug_dissipation)  call mpas_log_write(' exiting smagorinsky_2d ')
 
       end subroutine smagorinsky_2d
 
@@ -107,7 +118,7 @@ module mpas_atm_dissipation_models
       integer, dimension(2,nEdges+1), intent(in) :: cellsOnEdge
 
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(out) :: eddy_visc_horz, eddy_visc_vert
-      real (kind=RKIND), intent(in) :: h_mom_eddy_visc4, h_theta_eddy_visc4
+      real (kind=RKIND), intent(out) :: h_mom_eddy_visc4, h_theta_eddy_visc4
 
       ! local variables
 
@@ -118,9 +129,9 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(nVertLevels) :: dudz, dvdz, dwdz
       real (kind=RKIND) :: rdz, def2, pr_inv, wk
 
+      if(debug_dissipation)  call mpas_log_write(' begin smagorinsky_3d ')
+
       pr_inv = 1./prandtl
-      ! testing
-      pr_inv = 0.
 
       do iCell = cellStart,cellEnd
 
@@ -201,6 +212,13 @@ module mpas_atm_dissipation_models
 
       end do ! loop over all owned cells (columns)
 
+      ! set up coefficients for 4th-order horizontal background filter
+
+      h_mom_eddy_visc4   = config_visc4_2dsmag * config_len_disp**3
+      h_theta_eddy_visc4 = h_mom_eddy_visc4
+
+      if(debug_dissipation)  call mpas_log_write(' exiting smagorinsky_3d ')
+
       end subroutine smagorinsky_3d
 
 !---------------------------------------                                                                                                              
@@ -217,11 +235,12 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(nVertLevels+1,nCells+1), intent(in) :: zgrid
       real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1), intent(in) :: scalars
 ! local
-      real (kind=RKIND) :: dz, esw, qc_cr
+      real (kind=RKIND) :: dz, esw
+      real (kind=RKIND), parameter :: qc_cr = 0.00001  ! in kg/kg
       real (kind=RKIND), dimension(nVertLevels) :: theta, qvsw, temp, coefa
 
-            qc_cr = 0.00001         ! in kg/kg
-            
+         if(debug_dissipation)  call mpas_log_write(' begin BV frequency calculations ')
+
             do iCell = cellStart,cellEnd
 !DIR$ IVDEP
                do k=1, nVertLevels
@@ -259,6 +278,8 @@ module mpas_atm_dissipation_models
                bn2(nVertLevels,iCell) = bn2(nVertLevels-1,iCell)
 
             end do
+
+         if(debug_dissipation)  call mpas_log_write(' exiting BV frequency calculations ')
 
       end subroutine calculate_n2
 
@@ -500,7 +521,7 @@ module mpas_atm_dissipation_models
                                    eddy_visc_horz, eddy_visc_vert, zz, rdzu, rdzw,                              &
                                    fzm, fzp, config_les_model,                                                  &
                                    delsq_u, delsq_vorticity, delsq_divergence,                                  &
-                                   u, divergence, vorticity, rho_edge, rho_zz, u_init, v_init, tend_u_euler    )
+                                   u, v, divergence, vorticity, rho_edge, rho_zz, u_init, v_init, tend_u_euler )
 
       use mpas_atm_dimensions  !  pull nVertLevels and maxEdges from here                                                                             
 
@@ -538,6 +559,7 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(nVertLevels+1,nCells+1), intent(in) :: zgrid
 
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(in) :: u
+      real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(in) :: v
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: divergence
       real (kind=RKIND), dimension(nVertLevels,nVertices+1), intent(in) :: vorticity
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(in) :: rho_edge
@@ -570,6 +592,15 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(nVertLevels+1) :: turb_vflux
       real (kind=RKIND) :: rho_k_cell1, rho_k_cell2, rho_k_at_w
       real (kind=RKIND) :: zz_cell1, zz_cell2, zz_at_w
+
+      real (kind=RKIND) :: velocity_magnitude
+
+        if(debug_dissipation) then
+            call mpas_log_write(' begin u_dissipation_3d ')
+            call mpas_log_write(' les model is '//trim(config_les_model))
+            call mpas_log_write(' 4th order hyperviscosity is $r ', realArgs=(/h_mom_eddy_visc4/))
+            call mpas_log_write(' 4th order divergence factor is $r ', realArgs=(/config_del4u_div_factor/))
+        end if
 
 !$OMP BARRIER                                                                                                                                         
 
@@ -725,8 +756,7 @@ module mpas_atm_dissipation_models
 
          end if  ! vertical mixing of horizontal momentum for fixe viscosity
 
-         ! test section - always execute this code
-         ! if ( config_les_model == "3d_smagorinsky") then
+        if ( config_les_model == "3d_smagorinsky") then
 
                do iEdge=edgeSolveStart,edgeSolveEnd
 
@@ -748,10 +778,17 @@ module mpas_atm_dissipation_models
                      turb_vflux(k) = - rho_k_at_w*zz_at_w*rdzu(k)*(u(k,iEdge)-u(k-1,iEdge))
                   end do
 
+                if( les_test ) then
+                  velocity_magnitude = sqrt(u(1,iEdge)**2 + v(1,iEdge)**2)
+                  turb_vflux(1) = -rho_edge(1,iEdge)*tke_drag_coefficient*u(1,iEdge)*velocity_magnitude
+                  turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
+                  ! end test conditions
+                else
                   ! test conditions for supercell case
                   turb_vflux(1) = turb_vflux(2)
                   turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
                   ! end test conditions
+                end if
 
                   do k=1,nVertLevels
                     tend_u_euler(k,iEdge) = tend_u_euler(k,iEdge) - rdzw(k)*(turb_vflux(k+1)-turb_vflux(k))
@@ -759,9 +796,9 @@ module mpas_atm_dissipation_models
 
                end do
 
-         !  end if 
-         !  end test section
+         end if 
 
+        if(debug_dissipation)  call mpas_log_write(' exiting u_dissipation_3d ')
 
       end subroutine u_dissipation_3d
 
@@ -960,6 +997,11 @@ module mpas_atm_dissipation_models
        ! First, storage to hold the result from the first del^2 computation.                                                                        
        !  we copied code from the theta mixing, hence the theta* names.                                                                             
 
+        if(debug_dissipation) then
+            call mpas_log_write(' begin w_dissipation_3d ')
+            call mpas_log_write(' les model is '//trim(config_les_model))
+            call mpas_log_write(' 4th order hyperviscosity is $r ', realArgs=(/h_mom_eddy_visc4/))
+        end if
 
          delsq_w(1:nVertLevels,cellStart:cellEnd) = 0.0
 
@@ -1022,8 +1064,7 @@ module mpas_atm_dissipation_models
 
       end if
 
-         ! test section - always execute this code
-         ! if ( config_les_model == "3d_smagorinsky") then
+         if ( config_les_model == "3d_smagorinsky") then
 
              do iCell = cellSolveStart,cellSolveEnd ! vertical mixing for each column
                 ! compute turbulent fluxes
@@ -1037,7 +1078,9 @@ module mpas_atm_dissipation_models
                 end do
              end do
 
-          ! end if
+          end if
+
+        if(debug_dissipation)  call mpas_log_write(' exiting w_dissipation_3d ')
 
       end subroutine w_dissipation_3d
 
@@ -1267,6 +1310,12 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(nVertLevels+1) :: turb_vflux
       real (kind=RKIND) :: rho_k_at_w, zz_at_w
 
+        if(debug_dissipation) then
+            call mpas_log_write(' begin theta_dissipation_3d ')
+            call mpas_log_write(' les model is '//trim(config_les_model))
+            call mpas_log_write(' 4th order hyperviscosity is $r ', realArgs=(/h_theta_eddy_visc4/))
+        end if
+
          delsq_theta(1:nVertLevels,cellStart:cellEnd) = 0.0
 
          do iCell=cellStart,cellEnd
@@ -1361,8 +1410,7 @@ module mpas_atm_dissipation_models
 
          end if
 
-         ! test section - always execute this code
-         ! if ( config_les_model == "3d_smagorinsky") then
+         if ( config_les_model == "3d_smagorinsky") then
 
              do iCell = cellSolveStart,cellSolveEnd ! vertical mixing for each column
                 ! compute turbulent fluxes
@@ -1375,9 +1423,16 @@ module mpas_atm_dissipation_models
                   turb_vflux(k) = - rho_k_at_w*zz_at_w*rdzu(k)*(theta_m(k,iCell)-theta_m(k-1,iCell))
                 end do
 
-                ! test boundary conditions for supercell case
-                turb_vflux(1) = turb_vflux(2)
-                turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
+                ! test boundary conditions for supercell and les test cases
+
+                if( les_test ) then
+                  turb_vflux(1) = tke_heat_flux*rho_zz(1,iCell)  ! this is correct for DRY CASE ONLY
+                  turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
+                else
+                  turb_vflux(1) = turb_vflux(2)
+                  turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
+                end if
+
 
                 do k=1,nVertLevels
                   tend_theta_euler(k,iCell) = tend_theta_euler(k,iCell) &
@@ -1385,8 +1440,9 @@ module mpas_atm_dissipation_models
                 end do
              end do
 
-          ! end if
-          ! end test section
+         end if
+
+        if(debug_dissipation)  call mpas_log_write(' exiting theta_dissipation_3d ')
 
       end subroutine theta_dissipation_3d
 
