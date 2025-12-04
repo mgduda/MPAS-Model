@@ -36,6 +36,7 @@ module atm_time_integration
    use mpas_atm_boundaries, only : nSpecZone, nRelaxZone, nBdyZone, mpas_atm_get_bdy_state, mpas_atm_get_bdy_tend  ! regional_MPAS addition
    
    use mpas_atm_iau  
+   use mpas_atm_dissipation_models
 
    !
    ! Abstract interface for routine used to communicate halos of fields
@@ -5236,60 +5237,15 @@ module atm_time_integration
          !$acc end parallel
 
          ! Smagorinsky eddy viscosity, based on horizontal deformation (in this case on model coordinate surfaces).
-         ! The integration coefficients were precomputed and stored in defc_a and defc_b
+         ! The integration coefficients were precomputed and stored in deformation_coef_*
 
          if(config_horiz_mixing == "2d_smagorinsky") then
 
-            !$acc parallel default(present)
-            !$acc loop gang worker private(d_diag, d_off_diag)
-            do iCell = cellStart,cellEnd
-
-               !$acc loop vector
-               do k = 1, nVertLevels
-                  d_diag(k) = 0.0_RKIND
-                  d_off_diag(k) = 0.0_RKIND
-               end do
-
-               dudx(1:nVertLevels) = 0.0
-               dudy(1:nVertLevels) = 0.0
-               dvdx(1:nVertLevels) = 0.0
-               dvdy(1:nVertLevels) = 0.0
-
-               !$acc loop seq
-               do iEdge=1,nEdgesOnCell(iCell)
-                  !$acc loop vector
-                  do k=1,nVertLevels
-                     d_diag(k)     = d_diag(k)     + defc_a(iEdge,iCell)*u(k,EdgesOnCell(iEdge,iCell))  &
-                                                   - defc_b(iEdge,iCell)*v(k,EdgesOnCell(iEdge,iCell))
-                     d_off_diag(k) = d_off_diag(k) + defc_b(iEdge,iCell)*u(k,EdgesOnCell(iEdge,iCell))  &
-                                                   + defc_a(iEdge,iCell)*v(k,EdgesOnCell(iEdge,iCell))
-                     dudx(k) = dudx(k) + deformation_coef_c2(iEdge,iCell)*u(k,EdgesOnCell(iEdge,iCell)) &
-                                       - deformation_coef_cs(iEdge,iCell)*v(k,EdgesOnCell(iEdge,iCell))
-                     dudy(k) = dudy(k) + deformation_coef_cs(iEdge,iCell)*u(k,EdgesOnCell(iEdge,iCell)) &
-                                       - deformation_coef_s2(iEdge,iCell)*v(k,EdgesOnCell(iEdge,iCell))
-                     dvdx(k) = dvdx(k) + deformation_coef_cs(iEdge,iCell)*u(k,EdgesOnCell(iEdge,iCell)) &
-                                       + deformation_coef_c2(iEdge,iCell)*v(k,EdgesOnCell(iEdge,iCell))
-                     dvdy(k) = dvdy(k) + deformation_coef_s2(iEdge,iCell)*u(k,EdgesOnCell(iEdge,iCell)) &
-                                       + deformation_coef_cs(iEdge,iCell)*v(k,EdgesOnCell(iEdge,iCell))
-                  end do
-               end do
-!DIR$ IVDEP
-               !$acc loop vector
-               do k=1, nVertLevels
-                  ! here is the Smagorinsky formulation, 
-                  ! followed by imposition of an upper bound on the eddy viscosity
-              !   kdiff(k,iCell) = min((c_s * config_len_disp)**2 * sqrt(d_diag(k)**2 + d_off_diag(k)**2),(0.01*config_len_disp**2) * invDt)
-                  ! deformation formulation
-                  d_11(k) = 2*dudx(k)
-                  d_22(k) = 2*dvdy(k)
-                  d_12(k) = dudy(k) + dvdx(k)
-                  kdiff(k,iCell) = min((c_s * config_len_disp)**2 * sqrt(0.25*(d_11(k)-d_22(k))**2 + d_12(k)**2),(0.01*config_len_disp**2) * invDt)
-               end do
-            end do
-            !$acc end parallel
-
-            h_mom_eddy_visc4   = config_visc4_2dsmag * config_len_disp**3
-            h_theta_eddy_visc4 = h_mom_eddy_visc4
+            call smagorinsky_2d( kdiff, u, v, c_s, config_len_disp,                                 &
+                                 deformation_coef_c2, deformation_coef_s2, deformation_coef_cs,     &
+                                 invDt, h_mom_eddy_visc4, config_visc4_2dsmag, h_theta_eddy_visc4,  &
+                                 cellStart, cellEnd, nEdgesOnCell, edgesOnCell,                     &
+                                 nCells, nEdges, nVertLevels, maxEdges                             )
 
          else if(config_horiz_mixing == "2d_fixed") then
 
