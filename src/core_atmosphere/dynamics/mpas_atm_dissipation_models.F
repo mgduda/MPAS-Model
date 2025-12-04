@@ -15,7 +15,7 @@ module mpas_atm_dissipation_models
   use mpas_derived_types, only : MPAS_LOG_CRIT
 
   logical, parameter :: debug_dissipation = .false.
-  logical, parameter :: les_test = .true.
+  logical, parameter :: les_test = .false., les_sas_test = .true.
   !! real (kind=RKIND), parameter :: tke_heat_flux = 0.03  ! shear case from Moeng et al., first hour
   real (kind=RKIND), parameter :: tke_heat_flux = 0.0
   !! real (kind=RKIND), parameter :: tke_drag_coefficient = 0.0013 ! ocean roughness length
@@ -1535,6 +1535,8 @@ module mpas_atm_dissipation_models
 
                 if( les_test ) then
                   turb_vflux(1) = tke_heat_flux*rho_zz(1,iCell)  ! this is correct for DRY CASE ONLY
+                  ! SAS case lower flux for theta_m - code goes here
+
                   turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
                 else
                   turb_vflux(1) = turb_vflux(2)
@@ -1569,7 +1571,7 @@ module mpas_atm_dissipation_models
                                             eddy_visc_horz, eddy_visc_vert,                           &
                                             bv_freq2, config_len_disp, scalars, tend_scalars,         &
                                             index_tke, index_qv, num_scalars_dummy, mix_scalars,      &
-                                            config_les_model,                                         &
+                                            config_les_model, time_of_day_seconds,                    &
                                             uReconstructZonal, uReconstructMeridional,                &
                                             tend_theta_euler                                         )
 
@@ -1585,6 +1587,8 @@ module mpas_atm_dissipation_models
       integer, intent(in) :: nCells, nEdges
       integer, intent(in) :: num_scalars_dummy
       integer, intent(in) :: index_tke, index_qv
+
+      real (kind=RKIND), intent(in) :: time_of_day_seconds
 
       logical, intent(in) :: config_mix_full, mix_scalars
 
@@ -1643,6 +1647,7 @@ module mpas_atm_dissipation_models
       logical, parameter :: hmix_scalars = .true.
       logical, parameter :: hmix4_scalars = .false.
       real (kind=RKIND) :: moisture_flux, heat_flux, theta_m_flux, c_h, c_q
+      real (kind=RKIND) :: qv_cell, theta_m_cell, theta_cell
 
         if(debug_dissipation) then
             call mpas_log_write(' begin scalar_dissipation_3d ')
@@ -1842,6 +1847,7 @@ module mpas_atm_dissipation_models
                 ! test boundary conditions for supercell and les test cases
 
                 if( les_test ) then
+
                   moisture_flux = 0.
                   heat_flux = tke_heat_flux
 
@@ -1852,9 +1858,27 @@ module mpas_atm_dissipation_models
                   ! turb_vflux(1) = tke_heat_flux*rho_zz(1,iCell)  ! this is correct for DRY CASE ONLY
                   turb_vflux(1) = theta_m_flux*rho_zz(1,iCell)
                   turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
+
+                else if (les_sas_test) then
+
+                  ! if(iCell == 1)  call mpas_log_write(' les_sas_test for theta and qv surface fluxes ')
+                  qv_cell = scalars(index_qv,1,iCell)
+                  theta_m_cell = theta_m(1,iCell)
+                  theta_cell = theta_m_cell/(1.0+(rv/rgas)*qv_cell)
+
+                  call flux_les_sas( heat_flux, moisture_flux, time_of_day_seconds )
+                  if(iCell == 1) call mpas_log_write(' SAS t and qv fluxes, $r, $r ', realArgs=(/heat_flux, moisture_flux/))
+
+                  theta_m_flux = heat_flux*(1.0+(rv/rgas)*qv_cell)+(rv/rgas)*theta_cell*moisture_flux
+                  turb_vflux(1) = theta_m_flux*rho_zz(1,iCell)
+                  moisture_flux = moisture_flux*rho_zz(1,iCell) 
+                  turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
+
                 else
+
                   turb_vflux(1) = turb_vflux(2)
                   turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
+
                 end if
 
 
@@ -1878,7 +1902,7 @@ module mpas_atm_dissipation_models
                   end do
                 end do
 
-                if( les_test ) turb_vflux_scalars(index_qv,1) = moisture_flux ! lower b.c. for qv
+                if( les_test .or. les_sas_test ) turb_vflux_scalars(index_qv,1) = moisture_flux ! lower b.c. for qv
 
                 do k=1,nVertLevels
                   do iScalar=1,num_scalars
@@ -1896,5 +1920,28 @@ module mpas_atm_dissipation_models
         if(debug_dissipation)  call mpas_log_write(' exiting scalar_dissipation_3d ')
 
       end subroutine scalar_dissipation_3d_les
+
+!-----------
+
+      subroutine flux_les_sas(heat_flux, moisture_flux, time_of_day_seconds)
+
+      implicit none
+
+      real (kind=RKIND), intent(in) :: time_of_day_seconds
+      real (kind=RKIND), intent(out) :: heat_flux, moisture_flux
+
+      real (kind=RKIND), parameter:: t_start_t_flux = 3600.*6.0
+      real (kind=RKIND), parameter:: t_end_t_flux = 3600.*19.50
+      real (kind=RKIND), parameter:: t_start_q_flux = 3600.*7.0
+      real (kind=RKIND), parameter:: t_end_q_flux = 3600.*19.50
+      real (kind=RKIND) :: rel_time_t_flux, rel_time_q_flux
+
+      rel_time_t_flux = max(0.,(time_of_day_seconds - t_start_t_flux)/(t_end_t_flux - t_start_t_flux))
+      rel_time_q_flux = max(0.,(time_of_day_seconds - t_start_q_flux)/(t_end_q_flux - t_start_q_flux))
+
+      heat_flux = max(0., 0.1*sin(pii*rel_time_t_flux))
+      moisture_flux = max(0., 0.15*sin(pii*rel_time_q_flux))
+
+      end subroutine flux_les_sas
 
 end module mpas_atm_dissipation_models
