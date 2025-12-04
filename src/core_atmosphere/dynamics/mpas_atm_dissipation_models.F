@@ -340,7 +340,8 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(nVertLevels+1,nCells+1), intent(in) :: zgrid
       real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1), intent(in) :: scalars
 ! local
-      real (kind=RKIND) :: dz, rdz, esw
+      integer :: iCell, k
+      real (kind=RKIND) :: dz, rdz, esw, p
       real (kind=RKIND), parameter :: qc_cr = 0.00001  ! in kg/kg
       real (kind=RKIND), dimension(nVertLevels) :: theta, qvsw, temp, coefa
       logical :: dry_bv_frequency
