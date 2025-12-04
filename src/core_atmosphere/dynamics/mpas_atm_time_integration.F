@@ -4819,6 +4819,7 @@ module atm_time_integration
       real (kind=RKIND), pointer :: coef_3rd_order, c_s
       logical, pointer :: config_mix_full
       character (len=StrKIND), pointer :: config_horiz_mixing
+      character (len=StrKIND), pointer :: config_les_model
       real (kind=RKIND), pointer :: config_del4u_div_factor
       real (kind=RKIND), pointer :: config_h_theta_eddy_visc4
       real (kind=RKIND), pointer :: config_h_mom_eddy_visc4
@@ -4837,6 +4838,7 @@ module atm_time_integration
       call mpas_pool_get_config(configs, 'config_coef_3rd_order', coef_3rd_order)
       call mpas_pool_get_config(configs, 'config_mix_full', config_mix_full)
       call mpas_pool_get_config(configs, 'config_horiz_mixing', config_horiz_mixing)
+      call mpas_pool_get_config(configs, 'config_les_model', config_les_model)
       call mpas_pool_get_config(configs, 'config_del4u_div_factor', config_del4u_div_factor)
       call mpas_pool_get_config(configs, 'config_h_theta_eddy_visc4', config_h_theta_eddy_visc4)
       call mpas_pool_get_config(configs, 'config_h_mom_eddy_visc4', config_h_mom_eddy_visc4)
@@ -4975,7 +4977,8 @@ module atm_time_integration
          latCell, latEdge, angleEdge, u_init, v_init, advCellsForEdge, nAdvCellsForEdge, adv_coefs, adv_coefs_3rd, &
          rdzu, rdzw, fzm, fzp, qv_init, t_init, cf1, cf2, cf3, r_earth, ur_cell, vr_cell, defc_a, defc_b, &
          deformation_coef_c2,deformation_coef_s2,deformation_coef_cs,deformation_coef_c,deformation_coef_s, &
-         tend_w_pgf, tend_w_buoy, coef_3rd_order, c_s, config_mix_full, config_horiz_mixing, config_del4u_div_factor, &
+         tend_w_pgf, tend_w_buoy, coef_3rd_order, c_s, config_mix_full, config_horiz_mixing, config_les_model, &
+         config_del4u_div_factor, &
          config_h_mom_eddy_visc2, config_v_mom_eddy_visc2, config_h_theta_eddy_visc2, config_v_theta_eddy_visc2, &
          config_h_theta_eddy_visc4, config_h_mom_eddy_visc4, config_visc4_2dsmag, config_len_disp, rk_step, dt, &
          config_mpas_cam_coef, &
@@ -5000,7 +5003,8 @@ module atm_time_integration
       latCell, latEdge, angleEdge, u_init, v_init, advCellsForEdge, nAdvCellsForEdge, adv_coefs, adv_coefs_3rd, &
       rdzu, rdzw, fzm, fzp, qv_init, t_init, cf1, cf2, cf3, r_earth, ur_cell, vr_cell, defc_a, defc_b, &
       deformation_coef_c2,deformation_coef_s2,deformation_coef_cs,deformation_coef_c,deformation_coef_s, &
-      tend_w_pgf, tend_w_buoy, coef_3rd_order, c_s, config_mix_full, config_horiz_mixing, config_del4u_div_factor, &
+      tend_w_pgf, tend_w_buoy, coef_3rd_order, c_s, config_mix_full, config_horiz_mixing, config_les_model, &
+      config_del4u_div_factor, &
       config_h_mom_eddy_visc2, config_v_mom_eddy_visc2, config_h_theta_eddy_visc2, config_v_theta_eddy_visc2, &
       config_h_theta_eddy_visc4, config_h_mom_eddy_visc4, config_visc4_2dsmag, config_len_disp, rk_step, dt, &
       config_mpas_cam_coef, &
@@ -5117,6 +5121,7 @@ module atm_time_integration
       real (kind=RKIND) :: coef_3rd_order, c_s
       logical :: config_mix_full
       character (len=StrKIND) :: config_horiz_mixing
+      character (len=StrKIND) :: config_les_model
       real (kind=RKIND) :: config_del4u_div_factor
       real (kind=RKIND) :: config_h_theta_eddy_visc4
       real (kind=RKIND) :: config_h_mom_eddy_visc4
@@ -5239,28 +5244,36 @@ module atm_time_integration
          ! Smagorinsky eddy viscosity, based on horizontal deformation (in this case on model coordinate surfaces).
          ! The integration coefficients were precomputed and stored in deformation_coef_*
 
-         if(config_horiz_mixing == "2d_smagorinsky") then
+         if(config_les_model == "none") then
 
-            call smagorinsky_2d( kdiff, u, v, c_s, config_len_disp,                                 &
-                                 deformation_coef_c2, deformation_coef_s2, deformation_coef_cs,     &
-                                 invDt, h_mom_eddy_visc4, config_visc4_2dsmag, h_theta_eddy_visc4,  &
-                                 cellStart, cellEnd, nEdgesOnCell, edgesOnCell,                     &
-                                 nCells, nEdges                                                    )
+            if(config_horiz_mixing == "2d_smagorinsky") then
 
-         else if(config_horiz_mixing == "2d_fixed") then
+               call smagorinsky_2d( kdiff, u, v, c_s, config_len_disp,                                 &
+                                    deformation_coef_c2, deformation_coef_s2, deformation_coef_cs,     &
+                                    invDt, h_mom_eddy_visc4, config_visc4_2dsmag, h_theta_eddy_visc4,  &
+                                    cellStart, cellEnd, nEdgesOnCell, edgesOnCell,                     &
+                                    nCells, nEdges                                                    )
 
-            !$acc parallel default(present)
-            !$acc loop gang worker
-            do iCell = cellStart, cellEnd
-               !$acc loop vector
-               do k = 1, nVertLevels
-                  kdiff(k,iCell) = config_h_theta_eddy_visc2
+            else if(config_horiz_mixing == "2d_fixed") then
+
+               !$acc parallel default(present)
+               !$acc loop gang worker
+               do iCell = cellStart, cellEnd
+                  !$acc loop vector
+                  do k = 1, nVertLevels
+                     kdiff(k,iCell) = config_h_theta_eddy_visc2
+                  end do
                end do
-            end do
-            !$acc end parallel
+               !$acc end parallel
 
-            h_mom_eddy_visc4 = config_h_mom_eddy_visc4
-            h_theta_eddy_visc4 = config_h_theta_eddy_visc4
+               h_mom_eddy_visc4 = config_h_mom_eddy_visc4
+               h_theta_eddy_visc4 = config_h_theta_eddy_visc4
+
+            end if
+
+         else if (config_les_model == "3d_smagorinsky") then
+
+            ! call to 3D smagorinsky here...
 
          end if
 

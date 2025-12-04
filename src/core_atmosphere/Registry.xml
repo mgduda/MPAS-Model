@@ -146,6 +146,11 @@
                      description="Formulation of horizontal mixing"
                      possible_values="`2d_fixed' or `2d_smagorinsky'"/>
 
+                <nml_option name="config_les_model" type="character" default_value="none"
+                     units="-"
+                     description="LES dissipation model"
+                     possible_values="`none'' or `3d_smagorinsky'"/>
+
                 <nml_option name="config_len_disp" type="real" default_value="0.0" in_defaults="false"
                      units="m"
                      description="Horizontal length scale, used by the Smagorinsky formulation of horizontal diffusion and by 3-d divergence damping"
