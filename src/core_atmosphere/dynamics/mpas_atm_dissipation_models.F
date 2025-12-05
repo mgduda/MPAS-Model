@@ -38,7 +38,7 @@ module mpas_atm_dissipation_models
       use mpas_atm_dimensions  !  pull nVertLevels and maxEdges from here
 
       implicit none
-      
+
       integer, intent(in) :: cellStart, cellEnd, nCells, nEdges
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(in) :: u
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(in) :: v
@@ -79,7 +79,7 @@ module mpas_atm_dissipation_models
                end do
 !DIR$ IVDEP
                do k=1, nVertLevels
-                  ! here is the Smagorinsky formulation, 
+                  ! here is the Smagorinsky formulation,
                   ! followed by imposition of an upper bound on the eddy viscosity
                   d_11(k) = 2*dudx(k)
                   d_22(k) = 2*dvdy(k)
@@ -109,7 +109,7 @@ module mpas_atm_dissipation_models
                              nCells, nEdges, nVertLevels, maxEdges, num_scalars                )
 
       implicit none
-      
+
       character (len=StrKIND), intent(in) :: config_les_model
       character (len=StrKIND), intent(in) :: config_les_surface
 
@@ -143,7 +143,7 @@ module mpas_atm_dissipation_models
       ! local variables
 
       integer :: iCell, iEdge, k, ie, cell1, cell2
-      real (kind=RKIND), dimension(nVertLevels) :: d_11, d_22, d_33, d_12, d_13, d_23 
+      real (kind=RKIND), dimension(nVertLevels) :: d_11, d_22, d_33, d_12, d_13, d_23
       real (kind=RKIND), dimension(nVertLevels) :: dudx, dudy, dvdx, dvdy
       real (kind=RKIND), dimension(nVertLevels+1) :: dwdx, dwdy
       real (kind=RKIND), dimension(nVertLevels) :: dudz, dvdz, dwdz
@@ -179,7 +179,7 @@ module mpas_atm_dissipation_models
         dudz(1:nVertLevels) = 0.0
         dvdz(1:nVertLevels) = 0.0
         dwdz(1:nVertLevels) = 0.0
-               
+
         do iEdge=1,nEdgesOnCell(iCell)
 
           ie = EdgesOnCell(iEdge,iCell)
@@ -242,7 +242,7 @@ module mpas_atm_dissipation_models
             eddy_visc_horz(k,iCell) = (c_s * config_len_disp)**2 * sqrt(max(0.,def2 - pr_inv*bv_freq2(k,iCell)))
             eddy_visc_horz(k,iCell) = min(eddy_visc_horz(k,iCell),(0.01*config_len_disp**2) * invDt)
             delta_z = zgrid(k+1,iCell)-zgrid(k,iCell)
-            eddy_visc_vert(k,iCell) = (c_s * delta_z)**2 * sqrt(max(0.,def2 - pr_inv*bv_freq2(k,iCell)))            
+            eddy_visc_vert(k,iCell) = (c_s * delta_z)**2 * sqrt(max(0.,def2 - pr_inv*bv_freq2(k,iCell)))
             ! eddy_visc_vert(k,iCell) = eddy_visc_horz(k,iCell)
           end do
 
@@ -266,7 +266,7 @@ module mpas_atm_dissipation_models
             diss_length = min(delta_s,max(tke_length,0.01*delta_s))
             if(bv_freq2(k,iCell) <= 0) diss_length = delta_s
 
-            ! non-isotropic mixing                                                                            
+            ! non-isotropic mixing
 
             l_horizontal = config_len_disp
             l_vertical = min(delta_z,tke_length)
@@ -294,30 +294,30 @@ module mpas_atm_dissipation_models
 
             buoyancy = -eddy_visc_v*bv_freq2(k,iCell)
 
-            ! dissipation                                                                                     
+            ! dissipation
 
             c_dissipation = 1.9*c_k + max( 0.0, 0.93 - 1.9*c_k )*diss_length/delta_s
             !  if( (k.eq. 1) .or. (k.eq.nVertLevels) ) c_dissipation = 3.9
 
             dissipation = -c_dissipation*(scalars(index_tke,k,iCell)**(1.5))/diss_length
 
-            ! computing eddy viscosities *********                                                            
+            ! computing eddy viscosities *********
 
             prandtl_horizontal_inv = 3.
-            prandtl_3d_inv(k,iCell) = 1.0+(2.0*l_vertical/delta_z) 
-            
+            prandtl_3d_inv(k,iCell) = 1.0+(2.0*l_vertical/delta_z)
 
-            ! RHS term for the subgrid ke.                                                                    
+
+            ! RHS term for the subgrid ke.
 
             if(dynamics_substep == 1) &
-                 tend_scalars(index_tke,k,iCell) = rho_zz(k,iCell)*( shear_production + buoyancy + dissipation )            
+                 tend_scalars(index_tke,k,iCell) = rho_zz(k,iCell)*( shear_production + buoyancy + dissipation )
 
           end do
 
         else
 
           call mpas_log_write(' in les_models, no les scheme for '//trim(config_les_model), messageType=MPAS_LOG_CRIT)
-          
+
         end if ! end of config_les_model test
 
       end do ! loop over all owned cells (columns)
@@ -362,7 +362,7 @@ module mpas_atm_dissipation_models
                   qvsw(k) = ep_2 * esw / (p - esw)
 
                   coefa(k) = ( 1.0 + xlv * qvsw(k)/ R_d / temp(k) ) / &
-                     ( 1.0 + xlv * xlv *qvsw(k) / Cp / R_v / temp(k) / temp(k) ) 
+                     ( 1.0 + xlv * xlv *qvsw(k) / Cp / R_v / temp(k) / temp(k) )
 
                end do
 
@@ -377,7 +377,7 @@ module mpas_atm_dissipation_models
                   !               - ( qtot(k+1, iCell) - qtot(k-1, iCell) ) / dz )
                   ! else
                   !   ! Moist Brunt-Vaisala frequency according to Durran and Klemp (1982) Eq. 36
-                  !   bn2(k,iCell) = gravity * ( coefa(k) * ((theta(k+1) - theta(k-1) ) / theta(k) / dz & 
+                  !   bn2(k,iCell) = gravity * ( coefa(k) * ((theta(k+1) - theta(k-1) ) / theta(k) / dz &
                   !               + xlv / cp / temp(k) * ( qvsw(k+1) - qvsw(k-1)) / dz ) &
                   !               - ( qtot(k+1, iCell) - qtot(k-1, iCell) ) / dz )
                   ! endif
@@ -394,7 +394,7 @@ module mpas_atm_dissipation_models
                                  - ( qtot(k+1, iCell) - qtot(k-1, iCell) ) * rdz )
                   else
                      ! Moist Brunt-Vaisala frequency according to Durran and Klemp (1982) Eq. 36
-                     bn2(k,iCell) = gravity * ( coefa(k) * ((theta(k+1) - theta(k-1) ) / theta(k) * rdz & 
+                     bn2(k,iCell) = gravity * ( coefa(k) * ((theta(k+1) - theta(k-1) ) / theta(k) * rdz &
                                  + xlv / cp / temp(k) * ( qvsw(k+1) - qvsw(k-1)) * rdz ) &
                                  - ( qtot(k+1, iCell) - qtot(k-1, iCell) ) * rdz )
                   endif
@@ -426,7 +426,7 @@ module mpas_atm_dissipation_models
                                    u, v, divergence, vorticity, rho_edge, rho_zz, u_init, v_init, ustm,         &
                                    tend_u_euler                                                                )
 
-      use mpas_atm_dimensions  !  pull nVertLevels and maxEdges from here                                                                             
+      use mpas_atm_dimensions  !  pull nVertLevels and maxEdges from here
 
       implicit none
 
@@ -488,7 +488,7 @@ module mpas_atm_dissipation_models
 
       real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(out) :: tend_u_euler
 
-      ! local variables                                                                                                                               
+      ! local variables
 
       integer :: iEdge, cell1, cell2, vertex1, vertex2, iVertex, iCell, i, k
       real (kind=RKIND) :: r_dc, r_dv, u_diffusion, u_diffusion_les, kdiffu, r, edge_sign, u_mix_scale
@@ -511,10 +511,10 @@ module mpas_atm_dissipation_models
             call mpas_log_write(' 4th order divergence factor is $r ', realArgs=(/config_del4u_div_factor/))
         end if
 
-!$OMP BARRIER                                                                                                                                         
+!$OMP BARRIER
 
-         ! del^4 horizontal filter.  We compute this as del^2 ( del^2 (u) ).                                                                          
-         ! First, storage to hold the result from the first del^2 computation.                                                                        
+         ! del^4 horizontal filter.  We compute this as del^2 ( del^2 (u) ).
+         ! First, storage to hold the result from the first del^2 computation.
 
          delsq_u(1:nVertLevels,edgeStart:edgeEnd) = 0.0
          tau_12_factor = 0.0
@@ -528,11 +528,11 @@ module mpas_atm_dissipation_models
             r_dc = invDcEdge(iEdge)
             r_dv = min(invDvEdge(iEdge), 4*invDcEdge(iEdge))
 
-!DIR$ IVDEP                                                                                                                                           
+!DIR$ IVDEP
             do k=1,nVertLevels
 
-               ! Compute diffusion, computed as \nabla divergence - k \times \nabla vorticity                                                         
-               !                    only valid for h_mom_eddy_visc4 == constant                                                                       
+               ! Compute diffusion, computed as \nabla divergence - k \times \nabla vorticity
+               !                    only valid for h_mom_eddy_visc4 == constant
                u_diffusion =   ( divergence(k,cell2)  - divergence(k,cell1) ) * r_dc  &
                               -( vorticity(k,vertex2) - vorticity(k,vertex1) ) * r_dv
                ! for LES models we need 2 times the gradient of divergence, in contrast to what is
@@ -543,16 +543,16 @@ module mpas_atm_dissipation_models
 
                kdiffu = 0.5*(eddy_visc_horz(k,cell1)+eddy_visc_horz(k,cell2))
 
-               ! include 2nd-order diffusion here                                                                                                      
+               ! include 2nd-order diffusion here
                tend_u_euler(k,iEdge) = tend_u_euler(k,iEdge) &
                                        + rho_edge(k,iEdge)* kdiffu * u_diffusion_les * meshScalingDel2(iEdge)
 
             end do
          end do
 
-         if (h_mom_eddy_visc4 > 0.0) then  ! 4th order mixing is active                                                                               
+         if (h_mom_eddy_visc4 > 0.0) then  ! 4th order mixing is active
 
-!$OMP BARRIER                                                                                                                                         
+!$OMP BARRIER
 
             do iVertex=vertexStart,vertexEnd
                delsq_vorticity(1:nVertLevels,iVertex) = 0.0
@@ -577,7 +577,7 @@ module mpas_atm_dissipation_models
                end do
             end do
 
-!$OMP BARRIER                                                                                                                                         
+!$OMP BARRIER
 
             do iEdge=edgeSolveStart,edgeSolveEnd
                cell1 = cellsOnEdge(1,iEdge)
@@ -589,16 +589,16 @@ module mpas_atm_dissipation_models
                r_dc = u_mix_scale * config_del4u_div_factor * invDcEdge(iEdge)
                r_dv = u_mix_scale * min(invDvEdge(iEdge), 4*invDcEdge(iEdge))
 
-!DIR$ IVDEP                                                                                                                                           
+!DIR$ IVDEP
                do k=1,nVertLevels
 
-                  ! Compute diffusion, computed as \nabla divergence - k \times \nabla vorticity                                                      
-                  !                    only valid for h_mom_eddy_visc4 == constant                                                                    
-                  !                                                                                                                                   
-                  ! Here, we scale the diffusion on the divergence part a factor of config_del4u_div_factor                                           
-                  !    relative to the rotational part.  The stability constraint on the divergence component is much less                            
-                  !    stringent than the rotational part, and this flexibility may be useful.                                                        
-                  !                                                                                                                                   
+                  ! Compute diffusion, computed as \nabla divergence - k \times \nabla vorticity
+                  !                    only valid for h_mom_eddy_visc4 == constant
+                  !
+                  ! Here, we scale the diffusion on the divergence part a factor of config_del4u_div_factor
+                  !    relative to the rotational part.  The stability constraint on the divergence component is much less
+                  !    stringent than the rotational part, and this flexibility may be useful.
+                  !
                   u_diffusion =  rho_edge(k,iEdge) *  ( ( delsq_divergence(k,cell2)  - delsq_divergence(k,cell1) ) * r_dc  &
                                                        -( delsq_vorticity(k,vertex2) - delsq_vorticity(k,vertex1) ) * r_dv )
                   tend_u_euler(k,iEdge) = tend_u_euler(k,iEdge) - u_diffusion
@@ -606,14 +606,14 @@ module mpas_atm_dissipation_models
                end do
             end do
 
-         end if ! 4th order mixing is active                                                                                                          
+         end if ! 4th order mixing is active
 
-      !                                                                                                                                               
-      !  vertical mixing for u - 2nd order filter in physical (z) space                                                                               
-      !                                                                                                                                               
+      !
+      !  vertical mixing for u - 2nd order filter in physical (z) space
+      !
          if ( v_mom_eddy_visc2 > 0.0 ) then
 
-            if (config_mix_full) then  ! mix full state                                                                                               
+            if (config_mix_full) then  ! mix full state
 
                do iEdge=edgeSolveStart,edgeSolveEnd
 
@@ -637,7 +637,7 @@ module mpas_atm_dissipation_models
                   end do
                end do
 
-            else  ! idealized cases where we mix on the perturbation from the initial 1-D state                                                       
+            else  ! idealized cases where we mix on the perturbation from the initial 1-D state
 
                do iEdge=edgeSolveStart,edgeSolveEnd
 
@@ -666,7 +666,7 @@ module mpas_atm_dissipation_models
                   end do
                end do
 
-            end if  ! mix perturbation state                                                                                             
+            end if  ! mix perturbation state
 
          end if  ! vertical mixing of horizontal momentum for les formulation
 
@@ -715,7 +715,7 @@ module mpas_atm_dissipation_models
 
                end do
 
-         end if 
+         end if
 
         if(debug_dissipation)  call mpas_log_write(' exiting u_dissipation_3d ')
 
@@ -737,10 +737,10 @@ module mpas_atm_dissipation_models
                                    tend_w_euler                                             )
 
 
-      ! 3D w dissipation using the 3D smagorinsky eddy viscosities.  
+      ! 3D w dissipation using the 3D smagorinsky eddy viscosities.
       ! This routine also includes the simpler mixing models, and the 4th-order horizontal filter
 
-      use mpas_atm_dimensions  !  pull nVertLevels and maxEdges from here                                                                             
+      use mpas_atm_dimensions  !  pull nVertLevels and maxEdges from here
 
       implicit none
 
@@ -778,21 +778,21 @@ module mpas_atm_dissipation_models
 
       real (kind=RKIND), dimension(nVertLevels+1,nCells+1), intent(inout) :: tend_w_euler
 
-      ! storage passed in from calling routine                                                                                                        
+      ! storage passed in from calling routine
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: delsq_w
       real (kind=RKIND), dimension(nVertLevels+1) :: turb_vflux
 
-      ! local variables                                                                                                                               
+      ! local variables
 
       integer :: cell1, cell2, iEdge, iCell, i, k
       real (kind=RKIND) :: r_areaCell, edge_sign, w_turb_flux
 
-!  !OMP BARRIER  why is this openmp barrier here???                                                                                                   
+!  !OMP BARRIER  why is this openmp barrier here???
 
-         ! del^4 horizontal filter.  We compute this as del^2 ( del^2 (w) ).                                                                          
-       !                                                                                                                                            
-       ! First, storage to hold the result from the first del^2 computation.                                                                        
-       !  we copied code from the theta mixing, hence the theta* names.                                                                             
+         ! del^4 horizontal filter.  We compute this as del^2 ( del^2 (w) ).
+       !
+       ! First, storage to hold the result from the first del^2 computation.
+       !  we copied code from the theta mixing, hence the theta* names.
 
         if(debug_dissipation) then
             call mpas_log_write(' begin w_dissipation_3d ')
@@ -814,7 +814,7 @@ module mpas_atm_dissipation_models
                cell1 = cellsOnEdge(1,iEdge)
                cell2 = cellsOnEdge(2,iEdge)
 
-!DIR$ IVDEP                                                                                                                                           
+!DIR$ IVDEP
               do k=2,nVertLevels
 
                   w_turb_flux =  edge_sign*(rho_edge(k,iEdge)+rho_edge(k-1,iEdge))*(w(k,cell2) - w(k,cell1))
@@ -827,11 +827,11 @@ module mpas_atm_dissipation_models
             end do
          end do
 
-!$OMP BARRIER                                                                                                                                         
+!$OMP BARRIER
 
-         if (h_mom_eddy_visc4 > 0.0) then  ! 4th order mixing is active                                                                               
+         if (h_mom_eddy_visc4 > 0.0) then  ! 4th order mixing is active
 
-            do iCell=cellSolveStart,cellSolveEnd    ! Technically updating fewer cells than before...                                                 
+            do iCell=cellSolveStart,cellSolveEnd    ! Technically updating fewer cells than before...
                r_areaCell = h_mom_eddy_visc4 * invAreaCell(iCell)
                do i=1,nEdgesOnCell(iCell)
                   iEdge = edgesOnCell(i,iCell)
@@ -847,12 +847,12 @@ module mpas_atm_dissipation_models
                end do
             end do
 
-         end if ! 4th order mixing is active                                                                                                          
+         end if ! 4th order mixing is active
 
       if ( v_mom_eddy_visc2 > 0.0 ) then  ! vertical mixing
 
          do iCell=cellSolveStart,cellSolveEnd
-!DIR$ IVDEP                                                                                                                                           
+!DIR$ IVDEP
             do k=2,nVertLevels
                tend_w_euler(k,iCell) = tend_w_euler(k,iCell) + v_mom_eddy_visc2*0.5*(rho_zz(k,iCell)+rho_zz(k-1,iCell))*(  &
                                            (w(k+1,iCell)-w(k  ,iCell))*rdzw(k)                              &
@@ -907,10 +907,10 @@ module mpas_atm_dissipation_models
                                             tend_theta_euler, dynamics_substep                       )
 
 
-      ! 3D theta_m dissipation using the 3D smagorinsky eddy viscosities.  
+      ! 3D theta_m dissipation using the 3D smagorinsky eddy viscosities.
       ! This routine also includes the simpler mixing models, and the 4th-order horizontal filter
 
-      use mpas_atm_dimensions  !  pull nVertLevels and maxEdges from here                                                                             
+      use mpas_atm_dimensions  !  pull nVertLevels and maxEdges from here
       implicit none
 
       integer, intent(in) :: cellStart, cellEnd
@@ -968,10 +968,10 @@ module mpas_atm_dissipation_models
 
       real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(inout) :: tend_theta_euler
 
-      ! storage passed in from calling routine                                                                                                        
+      ! storage passed in from calling routine
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: delsq_theta
 
-      ! local variables                                                                                                                               
+      ! local variables
       integer :: cell1, cell2, iEdge, iCell, i, k, iScalar
       real (kind=RKIND) :: r_areaCell, edge_sign, theta_turb_flux, pr_scale
       real (kind=RKIND) :: z1, z2, z3, z4, zm, z0, zp
@@ -1017,7 +1017,7 @@ module mpas_atm_dissipation_models
           end do
 
 !$OMP BARRIER
-            
+
          if (h_theta_eddy_visc4 > 0.0) then  ! 4th order mixing is active
 
             do iCell=cellSolveStart,cellSolveEnd    ! Technically updating fewer cells than before...
@@ -1036,12 +1036,12 @@ module mpas_atm_dissipation_models
                end do
             end do
 
-         end if ! 4th order mixing is active 
+         end if ! 4th order mixing is active
 
-         if(mix_scalars .and. (dynamics_substep == 1)) then  ! dissipation for scalars, including 4th-order filter.  Likely needs optimization              
-         
+         if(mix_scalars .and. (dynamics_substep == 1)) then  ! dissipation for scalars, including 4th-order filter.  Likely needs optimization
+
          do iScalar=1,num_scalars
-         
+
          delsq_theta(1:nVertLevels,cellStart:cellEnd) = 0.0
 
          do iCell=cellStart,cellEnd
@@ -1069,7 +1069,7 @@ module mpas_atm_dissipation_models
           end do
 
 !$OMP BARRIER
-            
+
          if (h_theta_eddy_visc4 > 0.0) then  ! 4th order mixing is active
 
             do iCell=cellSolveStart,cellSolveEnd    ! Technically updating fewer cells than before...
@@ -1088,8 +1088,8 @@ module mpas_atm_dissipation_models
                end do
             end do
 
-         end if ! 4th order mixing is active 
-         
+         end if ! 4th order mixing is active
+
         end do ! loop over scalars for horizontal mixing
 
       end if ! horizontal scalar mixing
@@ -1192,7 +1192,7 @@ module mpas_atm_dissipation_models
                   if( config_les_surface == "specified" ) then
                     moisture_flux = config_surface_moisture_flux
                     heat_flux = config_surface_heat_flux
-!                 place holder routine for time-varying specified                  
+!                 place holder routine for time-varying specified
 !                 call flux_les_sas( heat_flux, moisture_flux, time_of_day_seconds )
 
                   else if ( config_les_surface == "varying" ) then
@@ -1206,7 +1206,7 @@ module mpas_atm_dissipation_models
 
                   theta_m_flux = heat_flux*(1.0+(rv/rgas)*qv_cell)+(rv/rgas)*theta_cell*moisture_flux
                   turb_vflux(1) = theta_m_flux*rho_zz(1,iCell)
-                  moisture_flux = moisture_flux*rho_zz(1,iCell) 
+                  moisture_flux = moisture_flux*rho_zz(1,iCell)
                   turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
 
                 else
@@ -1249,7 +1249,7 @@ module mpas_atm_dissipation_models
              end if ! mix scalars
 
              end do  ! loop over cells (columns)
-             
+
          end if
 
         if(debug_dissipation)  call mpas_log_write(' exiting scalar_dissipation_3d ')
