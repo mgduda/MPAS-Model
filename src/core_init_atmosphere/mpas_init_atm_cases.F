@@ -6261,36 +6261,32 @@ call mpas_log_write('Done with soil consistency check')
       integer, dimension(:), pointer :: landmask, lu_index
 
       !This is temporary variable here. It just need when calculate tangential velocity v.
-      integer :: eoe, j
+      integer :: eoe
       integer, dimension(:), pointer :: nEdgesOnEdge 
       integer, dimension(:,:), pointer :: edgesOnEdge, cellsOnEdge
       real (kind=RKIND), dimension(:,:), pointer :: weightsOnEdge
       real (kind=RKIND), pointer :: x_period, y_period
 
-      integer :: iCell, iCell1, iCell2 , iEdge, vtx1, vtx2, ivtx, i, k, nz, nz1, itr, cell1, cell2
+      integer :: iCell, iCell1, iCell2 , iEdge, ivtx, i, k, nz, nz1, itr, cell1, cell2
       integer, pointer :: nEdges, nVertices, maxEdges, nCellsSolve
       integer, pointer :: index_qv
       integer, pointer :: index_tke
 
-      real (kind=RKIND), dimension(nVertLevels + 1 ) :: znu, znw, znwc, znwv
-      real (kind=RKIND), dimension(nVertLevels + 1 ) :: znuc, znuv
-
       real (kind=RKIND), dimension(nVertLevels + 1 ) :: zc, zw, ah
       real (kind=RKIND), dimension(nVertLevels ) :: zu, dzw, rdzwp, rdzwm
 
-      real (kind=RKIND), dimension(nVertLevels, nCells) :: relhum, thi, tbi, cqwb
+      real (kind=RKIND), dimension(nVertLevels, nCells) :: thi, tbi, cqwb
 
-      real (kind=RKIND) ::  r, xnutr
+      real (kind=RKIND) ::  xnutr
       real (kind=RKIND) ::  ztemp, zd, zt, dz, str
 
       real (kind=RKIND), dimension(nVertLevels ) :: qvb, qvp, zg
       real (kind=RKIND), dimension(nVertLevels ) :: t_init_1d
 
-      real (kind=RKIND) :: d1, d2, d3, cof1, cof2
+      real (kind=RKIND) :: cof1, cof2
       real (kind=RKIND), pointer :: cf1, cf2, cf3
-      real (kind=RKIND) :: ztr, thetar, ttr, thetas, um, us, zts, pitop, pibtop, ptopb, ptop, rcp, rcv, p0
-      real (kind=RKIND) :: radx, radz, zcent, xmid, delt, xloc, rad, yloc, ymid, a_scale
-      real (kind=RKIND) :: pres, temp, es, qvs
+      real (kind=RKIND) :: pitop, pibtop, ptopb, ptop, rcp, rcv, p0
+      real (kind=RKIND) :: a_scale
 
       real (kind=RKIND), dimension(:), pointer :: xCell, yCell, zCell
       real (kind=RKIND), dimension(:), pointer :: xEdge, yEdge, zEdge
