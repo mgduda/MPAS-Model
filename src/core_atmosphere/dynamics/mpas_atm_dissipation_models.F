@@ -150,7 +150,7 @@ module mpas_atm_dissipation_models
       real (kind=RKIND) :: rdz, def2, pr_inv, wk
       real (kind=RKIND) :: shear_production, buoyancy, dissipation, delta_z, delta_s, bv, tke_length, diss_length
       real (kind=RKIND) :: l_horizontal, l_vertical, c_dissipation
-      real (kind=RKIND) :: prandtl_horizontal_inv, prandtl_vertical_inv
+      real (kind=RKIND) :: prandtl_horizontal_inv
       real (kind=RKIND) :: eddy_visc_h, eddy_visc_v
 
       logical, parameter :: test_tke=.true.
@@ -978,9 +978,8 @@ module mpas_atm_dissipation_models
       real (kind=RKIND), dimension(nVertLevels+1) :: turb_vflux, prandtl_1d_inverse
       real (kind=RKIND), dimension(num_scalars,nVertLevels+1) :: turb_vflux_scalars
       real (kind=RKIND) :: rho_k_at_w, zz_at_w
-      real (kind=RKIND) :: delta_z, delta_s, tke_length, bv_frequency2
 
-      real (kind=RKIND) :: moisture_flux, heat_flux, theta_m_flux, c_h, c_q
+      real (kind=RKIND) :: moisture_flux, heat_flux, theta_m_flux
       real (kind=RKIND) :: qv_cell, theta_m_cell, theta_cell
 
         if(debug_dissipation) then
