@@ -4847,6 +4847,7 @@ module atm_time_integration
       integer, pointer :: index_qv, index_qc, index_tke
 
       logical :: inactive_rthdynten
+      logical :: nopbl
 
 
       call mpas_pool_get_config(mesh, 'sphere_radius', r_earth)
@@ -4910,9 +4911,23 @@ module atm_time_integration
 
       call mpas_pool_get_array(tend_physics, 'rthdynten', rthdynten)
 
+      nullify(ustm)
       call mpas_pool_get_array(diag_physics,'ustm',ustm)
+      nullify(hfx)
       call mpas_pool_get_array(diag_physics,'hfx',hfx)
+      nullify(qfx)
       call mpas_pool_get_array(diag_physics,'qfx',qfx)
+
+      nopbl = .false.
+      if (.not. associated(ustm) &
+          .or. .not. associated(hfx) &
+          .or. .not. associated(qfx)) then
+
+          allocate(ustm(1))
+          allocate(hfx(1))
+          allocate(qfx(1))
+          nopbl = .true.
+      end if
 
       call mpas_pool_get_array(mesh, 'weightsOnEdge', weightsOnEdge)
       call mpas_pool_get_array(mesh, 'cellsOnEdge', cellsOnEdge)
@@ -5025,6 +5040,12 @@ module atm_time_integration
          cellStart, cellEnd, vertexStart, vertexEnd, edgeStart, edgeEnd, &
          cellSolveStart, cellSolveEnd, vertexSolveStart, vertexSolveEnd, edgeSolveStart, edgeSolveEnd)
 
+         if (nopbl) then
+             deallocate(ustm)
+             deallocate(hfx)
+             deallocate(qfx)
+         end if
+
    end subroutine atm_compute_dyn_tend
 
 
@@ -5108,7 +5129,7 @@ module atm_time_integration
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: eddy_visc_horz
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: eddy_visc_vert
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: bn2
-      real (kind=RKIND), dimension(nCells+1) :: ustm, hfx, qfx
+      real (kind=RKIND), dimension(:) :: ustm, hfx, qfx
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: prandtl_3d_inv
       real (kind=RKIND), dimension(maxEdges,nCells+1) :: edgesOnCell_sign
       real (kind=RKIND), dimension(vertexDegree,nVertices+1) :: edgesOnVertex_sign
