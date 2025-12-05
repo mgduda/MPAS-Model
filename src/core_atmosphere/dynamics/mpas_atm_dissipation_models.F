@@ -6,6 +6,9 @@
 ! distributed with this code, or at http://mpas-dev.github.com/license.html
 !
 
+#define COMMA ,
+#define DEBUG_WRITE(M) ! call mpas_log_write(M)
+
 module mpas_atm_dissipation_models
 
    use mpas_kind_types, only : RKIND
@@ -14,7 +17,6 @@ module mpas_atm_dissipation_models
    use mpas_log
    use mpas_derived_types, only : MPAS_LOG_CRIT
 
-   logical, parameter :: debug_dissipation = .false.
    logical, parameter :: les_test = .true., les_sas_test = .false.
    !! real (kind=RKIND), parameter :: tke_heat_flux = 0.03  ! shear case from Moeng et al., first hour
    ! real (kind=RKIND), parameter :: tke_heat_flux = 0.03
@@ -58,8 +60,8 @@ contains
       integer :: iCell, iEdge, k
       real (kind=RKIND), dimension(nVertLevels) :: d_11, d_22, d_12, dudx, dudy, dvdx, dvdy
 
-      if(debug_dissipation)  call mpas_log_write(' begin smagorinsky_2d ')
 
+      DEBUG_WRITE(' begin smagorinsky_2d ')
 
       do iCell = cellStart,cellEnd
          dudx(1:nVertLevels) = 0.0
@@ -94,7 +96,7 @@ contains
       h_mom_eddy_visc4   = config_visc4_2dsmag * config_len_disp**3
       h_theta_eddy_visc4 = h_mom_eddy_visc4
 
-      if(debug_dissipation)  call mpas_log_write(' exiting smagorinsky_2d ')
+      DEBUG_WRITE(' exiting smagorinsky_2d ')
 
    end subroutine smagorinsky_2d
 
@@ -158,9 +160,10 @@ contains
       logical, parameter :: test_tke=.true.
       ! real (kind=RKIND), parameter :: epsilon_bv = 1.e-06
 
-      if(debug_dissipation)  call mpas_log_write(' begin les_models ')
-      if(debug_dissipation)  call mpas_log_write(' les scheme is '//trim(config_les_model))
-      if(debug_dissipation)  call mpas_log_write(' les surface scheme is '//trim(config_les_surface))
+
+      DEBUG_WRITE(' begin les_models ')
+      DEBUG_WRITE(' les scheme is '//trim(config_les_model))
+      DEBUG_WRITE(' les surface scheme is '//trim(config_les_surface))
 
       pr_inv = 1./prandtl
 
@@ -324,7 +327,7 @@ contains
 
       end do ! loop over all owned cells (columns)
 
-      if(debug_dissipation)  call mpas_log_write(' les_models ')
+      DEBUG_WRITE(' les_models ')
 
    end subroutine les_models
 
@@ -348,7 +351,7 @@ contains
       real (kind=RKIND), dimension(nVertLevels) :: theta, qvsw, temp, coefa
       logical :: dry_bv_frequency
 
-      if(debug_dissipation)  call mpas_log_write(' begin BV frequency calculations ')
+      DEBUG_WRITE(' begin BV frequency calculations ')
 
       do iCell = cellStart,cellEnd
 !DIR$ IVDEP
@@ -408,7 +411,7 @@ contains
 
       end do
 
-      if(debug_dissipation)  call mpas_log_write(' exiting BV frequency calculations ')
+      DEBUG_WRITE(' exiting BV frequency calculations ')
 
    end subroutine calculate_n2
 
@@ -506,13 +509,11 @@ contains
       real (kind=RKIND) :: velocity_magnitude
       real (kind=RKIND) :: tau_12_factor
 
-      if(debug_dissipation) then
-         call mpas_log_write(' begin u_dissipation_3d ')
-         call mpas_log_write(' les model is '//trim(config_les_model))
-         call mpas_log_write(' les surface is '//trim(config_les_surface))
-         call mpas_log_write(' 4th order hyperviscosity is $r ', realArgs=(/h_mom_eddy_visc4/))
-         call mpas_log_write(' 4th order divergence factor is $r ', realArgs=(/config_del4u_div_factor/))
-      end if
+      DEBUG_WRITE(' begin u_dissipation_3d ')
+      DEBUG_WRITE(' les model is '//trim(config_les_model))
+      DEBUG_WRITE(' les surface is '//trim(config_les_surface))
+      DEBUG_WRITE(' 4th order hyperviscosity is $r ' COMMA realArgs=(/h_mom_eddy_visc4/))
+      DEBUG_WRITE(' 4th order divergence factor is $r ' COMMA realArgs=(/config_del4u_div_factor/))
 
 !$OMP BARRIER
 
@@ -720,7 +721,7 @@ contains
 
       end if
 
-      if(debug_dissipation)  call mpas_log_write(' exiting u_dissipation_3d ')
+      DEBUG_WRITE(' exiting u_dissipation_3d ')
 
    end subroutine u_dissipation_3d
 
@@ -797,12 +798,11 @@ contains
       ! First, storage to hold the result from the first del^2 computation.
       !  we copied code from the theta mixing, hence the theta* names.
 
-      if(debug_dissipation) then
-         call mpas_log_write(' begin w_dissipation_3d ')
-         call mpas_log_write(' les model is '//trim(config_les_model))
-         call mpas_log_write(' les surface is '//trim(config_les_surface))
-         call mpas_log_write(' 4th order hyperviscosity is $r ', realArgs=(/h_mom_eddy_visc4/))
-      end if
+
+      DEBUG_WRITE(' begin w_dissipation_3d ')
+      DEBUG_WRITE(' les model is '//trim(config_les_model))
+      DEBUG_WRITE(' les surface is '//trim(config_les_surface))
+      DEBUG_WRITE(' 4th order hyperviscosity is $r ' COMMA realArgs=(/h_mom_eddy_visc4/))
 
       delsq_w(1:nVertLevels,cellStart:cellEnd) = 0.0
 
@@ -885,7 +885,7 @@ contains
 
       end if
 
-      if(debug_dissipation)  call mpas_log_write(' exiting w_dissipation_3d ')
+      DEBUG_WRITE(' exiting w_dissipation_3d ')
 
    end subroutine w_dissipation_3d
 
@@ -988,12 +988,11 @@ contains
       real (kind=RKIND) :: moisture_flux, heat_flux, theta_m_flux
       real (kind=RKIND) :: qv_cell, theta_m_cell, theta_cell
 
-      if(debug_dissipation) then
-         call mpas_log_write(' begin scalar_dissipation_3d ')
-         call mpas_log_write(' les model is '//trim(config_les_model))
-         call mpas_log_write(' les surface is '//trim(config_les_surface))
-         call mpas_log_write(' 4th order hyperviscosity is $r ', realArgs=(/h_theta_eddy_visc4/))
-      end if
+
+      DEBUG_WRITE(' begin scalar_dissipation_3d ')
+      DEBUG_WRITE(' les model is '//trim(config_les_model))
+      DEBUG_WRITE(' les surface is '//trim(config_les_surface))
+      DEBUG_WRITE(' 4th order hyperviscosity is $r ' COMMA realArgs=(/h_theta_eddy_visc4/))
 
       if( mix_scalars .and. (dynamics_substep == 1)) call mpas_log_write(' scalar mixing on ')
 
@@ -1260,7 +1259,7 @@ contains
 
       end if
 
-      if(debug_dissipation)  call mpas_log_write(' exiting scalar_dissipation_3d ')
+      DEBUG_WRITE(' exiting scalar_dissipation_3d ')
 
    end subroutine scalar_dissipation_3d_les
 
