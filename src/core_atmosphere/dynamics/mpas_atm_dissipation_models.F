@@ -29,6 +29,14 @@ module mpas_atm_dissipation_models
    real (kind=RKIND), parameter :: c_k = 0.25
 
 
+   integer, parameter :: LES_MODEL_NONE = 0, &
+                         LES_MODEL_3D_SMAGORINSKY = 1, &
+                         LES_MODEL_PROGNOSTIC_15_ORDER = 2
+
+   integer, parameter :: LES_SURFACE_NONE = 0, &
+                         LES_SURFACE_SPECIFIED = 1, &
+                         LES_SURFACE_VARYING = 2
+
 contains
 
 
@@ -160,10 +168,32 @@ contains
       logical, parameter :: test_tke=.true.
       ! real (kind=RKIND), parameter :: epsilon_bv = 1.e-06
 
+      integer :: les_model_opt, les_surface_opt
+
 
       DEBUG_WRITE(' begin les_models ')
       DEBUG_WRITE(' les scheme is '//trim(config_les_model))
       DEBUG_WRITE(' les surface scheme is '//trim(config_les_surface))
+
+      if (trim(config_les_model) == 'none') then
+         les_model_opt = LES_MODEL_NONE
+      else if (trim(config_les_model) == '3d_smagorinsky') then
+         les_model_opt = LES_MODEL_3D_SMAGORINSKY
+      else if (trim(config_les_model) == 'prognostic_1.5_order') then
+         les_model_opt = LES_MODEL_PROGNOSTIC_15_ORDER
+      else
+         ! Error
+      end if
+
+      if (trim(config_les_surface) == 'none') then
+         les_surface_opt = LES_SURFACE_NONE
+      else if (trim(config_les_surface) == 'specified') then
+         les_surface_opt = LES_SURFACE_SPECIFIED
+      else if (trim(config_les_surface) == 'varying') then
+         les_surface_opt = LES_SURFACE_VARYING
+      else
+         ! Error
+      end if
 
       pr_inv = 1./prandtl
 
@@ -240,7 +270,7 @@ contains
             d_23(k) = dwdy(k) + dvdz(k)
          end do
 
-         if (config_les_model == "3d_smagorinsky") then
+         if (les_model_opt == LES_MODEL_3D_SMAGORINSKY) then
 
             do k=1, nVertLevels
                def2 = 0.5*(d_11(k)**2 + d_22(k)**2 + d_33(k)**2) + d_12(k)**2 + d_13(k)**2 + d_23(k)**2
@@ -251,7 +281,7 @@ contains
                ! eddy_visc_vert(k,iCell) = eddy_visc_horz(k,iCell)
             end do
 
-         else if (config_les_model == "prognostic_1.5_order") then
+         else if (les_model_opt == LES_MODEL_PROGNOSTIC_15_ORDER) then
 
             do k=1,nVertLevels  ! bound the tke here, currently hardwired
                ! scalars(index_tke,k,iCell) = max(0.,min(100.,scalars(index_tke,k,iCell)))
@@ -509,11 +539,34 @@ contains
       real (kind=RKIND) :: velocity_magnitude
       real (kind=RKIND) :: tau_12_factor
 
+      integer :: les_model_opt, les_surface_opt
+
+
       DEBUG_WRITE(' begin u_dissipation_3d ')
       DEBUG_WRITE(' les model is '//trim(config_les_model))
       DEBUG_WRITE(' les surface is '//trim(config_les_surface))
       DEBUG_WRITE(' 4th order hyperviscosity is $r ' COMMA realArgs=(/h_mom_eddy_visc4/))
       DEBUG_WRITE(' 4th order divergence factor is $r ' COMMA realArgs=(/config_del4u_div_factor/))
+
+      if (trim(config_les_model) == 'none') then
+         les_model_opt = LES_MODEL_NONE
+      else if (trim(config_les_model) == '3d_smagorinsky') then
+         les_model_opt = LES_MODEL_3D_SMAGORINSKY
+      else if (trim(config_les_model) == 'prognostic_1.5_order') then
+         les_model_opt = LES_MODEL_PROGNOSTIC_15_ORDER
+      else
+         ! Error
+      end if
+
+      if (trim(config_les_surface) == 'none') then
+         les_surface_opt = LES_SURFACE_NONE
+      else if (trim(config_les_surface) == 'specified') then
+         les_surface_opt = LES_SURFACE_SPECIFIED
+      else if (trim(config_les_surface) == 'varying') then
+         les_surface_opt = LES_SURFACE_VARYING
+      else
+         ! Error
+      end if
 
 !$OMP BARRIER
 
@@ -522,7 +575,7 @@ contains
 
       delsq_u(1:nVertLevels,edgeStart:edgeEnd) = 0.0
       tau_12_factor = 0.0
-      if(config_les_model /= 'none') tau_12_factor = 1.0
+      if(les_model_opt /= LES_MODEL_NONE) tau_12_factor = 1.0
 
       do iEdge=edgeStart,edgeEnd
          cell1 = cellsOnEdge(1,iEdge)
@@ -674,7 +727,7 @@ contains
 
       end if  ! vertical mixing of horizontal momentum for les formulation
 
-      if ( config_les_model /= "none") then
+      if ( les_model_opt /= LES_MODEL_NONE ) then
 
          do iEdge=edgeSolveStart,edgeSolveEnd
 
@@ -696,11 +749,11 @@ contains
                turb_vflux(k) = - rho_k_at_w*zz_at_w*rdzu(k)*(u(k,iEdge)-u(k-1,iEdge))
             end do
 
-            if( config_les_surface == "specified" ) then
+            if( les_surface_opt == LES_SURFACE_SPECIFIED ) then
                velocity_magnitude = sqrt(u(1,iEdge)**2 + v(1,iEdge)**2)
                turb_vflux(1) = -rho_edge(1,iEdge)*config_surface_drag_coefficient*u(1,iEdge)*velocity_magnitude
                turb_vflux(nVertLevels+1) = turb_vflux(nVertLevels)
-            else if ( config_les_surface == "varying" ) then
+            else if ( les_surface_opt == LES_SURFACE_VARYING ) then
                ust_edge = 0.5*(ustm(cell1) + ustm(cell2))
                velocity_magnitude = max(sqrt(u(1,iEdge)**2 + v(1,iEdge)**2),0.1)
                turb_vflux(1) = -rho_edge(1,iEdge)*ust_edge*ust_edge*(u(1,iEdge)/velocity_magnitude)
@@ -791,6 +844,9 @@ contains
       integer :: cell1, cell2, iEdge, iCell, i, k
       real (kind=RKIND) :: r_areaCell, edge_sign, w_turb_flux
 
+      integer :: les_model_opt, les_surface_opt
+
+
 !  !OMP BARRIER  why is this openmp barrier here???
 
       ! del^4 horizontal filter.  We compute this as del^2 ( del^2 (w) ).
@@ -803,6 +859,26 @@ contains
       DEBUG_WRITE(' les model is '//trim(config_les_model))
       DEBUG_WRITE(' les surface is '//trim(config_les_surface))
       DEBUG_WRITE(' 4th order hyperviscosity is $r ' COMMA realArgs=(/h_mom_eddy_visc4/))
+
+      if (trim(config_les_model) == 'none') then
+         les_model_opt = LES_MODEL_NONE
+      else if (trim(config_les_model) == '3d_smagorinsky') then
+         les_model_opt = LES_MODEL_3D_SMAGORINSKY
+      else if (trim(config_les_model) == 'prognostic_1.5_order') then
+         les_model_opt = LES_MODEL_PROGNOSTIC_15_ORDER
+      else
+         ! Error
+      end if
+
+      if (trim(config_les_surface) == 'none') then
+         les_surface_opt = LES_SURFACE_NONE
+      else if (trim(config_les_surface) == 'specified') then
+         les_surface_opt = LES_SURFACE_SPECIFIED
+      else if (trim(config_les_surface) == 'varying') then
+         les_surface_opt = LES_SURFACE_VARYING
+      else
+         ! Error
+      end if
 
       delsq_w(1:nVertLevels,cellStart:cellEnd) = 0.0
 
@@ -865,7 +941,7 @@ contains
 
       end if
 
-      if ( config_les_model /= "none") then
+      if ( les_model_opt /= LES_MODEL_NONE ) then
 
          do iCell = cellSolveStart,cellSolveEnd ! vertical mixing for each column
             ! compute turbulent fluxes
@@ -988,11 +1064,33 @@ contains
       real (kind=RKIND) :: moisture_flux, heat_flux, theta_m_flux
       real (kind=RKIND) :: qv_cell, theta_m_cell, theta_cell
 
+      integer :: les_model_opt, les_surface_opt
+
 
       DEBUG_WRITE(' begin scalar_dissipation_3d ')
       DEBUG_WRITE(' les model is '//trim(config_les_model))
       DEBUG_WRITE(' les surface is '//trim(config_les_surface))
       DEBUG_WRITE(' 4th order hyperviscosity is $r ' COMMA realArgs=(/h_theta_eddy_visc4/))
+
+      if (trim(config_les_model) == 'none') then
+         les_model_opt = LES_MODEL_NONE
+      else if (trim(config_les_model) == '3d_smagorinsky') then
+         les_model_opt = LES_MODEL_3D_SMAGORINSKY
+      else if (trim(config_les_model) == 'prognostic_1.5_order') then
+         les_model_opt = LES_MODEL_PROGNOSTIC_15_ORDER
+      else
+         ! Error
+      end if
+
+      if (trim(config_les_surface) == 'none') then
+         les_surface_opt = LES_SURFACE_NONE
+      else if (trim(config_les_surface) == 'specified') then
+         les_surface_opt = LES_SURFACE_SPECIFIED
+      else if (trim(config_les_surface) == 'varying') then
+         les_surface_opt = LES_SURFACE_VARYING
+      else
+         ! Error
+      end if
 
       if( mix_scalars .and. (dynamics_substep == 1)) call mpas_log_write(' scalar mixing on ')
 
@@ -1149,7 +1247,7 @@ contains
 
       end if
 
-      if ( config_les_model /= "none") then
+      if ( les_model_opt /= LES_MODEL_NONE ) then
 
          do iCell = cellSolveStart,cellSolveEnd ! vertical mixing for each column
             ! compute turbulent fluxes
@@ -1157,7 +1255,7 @@ contains
             turb_vflux(nVertlevels+1) = 0.  !  no turbulent flux out of the domain
             turb_vflux(1) = 0.  !  lower bc flux handled where ???
 
-            if ( config_les_model == "3d_smagorinsky") then
+            if ( les_model_opt == LES_MODEL_3D_SMAGORINSKY ) then
                do k=2,nVertLevels
                   prandtl_1d_inverse(k) = prandtl_inv
                end do
@@ -1194,16 +1292,16 @@ contains
 
             ! test boundary conditions for supercell and les test cases
 
-            if( config_les_surface == "specified" .or. config_les_surface == "varying" ) then
+            if( les_surface_opt == LES_SURFACE_SPECIFIED .or. les_surface_opt == LES_SURFACE_VARYING ) then
 
-               if( config_les_surface == "specified" ) then
+               if( les_surface_opt == LES_SURFACE_SPECIFIED ) then
                   moisture_flux = config_surface_moisture_flux
                   heat_flux = config_surface_heat_flux
 
 !                 place holder routine for time-varying specified
 !                 call flux_les_sas( heat_flux, moisture_flux, time_of_day_seconds )
 
-               else if ( config_les_surface == "varying" ) then
+               else if ( les_surface_opt == LES_SURFACE_VARYING ) then
                   heat_flux = hfx(iCell)/rho_zz(1,iCell)/cp
                   moisture_flux = qfx(iCell)/rho_zz(1,iCell)
                endif
@@ -1244,7 +1342,7 @@ contains
                   end do
                end do
 
-               if( config_les_surface == "specified" .or.  config_les_surface == "varying" ) turb_vflux_scalars(index_qv,1) = moisture_flux ! lower b.c. for qv
+               if( les_surface_opt == LES_SURFACE_SPECIFIED .or. les_surface_opt == LES_SURFACE_VARYING ) turb_vflux_scalars(index_qv,1) = moisture_flux ! lower b.c. for qv
 
                do k=1,nVertLevels
                   do iScalar=1,num_scalars
