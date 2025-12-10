@@ -273,6 +273,11 @@ module atm_time_integration
       real (kind=RKIND), dimension(:), pointer :: angleEdge
       real (kind=RKIND), dimension(:), pointer :: meshScalingDel2
       real (kind=RKIND), dimension(:), pointer :: meshScalingDel4
+      real (kind=RKIND), dimension(:,:), pointer :: deformation_coef_c2
+      real (kind=RKIND), dimension(:,:), pointer :: deformation_coef_s2
+      real (kind=RKIND), dimension(:,:), pointer :: deformation_coef_cs
+      real (kind=RKIND), dimension(:,:), pointer :: deformation_coef_c
+      real (kind=RKIND), dimension(:,:), pointer :: deformation_coef_s
 #endif
 
 #ifdef MPAS_CAM_DYCORE
@@ -457,6 +462,21 @@ module atm_time_integration
 
       call mpas_pool_get_array(mesh, 'meshScalingDel4', meshScalingDel4)
       !$acc enter data copyin(meshScalingDel4)
+
+      call mpas_pool_get_array(mesh, 'deformation_coef_c2', deformation_coef_c2)
+      !$acc enter data copyin(deformation_coef_c2)
+
+      call mpas_pool_get_array(mesh, 'deformation_coef_s2', deformation_coef_s2)
+      !$acc enter data copyin(deformation_coef_s2)
+
+      call mpas_pool_get_array(mesh, 'deformation_coef_cs', deformation_coef_cs)
+      !$acc enter data copyin(deformation_coef_cs)
+
+      call mpas_pool_get_array(mesh, 'deformation_coef_c', deformation_coef_c)
+      !$acc enter data copyin(deformation_coef_c)
+
+      call mpas_pool_get_array(mesh, 'deformation_coef_s', deformation_coef_s)
+      !$acc enter data copyin(deformation_coef_s)
 #endif
 
    end subroutine mpas_atm_dynamics_init
@@ -547,6 +567,11 @@ module atm_time_integration
       real (kind=RKIND), dimension(:), pointer :: angleEdge
       real (kind=RKIND), dimension(:), pointer :: meshScalingDel2
       real (kind=RKIND), dimension(:), pointer :: meshScalingDel4
+      real (kind=RKIND), dimension(:,:), pointer :: deformation_coef_c2
+      real (kind=RKIND), dimension(:,:), pointer :: deformation_coef_s2
+      real (kind=RKIND), dimension(:,:), pointer :: deformation_coef_cs
+      real (kind=RKIND), dimension(:,:), pointer :: deformation_coef_c
+      real (kind=RKIND), dimension(:,:), pointer :: deformation_coef_s
 #endif
 
 
@@ -732,6 +757,21 @@ module atm_time_integration
 
       call mpas_pool_get_array(mesh, 'meshScalingDel4', meshScalingDel4)
       !$acc exit data delete(meshScalingDel4)
+
+      call mpas_pool_get_array(mesh, 'deformation_coef_c2', deformation_coef_c2)
+      !$acc exit data delete(deformation_coef_c2)
+
+      call mpas_pool_get_array(mesh, 'deformation_coef_s2', deformation_coef_s2)
+      !$acc exit data delete(deformation_coef_s2)
+
+      call mpas_pool_get_array(mesh, 'deformation_coef_cs', deformation_coef_cs)
+      !$acc exit data delete(deformation_coef_cs)
+
+      call mpas_pool_get_array(mesh, 'deformation_coef_c', deformation_coef_c)
+      !$acc exit data delete(deformation_coef_c)
+
+      call mpas_pool_get_array(mesh, 'deformation_coef_s', deformation_coef_s)
+      !$acc exit data delete(deformation_coef_s)
 #endif
 
    end subroutine mpas_atm_dynamics_finalize
@@ -5226,8 +5266,8 @@ module atm_time_integration
       real (kind=RKIND), dimension( nVertLevels + 1 ) :: wduz, wdwz, wdtz, dpzx
       real (kind=RKIND), dimension( nVertLevels ) :: ru_edge_w, q, u_mix
 
-      real (kind=RKIND), dimension( nVertLevels+1 ) :: d_11, d_22, d_12
-      real (kind=RKIND), dimension( nVertLevels+1 ) :: dudx, dudy, dvdx, dvdy
+!      real (kind=RKIND), dimension( nVertLevels+1 ) :: d_11, d_22, d_12
+!      real (kind=RKIND), dimension( nVertLevels+1 ) :: dudx, dudy, dvdx, dvdy
 
       real (kind=RKIND) :: theta_turb_flux, w_turb_flux, r
       real (kind=RKIND) :: scalar_weight
@@ -5263,6 +5303,10 @@ module atm_time_integration
 
 
       MPAS_ACC_TIMER_START('atm_compute_dyn_tend_work [ACC_data_xfer]')
+      if (perturbation_coriolis) then
+         !$acc enter data copyin(u_init, v_init)
+      end if
+      !$acc enter data copyin(ustm, hfx, qfx)
       if (rk_step == 1) then
          !$acc enter data create(tend_w_euler)
          !$acc enter data create(tend_u_euler)
@@ -5274,7 +5318,6 @@ module atm_time_integration
          !$acc enter data copyin(rb, rr_save)
          !$acc enter data copyin(divergence, vorticity)
          !$acc enter data copyin(v)
-         !$acc enter data copyin(u_init, v_init)
       else
          !$acc enter data copyin(tend_w_euler)
          !$acc enter data copyin(tend_u_euler)
@@ -5300,6 +5343,11 @@ module atm_time_integration
 #ifdef CURVATURE
       !$acc enter data copyin(ur_cell, vr_cell)
 #endif
+      !$acc enter data create(eddy_visc_horz)
+      !$acc enter data create(eddy_visc_vert)
+      !$acc enter data create(prandtl_3d_inv)
+      !$acc enter data copyin(scalars)
+      !$acc enter data copyin(tend_scalars)
       MPAS_ACC_TIMER_STOP('atm_compute_dyn_tend_work [ACC_data_xfer]')
 
       prandtl_inv = 1.0_RKIND / prandtl
@@ -5336,7 +5384,16 @@ module atm_time_integration
 
             else if(config_horiz_mixing == "2d_fixed") then
 
-               eddy_visc_horz(1:nVertLevels,cellStart:cellEnd) = config_h_theta_eddy_visc2
+               !$acc parallel default(present)
+               !$acc loop gang worker
+               do iCell = cellStart, cellEnd
+                  !$acc loop vector
+                  do k = 1, nVertLevels
+                      eddy_visc_horz(k,iCell) = config_h_theta_eddy_visc2
+                  end do
+               end do
+               !$acc end parallel
+
                h_mom_eddy_visc4 = config_h_mom_eddy_visc4
                h_theta_eddy_visc4 = config_h_theta_eddy_visc4
 
@@ -5520,8 +5577,11 @@ module atm_time_integration
          end do
 
          if (perturbation_coriolis) then  !  this is correct only for constant f
+            !$acc loop seq
             do j = 1,nEdgesOnEdge(iEdge)
                eoe = edgesOnEdge(j,iEdge)
+
+               !$acc loop vector
                do k=1,nVertLevels
                   reference_u = u_init(k) * cos(angleEdge(eoe)) -  v_init(k) * sin(angleEdge(eoe))
                   q(k) = q(k) - weightsOnEdge(j,iEdge) * reference_u * fEdge(iEdge)
@@ -5996,6 +6056,10 @@ module atm_time_integration
       !$acc end parallel
 
       MPAS_ACC_TIMER_START('atm_compute_dyn_tend_work [ACC_data_xfer]')
+      if (perturbation_coriolis) then
+         !$acc exit data delete(u_init, v_init)
+      end if
+      !$acc exit data delete(ustm, hfx, qfx)
       if (rk_step == 1) then
          !$acc exit data copyout(tend_w_euler)
          !$acc exit data copyout(tend_u_euler)
@@ -6007,7 +6071,6 @@ module atm_time_integration
          !$acc exit data delete(rb, rr_save)
          !$acc exit data delete(divergence, vorticity)
          !$acc exit data delete(v)
-         !$acc exit data delete(u_init, v_init)
       else
          !$acc exit data delete(tend_w_euler)
          !$acc exit data delete(tend_u_euler)
@@ -6033,6 +6096,11 @@ module atm_time_integration
 #ifdef CURVATURE
       !$acc exit data delete(ur_cell, vr_cell)
 #endif
+      !$acc exit data delete(eddy_visc_horz)
+      !$acc exit data delete(eddy_visc_vert)
+      !$acc exit data delete(prandtl_3d_inv)
+      !$acc exit data delete(scalars)
+      !$acc exit data copyout(tend_scalars)
       MPAS_ACC_TIMER_STOP('atm_compute_dyn_tend_work [ACC_data_xfer]')
 
    end subroutine atm_compute_dyn_tend_work

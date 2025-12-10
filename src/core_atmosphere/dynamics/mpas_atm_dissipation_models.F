@@ -68,9 +68,12 @@ contains
       integer :: iCell, iEdge, k
       real (kind=RKIND), dimension(nVertLevels) :: d_11, d_22, d_12, dudx, dudy, dvdx, dvdy
 
+!$acc enter data create(dudx, dudy, dvdx, dvdy)
+!$acc enter data create(d_11, d_22, d_12)
 
       DEBUG_WRITE(' begin smagorinsky_2d ')
 
+!$acc kernels default(present)
       do iCell = cellStart,cellEnd
          dudx(1:nVertLevels) = 0.0
          dudy(1:nVertLevels) = 0.0
@@ -103,6 +106,10 @@ contains
 
       h_mom_eddy_visc4   = config_visc4_2dsmag * config_len_disp**3
       h_theta_eddy_visc4 = h_mom_eddy_visc4
+!$acc end kernels
+
+!$acc exit data delete(dudx, dudy, dvdx, dvdy)
+!$acc exit data delete(d_11, d_22, d_12)
 
       DEBUG_WRITE(' exiting smagorinsky_2d ')
 
@@ -195,6 +202,10 @@ contains
          ! Error
       end if
 
+!$acc enter data create(dudx, dudy, dvdx, dvdy, dwdx, dwdy, dudz, dvdz, dwdz)
+!$acc enter data create(d_11, d_22, d_33, d_12, d_13, d_23)
+
+!$acc kernels default(present)
       pr_inv = 1./prandtl
 
       ! set up coefficients for 4th-order horizontal background filter
@@ -351,11 +362,15 @@ contains
 
          else
 
-            call mpas_log_write(' in les_models, no les scheme for '//trim(config_les_model), messageType=MPAS_LOG_CRIT)
+!MGD            call mpas_log_write(' in les_models, no les scheme for '//trim(config_les_model), messageType=MPAS_LOG_CRIT)
 
          end if ! end of config_les_model test
 
       end do ! loop over all owned cells (columns)
+!$acc end kernels
+
+!$acc exit data delete(dudx, dudy, dvdx, dvdy, dwdx, dwdy, dudz, dvdz, dwdz)
+!$acc exit data delete(d_11, d_22, d_33, d_12, d_13, d_23)
 
       DEBUG_WRITE(' les_models ')
 
@@ -383,6 +398,7 @@ contains
 
       DEBUG_WRITE(' begin BV frequency calculations ')
 
+!$acc kernels default(present)
       do iCell = cellStart,cellEnd
 !DIR$ IVDEP
          do k=1, nVertLevels
@@ -440,6 +456,7 @@ contains
          bn2(nVertLevels,iCell) = bn2(nVertLevels-1,iCell)
 
       end do
+!$acc end kernels
 
       DEBUG_WRITE(' exiting BV frequency calculations ')
 
@@ -573,6 +590,10 @@ contains
       ! del^4 horizontal filter.  We compute this as del^2 ( del^2 (u) ).
       ! First, storage to hold the result from the first del^2 computation.
 
+!$acc enter data create(u_mix)
+!$acc enter data create(turb_vflux)
+
+!$acc kernels default(present)
       delsq_u(1:nVertLevels,edgeStart:edgeEnd) = 0.0
       tau_12_factor = 0.0
       if(les_model_opt /= LES_MODEL_NONE) tau_12_factor = 1.0
@@ -773,6 +794,10 @@ contains
          end do
 
       end if
+!$acc end kernels
+
+!$acc exit data delete(turb_vflux)
+!$acc exit data delete(u_mix)
 
       DEBUG_WRITE(' exiting u_dissipation_3d ')
 
@@ -880,6 +905,9 @@ contains
          ! Error
       end if
 
+!$acc enter data create(turb_vflux)
+
+!$acc kernels default(present)
       delsq_w(1:nVertLevels,cellStart:cellEnd) = 0.0
 
       do iCell=cellStart,cellEnd
@@ -960,6 +988,9 @@ contains
          end do
 
       end if
+!$acc end kernels
+
+!$acc exit data delete(turb_vflux)
 
       DEBUG_WRITE(' exiting w_dissipation_3d ')
 
@@ -1094,6 +1125,10 @@ contains
 
       if( mix_scalars .and. (dynamics_substep == 1)) call mpas_log_write(' scalar mixing on ')
 
+!$acc enter data create(turb_vflux_scalars)
+!$acc enter data create(turb_vflux, prandtl_1d_inverse)
+
+!$acc kernels default(present)
       delsq_theta(1:nVertLevels,cellStart:cellEnd) = 0.0
 
       do iCell=cellStart,cellEnd
@@ -1356,6 +1391,10 @@ contains
          end do  ! loop over cells (columns)
 
       end if
+!$acc end kernels
+
+!$acc exit data delete(turb_vflux_scalars)
+!$acc exit data delete(turb_vflux, prandtl_1d_inverse)
 
       DEBUG_WRITE(' exiting scalar_dissipation_3d ')
 
