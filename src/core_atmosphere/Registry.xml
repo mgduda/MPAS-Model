@@ -1722,9 +1722,6 @@
                              description="Rain number concentration"
                              packages="mp_thompson_in;mp_thompson_aers_in"/>
 
-                        <var name="tke" array_group="turbulence" units="m^2 s^{-2}"
-                             description="Turbulent kinetic energy for the prognostic tke LES scheme"/>
-
                         <var name="nc" array_group="number" units="nb kg^{-1}"
                              description="Cloud water number concentration"
                              packages="mp_thompson_aers_in"/>
@@ -1736,6 +1733,9 @@
                         <var name="nwfa" array_group="number" units="nb kg^{-1}"
                              description="Water-friendly aerosol number concentration"
                              packages="mp_thompson_aers_in"/>
+
+                        <var name="tke" array_group="turbulence" units="m^2 s^{-2}"
+                             description="Turbulent kinetic energy for the prognostic tke LES scheme"/>
                 </var_array>
 #endif
 
@@ -2104,7 +2104,7 @@
                              packages="mp_thompson_aers_in"/>
 
                         <var name="tend_tke" name_in_code="tke" array_group="turbulence" units="kg m^{-3} m^2 s^{-2} s^{-1}" 
-                             description="Tendency of tke  multiplied by dry air density divided by d(zeta)/dz"/>
+                             description="Tendency of tke multiplied by dry air density divided by d(zeta)/dz"/>
                 </var_array>
 #endif
         </var_struct>
@@ -2183,6 +2183,10 @@
                         <var name="lbc_nwfa" name_in_code="nwfa" array_group="number" packages="mp_thompson_aers_in"
                              units="m^{-3} s^{-1}"
                              description="Lateral boundary tendency of water-friendly aerosol number concentration"/>
+
+                        <var name="lbc_tke" name_in_code="tke" array_group="turbulence"
+                             units="m^2 s^{-3}"
+                             description="Lateral boundary tendency of TKE"/>
                 </var_array>
         </var_struct>
 
