@@ -358,6 +358,15 @@
 
         </nml_record>
 
+        <nml_record name="development" in_defaults="true">
+
+                <nml_option name="config_test_array" type="real" length="4" default_value="3.14159265"
+                     units="-"
+                     description="Test array of real values"
+                     possible_values="real values"/>
+
+        </nml_record>
+
 
 <!-- **************************************************************************************** -->
 <!-- **************************************  Packages  ************************************** -->

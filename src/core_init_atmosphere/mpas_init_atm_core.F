@@ -34,6 +34,43 @@ module init_atm_core
       real (kind=RKIND), pointer :: sphere_radius
       integer :: ierr
 
+      real (kind=RKIND), dimension(4) :: arr_val
+      real (kind=RKIND), dimension(:), pointer :: arr_val_ptr
+
+      real (kind=RKIND), pointer :: config_test
+      real (kind=RKIND), dimension(:), pointer :: config_test_arr
+
+
+      block => domain % blocklist
+
+      arr_val(1) = 100.0
+      arr_val(2) = 101.0
+      arr_val(3) = 102.0
+      arr_val(4) = 103.0
+      call mpas_pool_add_config(block % configs, 'arr_val', arr_val)
+
+      nullify(arr_val_ptr)
+      call mpas_pool_get_config(block % configs, 'arr_val', arr_val_ptr)
+      if (associated(arr_val_ptr)) then
+         call mpas_log_write('MGD arr_val = $r $r $r $r', realArgs=arr_val_ptr)
+      else
+         call mpas_log_write('MGD arr_val = (null)')
+      end if
+
+      call mpas_pool_get_config(block % configs, 'config_test_array', config_test)
+      call mpas_pool_get_config(block % configs, 'config_test_array', config_test_arr)
+
+      if (associated(config_test)) then
+         call mpas_log_write('MGD config_test associated $r', realArgs=[config_test])
+      else
+         call mpas_log_write('MGD config_test NOT associated')
+      end if
+
+      if (associated(config_test_arr)) then
+         call mpas_log_write('MGD config_test_arr associated $r $r $r $r', realArgs=config_test_arr)
+      else
+         call mpas_log_write('MGD config_test_arr NOT associated')
+      end if
 
       ierr = 0
 
