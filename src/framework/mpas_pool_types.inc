@@ -53,6 +53,7 @@
       integer, pointer :: simple_int => null()
       integer, dimension(:), pointer :: simple_int_arr => null()
       real(kind=RKIND), pointer :: simple_real => null()
+      real(kind=RKIND), dimension(:), pointer :: simple_real_arr => null()
       logical, pointer :: simple_logical => null()
       character(len=StrKIND), pointer :: simple_char => null()
    end type mpas_pool_data_type

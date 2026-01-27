@@ -83,6 +83,7 @@ module mpas_pool_routines
 
    interface mpas_pool_add_config
       module procedure mpas_pool_add_config_real
+      module procedure mpas_pool_add_config_real_arr
       module procedure mpas_pool_add_config_int
       module procedure mpas_pool_add_config_char
       module procedure mpas_pool_add_config_logical
@@ -90,6 +91,7 @@ module mpas_pool_routines
 
    interface mpas_pool_get_config
       module procedure mpas_pool_get_config_real
+      module procedure mpas_pool_get_config_real_arr
       module procedure mpas_pool_get_config_int
       module procedure mpas_pool_get_config_char
       module procedure mpas_pool_get_config_logical
@@ -234,7 +236,11 @@ module mpas_pool_routines
                   dptr => ptr % data
    
                   if (dptr % contentsType == MPAS_POOL_REAL) then
-                     deallocate(dptr % simple_real)
+                     if (ptr % data % contentsDims > 0) then
+                        deallocate(dptr % simple_real_arr)
+                     else
+                        deallocate(dptr % simple_real)
+                     end if
                   else if (dptr % contentsType == MPAS_POOL_INTEGER) then
                      deallocate(dptr % simple_int)
                   else if (dptr % contentsType == MPAS_POOL_CHARACTER) then
@@ -497,8 +503,13 @@ module mpas_pool_routines
                dptr => ptr % data
 
                if (dptr % contentsType == MPAS_POOL_REAL) then
-                  allocate(newmem % data % simple_real)
-                  newmem % data % simple_real = dptr % simple_real
+                  if (dptr % contentsDims == 1) then
+                     allocate(newmem % data % simple_real_arr(size(dptr % simple_real_arr)))
+                     newmem % data % simple_real_arr(:) = dptr % simple_real_arr(:)
+                  else
+                     allocate(newmem % data % simple_real)
+                     newmem % data % simple_real = dptr % simple_real
+                  end if
                else if (dptr % contentsType == MPAS_POOL_INTEGER) then
                   allocate(newmem % data % simple_int)
                   newmem % data % simple_int = dptr % simple_int
@@ -4573,6 +4584,52 @@ module mpas_pool_routines
 
 
 !-----------------------------------------------------------------------
+!  routine mpas_pool_add_config_real_arr
+!
+!> \brief MPAS Pool Real Array Config Insertion Routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This routine inserts a real array value as a config option into inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_add_config_real_arr(inPool, key, value)!{{{
+
+      implicit none
+
+      type (mpas_pool_type), intent(inout) :: inPool
+      character (len=*), intent(in) :: key
+      real (kind=RKIND), dimension(:), intent(in) :: value
+
+      type (mpas_pool_member_type), pointer :: newmem
+      integer :: threadNum
+
+      threadNum = mpas_threading_get_thread_num()
+
+      if ( threadNum == 0 ) then
+         allocate(newmem)
+         newmem % key = trim(key)
+         newmem % keyLen = len_trim(key)
+         newmem % contentsType = MPAS_POOL_CONFIG
+
+         allocate(newmem % data)
+         newmem % data % contentsType = MPAS_POOL_REAL
+         newmem % data % contentsDims = 1
+         newmem % data % contentsTimeLevs = 0
+         allocate(newmem % data % simple_real_arr(size(value)))
+         newmem % data % simple_real_arr(:) = value(:)
+   
+         if (.not. pool_add_member(inPool, key, newmem)) then
+            deallocate(newmem % data % simple_real_arr)
+            deallocate(newmem % data)
+            deallocate(newmem)
+         end if
+      end if
+
+   end subroutine mpas_pool_add_config_real_arr!}}}
+
+
+!-----------------------------------------------------------------------
 !  routine mpas_pool_add_config_int
 !
 !> \brief MPAS Pool Integer Config Insertion Routine
@@ -4787,6 +4844,50 @@ module mpas_pool_routines
       end if
 
    end subroutine mpas_pool_get_config_real!}}}
+
+
+!-----------------------------------------------------------------------
+!  subroutine mpas_pool_get_config_real_arr
+!
+!> \brief MPAS Pool Real Array Config Access Routine
+!> \author Michael Duda, Doug Jacobsen
+!> \date   03/27/2014
+!> \details
+!> This subroutine returns the array associated with a config option with the
+!> name key in inPool.
+!
+!-----------------------------------------------------------------------
+   subroutine mpas_pool_get_config_real_arr(inPool, key, value, record)!{{{
+
+      implicit none
+
+      type (mpas_pool_type), intent(in) :: inPool
+      character (len=*), intent(in) :: key
+      real (kind=RKIND), dimension(:), pointer :: value
+      character (len=*), intent(in), optional :: record
+      type (mpas_pool_type), pointer :: recordPool
+
+      type (mpas_pool_data_type), pointer :: mem
+
+      nullify(value)
+
+      if ( present(record) ) then
+         call mpas_pool_get_subpool(inPool, record, recordPool)
+         mem => pool_get_member(recordPool, key, MPAS_POOL_CONFIG)
+      else
+         mem => pool_get_member(inPool, key, MPAS_POOL_CONFIG)
+      end if
+
+      if (associated(mem)) then
+         if (mem % contentsType /= MPAS_POOL_REAL) then
+            call pool_mesg('Error: Config '//trim(key)//' is not type real.')
+         end if
+         value => mem % simple_real_arr
+      else
+         call pool_mesg('Error: Config '//trim(key)//' not found in pool.')
+      end if
+
+   end subroutine mpas_pool_get_config_real_arr!}}}
 
 
 !-----------------------------------------------------------------------
@@ -5465,6 +5566,8 @@ module mpas_pool_routines
             iterator % nDims = inPool % iterator % data % contentsDims
             iterator % nTimeLevels = inPool % iterator % data % contentsTimeLevs
          else if (iterator % memberType == MPAS_POOL_DIMENSION) then
+            iterator % nDims = inPool % iterator % data % contentsDims
+         else if (iterator % memberType == MPAS_POOL_CONFIG) then
             iterator % nDims = inPool % iterator % data % contentsDims
          else
             iterator % nDims = 0

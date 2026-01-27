@@ -795,6 +795,8 @@ int parse_namelist_records_from_registry(ezxml_t registry)/*{{{*/
 
 		// Define variable definitions prior to reading the namelist in.
 		for (nmlopt_xml = ezxml_child(nmlrecs_xml, "nml_option"); nmlopt_xml; nmlopt_xml = nmlopt_xml->next){
+			const char *nmllength = NULL;
+
 			original_nmloptname = ezxml_attr(nmlopt_xml, "name");
 			mangle_name(nmloptname, sizeof(nmloptname), original_nmloptname);
 
@@ -804,10 +806,16 @@ int parse_namelist_records_from_registry(ezxml_t registry)/*{{{*/
 			nmloptdesc = ezxml_attr(nmlopt_xml, "description");
 			nmloptposvals = ezxml_attr(nmlopt_xml, "possible_values");
 			nmloptindef = ezxml_attr(nmlopt_xml, "in_defaults");
+			nmllength = ezxml_attr(nmlopt_xml, "length");
 
 			if(strncmp(nmlopttype, "real", 1024) == 0){
-				fortprintf(fd, "      real (kind=RKIND) :: %s = %lf\n", nmloptname, (double)atof(nmloptval));
-				fortprintf(fcd, "      real (kind=RKIND), pointer :: %s\n", nmloptname);
+				if (nmllength) {
+					fortprintf(fd, "      real (kind=RKIND), dimension(%i) :: %s = %lf\n", atoi(nmllength), nmloptname, (double)atof(nmloptval));
+					fortprintf(fcd, "      real (kind=RKIND), dimension(:), pointer :: %s\n", nmloptname);
+				} else {
+					fortprintf(fd, "      real (kind=RKIND) :: %s = %lf\n", nmloptname, (double)atof(nmloptval));
+					fortprintf(fcd, "      real (kind=RKIND), pointer :: %s\n", nmloptname);
+				}
 			} else if(strncmp(nmlopttype, "integer", 1024) == 0){
 				fortprintf(fd, "      integer :: %s = %d\n", nmloptname, atoi(nmloptval));
 				fortprintf(fcd, "      integer, pointer :: %s\n", nmloptname);
@@ -862,13 +870,20 @@ int parse_namelist_records_from_registry(ezxml_t registry)/*{{{*/
 		// Define broadcast calls for namelist values.
 		fortprintf(fd, "      if (ierr <= 0) then\n");
 		for (nmlopt_xml = ezxml_child(nmlrecs_xml, "nml_option"); nmlopt_xml; nmlopt_xml = nmlopt_xml->next){
+			const char *nmllength = NULL;
+
 			original_nmloptname = ezxml_attr(nmlopt_xml, "name");
 			mangle_name(nmloptname, sizeof(nmloptname), original_nmloptname);
 
 			nmlopttype = ezxml_attr(nmlopt_xml, "type");
+			nmllength = ezxml_attr(nmlopt_xml, "length");
 
 			if(strncmp(nmlopttype, "real", 1024) == 0){
-				fortprintf(fd, "         call mpas_dmpar_bcast_real(dminfo, %s)\n", nmloptname);
+				if (nmllength) {
+					fortprintf(fd, "         call mpas_dmpar_bcast_reals(dminfo, size(%s), %s)\n", nmloptname, nmloptname);
+				} else {
+					fortprintf(fd, "         call mpas_dmpar_bcast_real(dminfo, %s)\n", nmloptname);
+				}
 			} else if(strncmp(nmlopttype, "integer", 1024) == 0){
 				fortprintf(fd, "         call mpas_dmpar_bcast_int(dminfo, %s)\n", nmloptname);
 			} else if(strncmp(nmlopttype, "logical", 1024) == 0){
@@ -882,10 +897,13 @@ int parse_namelist_records_from_registry(ezxml_t registry)/*{{{*/
 		fortprintf(fd, "            call mpas_log_write('    The following values will be used for variables in this record:')\n");
 		fortprintf(fd, "            call mpas_log_write(' ')\n");
 		for (nmlopt_xml = ezxml_child(nmlrecs_xml, "nml_option"); nmlopt_xml; nmlopt_xml = nmlopt_xml->next){
+			const char *nmllength = NULL;
+
 			original_nmloptname = ezxml_attr(nmlopt_xml, "name");
 			mangle_name(nmloptname, sizeof(nmloptname), original_nmloptname);
 
 			nmlopttype = ezxml_attr(nmlopt_xml, "type");
+			nmllength = ezxml_attr(nmlopt_xml, "length");
 
 			if (strncmp(nmlopttype, "character", 1024) == 0) {
 				fortprintf(fd, "            call mpas_log_write('        %s = '//mpas_log_escape_dollars(%s))\n", nmloptname, nmloptname);
@@ -894,7 +912,11 @@ int parse_namelist_records_from_registry(ezxml_t registry)/*{{{*/
 				fortprintf(fd, "            call mpas_log_write('        %s = $i', intArgs=(/%s/))\n", nmloptname, nmloptname);
 			}
 			else if (strncmp(nmlopttype, "real", 1024) == 0) {
-				fortprintf(fd, "            call mpas_log_write('        %s = $r', realArgs=(/%s/))\n", nmloptname, nmloptname);
+				if (nmllength) {
+					fortprintf(fd, "            call mpas_log_write('        %s = $r * $i', realArgs=(/%s/), intArgs=(/%s/))\n", nmloptname, nmloptname, nmllength);
+				} else {
+					fortprintf(fd, "            call mpas_log_write('        %s = $r', realArgs=(/%s/))\n", nmloptname, nmloptname);
+				}
 			}
 			else if (strncmp(nmlopttype, "logical", 1024) == 0) {
 				fortprintf(fd, "            call mpas_log_write('        %s = $l', logicArgs=(/%s/))\n", nmloptname, nmloptname);

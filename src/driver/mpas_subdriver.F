@@ -492,6 +492,7 @@ module mpas_subdriver
       logical, pointer :: logAtt
       character (len=StrKIND), pointer :: charAtt
       real (kind=RKIND), pointer :: realAtt
+      real (kind=RKIND), dimension(:), pointer :: realAttArr
       character (len=StrKIND) :: histAtt
 
       integer :: local_ierr
@@ -536,8 +537,14 @@ module mpas_subdriver
          if ( itr % memberType == MPAS_POOL_CONFIG) then
 
             if ( itr % dataType == MPAS_POOL_REAL ) then
-               call mpas_pool_get_config(domain % configs, itr % memberName, realAtt)
-               call MPAS_stream_mgr_add_att(domain % streamManager, itr % memberName, realAtt, ierr=local_ierr)
+               write(0,*) trim(itr % memberName), itr % nDims
+               if ( itr % nDims == 1) then
+                  call mpas_pool_get_config(domain % configs, itr % memberName, realAttArr)
+                  call MPAS_stream_mgr_add_att(domain % streamManager, itr % memberName, realAttArr, ierr=local_ierr)
+               else
+                  call mpas_pool_get_config(domain % configs, itr % memberName, realAtt)
+                  call MPAS_stream_mgr_add_att(domain % streamManager, itr % memberName, realAtt, ierr=local_ierr)
+               end if
             else if ( itr % dataType == MPAS_POOL_INTEGER ) then
                call mpas_pool_get_config(domain % configs, itr % memberName, intAtt)
                call MPAS_stream_mgr_add_att(domain % streamManager, itr % memberName, intAtt, ierr=local_ierr)

@@ -83,6 +83,7 @@ module mpas_stream_manager
     interface MPAS_stream_mgr_add_att
         module procedure MPAS_stream_mgr_add_att_int
         module procedure MPAS_stream_mgr_add_att_real
+        module procedure MPAS_stream_mgr_add_att_real_arr
         module procedure MPAS_stream_mgr_add_att_char
         module procedure MPAS_stream_mgr_add_att_logical
     end interface
@@ -2514,6 +2515,107 @@ module mpas_stream_manager
 
 
     !-----------------------------------------------------------------------
+    !  routine MPAS_stream_mgr_add_att_real_arr
+    !
+    !> \brief Add a real attribute to the specified stream in an MPAS stream manager.
+    !> \author Michael Duda, Doug Jacobsen
+    !> \date   13 June 2014
+    !> \details
+    !>  Add a global real attribute to the stream within an MPAS stream manager.
+    !>  If the optional streamID argument is not supplied, the attribute will be
+    !>  applied to every stream created after the call to add the attribute.
+    !
+    !-----------------------------------------------------------------------
+    subroutine MPAS_stream_mgr_add_att_real_arr(manager, attName, attVal, streamID, ierr)!{{{
+
+        implicit none
+
+        character (len=*), parameter :: sub = 'MPAS_stream_mgr_add_att_real'
+
+        type (MPAS_streamManager_type), intent(inout) :: manager
+        character (len=*), intent(in) :: attName
+        real (kind=RKIND), dimension(:), intent(in) :: attVal
+        character (len=*), intent(in), optional :: streamID
+        integer, intent(out), optional :: ierr
+
+        type (MPAS_stream_list_type), pointer :: stream_cursor
+        type (MPAS_pool_type), pointer :: att_pool
+        real (kind=RKIND), dimension(:), pointer :: queryVal
+        integer :: att_type
+        integer :: err_level
+        integer :: err_local
+        logical :: addedAttribute
+
+
+        STREAM_DEBUG_WRITE('-- Called MPAS_stream_mgr_add_att()')
+
+        if (present(ierr)) ierr = MPAS_STREAM_MGR_NOERR
+        nullify(queryVal)
+
+        if (present(streamID)) then
+            addedAttribute = .false.
+            nullify(stream_cursor)
+            do while (MPAS_stream_list_query(manager % streams, streamID, stream_cursor, ierr=err_local))
+
+                addedAttribute = .true.
+                att_pool => stream_cursor % att_pool
+
+                err_level = mpas_pool_get_error_level()
+                call mpas_pool_set_error_level(MPAS_POOL_SILENT)
+                call mpas_pool_get_config(att_pool, attName, queryVal)
+                call mpas_pool_set_error_level(err_level)
+                if (.not. associated(queryVal)) then
+                    !
+                    ! Querying the type of the attribute should return MPAS_POOL_FATAL if the attribute really
+                    !    does not exist in the pool; otherwise, the attribute exists but was of the wrong type
+                    !    in the call above to mpas_pool_get_config()
+                    !
+                    if (mpas_pool_config_type(att_pool, attName) /= MPAS_POOL_FATAL) then
+                        STREAM_ERROR_WRITE('Attribute '//trim(attName)//' in stream '//trim(stream_cursor % name)//' is not of type real array.')
+                        if (present(ierr)) ierr = MPAS_STREAM_MGR_ERROR
+                        return 
+                    end if
+                    call mpas_pool_add_config(att_pool, attName, attVal)
+                else
+                    queryVal = attVal
+                end if
+            end do
+
+            if ( .not. addedAttribute ) then
+                STREAM_ERROR_WRITE('No stream matching '//trim(streamID)//' exists in call to MPAS_stream_mgr_add_att().')
+                if (present(ierr)) ierr = MPAS_STREAM_MGR_ERROR
+                return 
+            end if
+
+        else
+            att_pool => manager % defaultAtts
+
+            err_level = mpas_pool_get_error_level()
+            call mpas_pool_set_error_level(MPAS_POOL_SILENT)
+            call mpas_pool_get_config(att_pool, attName, queryVal)
+            call mpas_pool_set_error_level(err_level)
+            if (.not. associated(queryVal)) then
+                !
+                ! Querying the type of the attribute should return MPAS_POOL_FATAL if the attribute really
+                !    does not exist in the pool; otherwise, the attribute exists but was of the wrong type
+                !    in the call above to mpas_pool_get_config()
+                !
+                if (mpas_pool_config_type(att_pool, attName) /= MPAS_POOL_FATAL) then
+                    STREAM_ERROR_WRITE('Attribute '//trim(attName)//' in streamManager is not of type real.')
+                    if (present(ierr)) ierr = MPAS_STREAM_MGR_ERROR
+                    return 
+                end if
+                call mpas_pool_add_config(att_pool, attName, attVal)
+            else
+                queryVal = attVal
+            end if
+
+        end if
+
+    end subroutine MPAS_stream_mgr_add_att_real_arr!}}}
+
+
+    !-----------------------------------------------------------------------
     !  routine MPAS_stream_mgr_add_att_char
     !
     !> \brief Add a character attribute to the specified stream in an MPAS stream manager.
@@ -4230,6 +4332,7 @@ module mpas_stream_manager
         logical, pointer :: logAtt
         character (len=StrKIND), pointer :: charAtt
         real (kind=RKIND), pointer :: realAtt
+        real (kind=RKIND), dimension(:), pointer :: realAttArr
 
         integer :: local_ierr
 
@@ -4251,8 +4354,13 @@ module mpas_stream_manager
             do while (mpas_pool_get_next_member(stream % att_pool, itr))
                 if ( itr % memberType == MPAS_POOL_CONFIG) then
                     if ( itr % dataType == MPAS_POOL_REAL ) then
-                        call mpas_pool_get_config(stream % att_pool, itr % memberName, realAtt)
-                        call mpas_writeStreamAtt(stream % stream, itr % memberName, realAtt, syncVal=.false., ierr=local_ierr)
+                        if ( itr % nDims == 1 ) then
+                            call mpas_pool_get_config(stream % att_pool, itr % memberName, realAttArr)
+                            call mpas_writeStreamAtt(stream % stream, itr % memberName, realAttArr, syncVal=.false., ierr=local_ierr)
+                        else
+                            call mpas_pool_get_config(stream % att_pool, itr % memberName, realAtt)
+                            call mpas_writeStreamAtt(stream % stream, itr % memberName, realAtt, syncVal=.false., ierr=local_ierr)
+                        end if
                     else if ( itr % dataType == MPAS_POOL_INTEGER ) then
                         call mpas_pool_get_config(stream % att_pool, itr % memberName, intAtt)
                         call mpas_writeStreamAtt(stream % stream, itr % memberName, intAtt, syncVal=.false., ierr=local_ierr)
