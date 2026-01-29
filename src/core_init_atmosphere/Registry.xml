@@ -320,6 +320,13 @@
                      possible_values="Positive real values"/>
         </nml_record>
 
+        <nml_record name="lbcs" in_defaults="true">
+                <nml_option name="config_lbc_hydrometeors" type="logical" default_value="true"
+                            units="-"
+                            description="Whether to include hydrometeors qc, qr, etc. in LBC files"
+                            possible_values="Logical values"/>
+        </nml_record>
+
         <nml_record name="io" in_defaults="true">
 
                 <nml_option name="config_pio_num_iotasks" type="integer" default_value="0"
@@ -376,6 +383,9 @@
                 <package name="first_guess_field" description="3-d atmospheric or land-surface fields on first-guess levels"/>
                 <package name="mp_thompson_aers_in" description="initialization of GOCART-based Thompson water- and ice-friendly aerosols"/>
                 <package name="noahmp" description="Whether to process, read, and write static fields only required by Noah-MP"/>
+                <package name="lbc_hydrometeors"
+                         active_when="config_lbc_hydrometeors"
+                         description="When active, hydrometeors are to be included in LBC files"/>
         </packages>
 
 
@@ -1201,10 +1211,12 @@
                              description="Water vapor mixing ratio on lateral boundary cells"/>
 
                         <var name="lbc_qc" array_group="moist" units="kg kg^{-1}"
-                             description="Cloud water mixing ratio on lateral boundary cells"/>
+                             description="Cloud water mixing ratio on lateral boundary cells"
+                             packages="lbc_hydrometeors"/>
 
                         <var name="lbc_qr" array_group="moist" units="kg kg^{-1}"
-                             description="Rain water mixing ratio on lateral boundary cells"/>
+                             description="Rain water mixing ratio on lateral boundary cells"
+                             packages="lbc_hydrometeors"/>
 
                         <var name="lbc_nifa" array_group="number" units="nb kg^{-1}"
                              description="Gocart ice-friendly aerosol number concentration on lateral boundary cells"
