@@ -516,10 +516,6 @@
 			<var name="defc_a"/>
 			<var name="defc_b"/>
 			<var name="coeffs_reconstruct"/>
-			<var name="etp"/>
-			<var name="etm"/>
-			<var name="ewp"/>
-			<var name="ewm"/>
 #ifdef MPAS_CAM_DYCORE
 			<var name="cell_gradient_coef_x"/>
 			<var name="cell_gradient_coef_y"/>
