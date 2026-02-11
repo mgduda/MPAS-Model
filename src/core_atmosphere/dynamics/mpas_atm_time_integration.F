@@ -2175,14 +2175,11 @@ module atm_time_integration
       real (kind=RKIND), dimension(:), pointer :: cofrz, rdzw, fzm, fzp, rdzu
       real (kind=RKIND), dimension(:,:,:), pointer :: scalars
 
-      real (kind=RKIND), pointer :: epssm
-
       ! variable epssm arrays
       real (kind=RKIND), dimension(:), pointer :: etp, etm, ewp, ewm
 
       integer, pointer :: nCells, moist_start, moist_end
 
-      call mpas_pool_get_config(configs, 'config_epssm', epssm)
       call mpas_pool_get_array(mesh, 'etp', etp)
       call mpas_pool_get_array(mesh, 'etm', etm)
       call mpas_pool_get_array(mesh, 'ewp', ewp)
@@ -2218,7 +2215,7 @@ module atm_time_integration
       call mpas_pool_get_dimension(state, 'moist_end', moist_end)
 
 
-      call atm_compute_vert_imp_coefs_work(nCells, moist_start, moist_end, dts, epssm, &
+      call atm_compute_vert_imp_coefs_work(nCells, moist_start, moist_end, dts, &
                                    zz, cqw, p, t, rb, rtb, pb, rt, cofwr, cofwz, coftz, cofwt, &
                                    a_tri, alpha_tri, gamma_tri, cofrz, rdzw, fzm, fzp, rdzu, scalars, &
                                    etp, etm, ewp, ewm, &
@@ -2229,7 +2226,7 @@ module atm_time_integration
    end subroutine atm_compute_vert_imp_coefs
 
 
-   subroutine atm_compute_vert_imp_coefs_work(nCells, moist_start, moist_end, dts, epssm, &
+   subroutine atm_compute_vert_imp_coefs_work(nCells, moist_start, moist_end, dts, &
                                    zz, cqw, p, t, rb, rtb, pb, rt, cofwr, cofwz, coftz, cofwt, &
                                    a_tri, alpha_tri, gamma_tri, cofrz, rdzw, fzm, fzp, rdzu, scalars, &
                                    etp, etm, ewp, ewm, &
@@ -2246,7 +2243,6 @@ module atm_time_integration
       !
       integer, intent(in) :: nCells, moist_start, moist_end
       real (kind=RKIND), intent(in) :: dts
-      real (kind=RKIND), intent(in) :: epssm
 
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: zz
       real (kind=RKIND), dimension(nVertLevels,nCells+1) :: cqw
@@ -2596,8 +2592,6 @@ module atm_time_integration
       integer, dimension(:,:), pointer :: cellsOnEdge, edgesOnCell
       real (kind=RKIND), dimension(:,:), pointer :: edgesOnCell_sign
 
-      real (kind=RKIND), pointer :: epssm
-
       real (kind=RKIND), pointer :: cf1, cf2, cf3
 
       real (kind=RKIND), dimension(:), pointer :: etp, etm, ewp, ewm
@@ -2673,16 +2667,13 @@ module atm_time_integration
       call mpas_pool_get_array(diag, 'rw', rw)
       call mpas_pool_get_array(diag, 'rw_save', rw_save)
 
-      ! epssm is the offcentering coefficient for the vertically implicit integration.
-      call mpas_pool_get_config(configs, 'config_epssm', epssm)
-
       call atm_advance_acoustic_step_work(nCells, nEdges, nCellsSolve, cellStart, cellEnd, vertexStart, vertexEnd, edgeStart, edgeEnd, &
                                    cellSolveStart, cellSolveEnd, vertexSolveStart, vertexSolveEnd, edgeSolveStart, edgeSolveEnd, &
                                    rho_zz, theta_m, ru_p, rw_p, rtheta_pp, rtheta_pp_old, zz, exner, cqu, ruAvg, wwAvg, &
                                    rho_pp, cofwt, coftz, zxu, a_tri, alpha_tri, gamma_tri, dss, tend_ru, tend_rho, tend_rt, &
                                    tend_rw, zgrid, cofwr, cofwz, w, ru, ru_save, rw, rw_save, fzm, fzp, rdzw, dcEdge, invDcEdge, &
                                    invAreaCell, cofrz, dvEdge, nEdgesOnCell, cellsOnEdge, edgesOnCell, edgesOnCell_sign, &
-                                   dts, small_step, epssm, cf1, cf2, cf3, &
+                                   dts, small_step, cf1, cf2, cf3, &
                                    etp, etm, ewp, ewm,    &
                                    specZoneMaskEdge, specZoneMaskCell &
                                    )
@@ -2696,7 +2687,7 @@ module atm_time_integration
                                    rho_pp, cofwt, coftz, zxu, a_tri, alpha_tri, gamma_tri, dss, tend_ru, tend_rho, tend_rt, &
                                    tend_rw, zgrid, cofwr, cofwz, w, ru, ru_save, rw, rw_save, fzm, fzp, rdzw, dcEdge, invDcEdge, &
                                    invAreaCell, cofrz, dvEdge, nEdgesOnCell, cellsOnEdge, edgesOnCell, edgesOnCell_sign, &
-                                   dts, small_step, epssm, cf1, cf2, cf3, &
+                                   dts, small_step, cf1, cf2, cf3, &
                                    etp, etm, ewp, ewm,    &
                                    specZoneMaskEdge, specZoneMaskCell &
                                    )
@@ -2771,7 +2762,7 @@ module atm_time_integration
 
 
       integer, intent(in) :: small_step
-      real (kind=RKIND), intent(in) :: dts, epssm,cf1, cf2, cf3
+      real (kind=RKIND), intent(in) :: dts, cf1, cf2, cf3
       real (kind=RKIND), dimension(nVertLevels) :: ts, rs
 
 
@@ -2780,12 +2771,11 @@ module atm_time_integration
       !
       integer :: cell1, cell2, iEdge, iCell, i, k
       real (kind=RKIND) :: c2, rcv, rtheta_pp_tmp
-      real (kind=RKIND) :: pgrad, flux, resm, rdts
+      real (kind=RKIND) :: pgrad, flux, rdts
 
 
       rcv = rgas / (cp - rgas)
       c2 = cp * rcv
-      resm = (1.0 - epssm) / (1.0 + epssm)
       rdts = 1./dts
 
       MPAS_ACC_TIMER_START('atm_advance_acoustic_step [ACC_data_xfer]')
