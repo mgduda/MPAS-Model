@@ -292,6 +292,10 @@ module atm_time_integration
       real (kind=RKIND), dimension(:,:), pointer :: zgrid
       real (kind=RKIND), dimension(:,:), pointer :: zxu
       real (kind=RKIND), dimension(:,:), pointer :: dss
+      real (kind=RKIND), dimension(:), pointer :: etp
+      real (kind=RKIND), dimension(:), pointer :: etm
+      real (kind=RKIND), dimension(:), pointer :: ewp
+      real (kind=RKIND), dimension(:), pointer :: ewm
       real (kind=RKIND), dimension(:), pointer :: specZoneMaskCell
       real (kind=RKIND), dimension(:), pointer :: meshScalingRegionalCell
       real (kind=RKIND), dimension(:), pointer :: meshScalingRegionalEdge
@@ -453,6 +457,18 @@ module atm_time_integration
       call mpas_pool_get_array(mesh, 'dss', dss)
       !$acc enter data copyin(dss)
 
+      call mpas_pool_get_array(mesh, 'etp', etp)
+      !$acc enter data copyin(etp)
+
+      call mpas_pool_get_array(mesh, 'etm', etm)
+      !$acc enter data copyin(etm)
+
+      call mpas_pool_get_array(mesh, 'ewp', ewp)
+      !$acc enter data copyin(ewp)
+
+      call mpas_pool_get_array(mesh, 'ewm', ewm)
+      !$acc enter data copyin(ewm)
+
       call mpas_pool_get_array(mesh, 'specZoneMaskCell', specZoneMaskCell)
       !$acc enter data copyin(specZoneMaskCell)
 
@@ -566,6 +582,10 @@ module atm_time_integration
       real (kind=RKIND), dimension(:,:), pointer :: zgrid
       real (kind=RKIND), dimension(:,:), pointer :: zxu
       real (kind=RKIND), dimension(:,:), pointer :: dss
+      real (kind=RKIND), dimension(:), pointer :: etp
+      real (kind=RKIND), dimension(:), pointer :: etm
+      real (kind=RKIND), dimension(:), pointer :: ewp
+      real (kind=RKIND), dimension(:), pointer :: ewm
       real (kind=RKIND), dimension(:), pointer :: specZoneMaskCell
       real (kind=RKIND), dimension(:), pointer :: meshScalingRegionalCell
       real (kind=RKIND), dimension(:), pointer :: meshScalingRegionalEdge
@@ -727,6 +747,18 @@ module atm_time_integration
 
       call mpas_pool_get_array(mesh, 'dss', dss)
       !$acc exit data delete(dss)
+
+      call mpas_pool_get_array(mesh, 'etp', etp)
+      !$acc exit data delete(etp)
+
+      call mpas_pool_get_array(mesh, 'etm', etm)
+      !$acc exit data delete(etm)
+
+      call mpas_pool_get_array(mesh, 'ewp', ewp)
+      !$acc exit data delete(ewp)
+
+      call mpas_pool_get_array(mesh, 'ewm', ewm)
+      !$acc exit data delete(ewm)
 
       call mpas_pool_get_array(mesh, 'specZoneMaskCell', specZoneMaskCell)
       !$acc exit data delete(specZoneMaskCell)
