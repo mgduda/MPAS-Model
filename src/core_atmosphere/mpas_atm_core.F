@@ -1312,12 +1312,14 @@ module atm_core
  
 ! Height dependent values of epssm; profiles stored in etp, etm, ewp, and ewm, 
 
+#ifdef MPAS_DEBUG
       call mpas_log_write(' setting epssm coefficients ')
       call mpas_log_write(' minimum epssm: $r ',realArgs=(/min_coeff/))
       call mpas_log_write(' maximum epssm: $r ',realArgs=(/max_coeff/))
       call mpas_log_write(' transition lower bound (m): $r ',realArgs=(/transition_lower_bound/))
       call mpas_log_write(' transition upper bound (m): $r ',realArgs=(/transition_upper_bound/))
       call mpas_log_write(' ')
+#endif
 
       do k = 1,nVertLevels
          if(height_u_levels(k).le.transition_lower_bound) then
@@ -1330,7 +1332,9 @@ module atm_core
          end if 
          etp(k) = 0.5*(1.0 + epssm_coeff_u(k)) 
          etm(k) = 0.5*(1.0 - epssm_coeff_u(k))
+#ifdef MPAS_DEBUG
          call mpas_log_write('k, etp, etm $i $r $r ',intArgs=(/k/),realArgs=(/etp(k),etm(k)/))
+#endif
       end do
       do k= 1,nVertlevels+1
          if(height_w_levels(k).le.transition_lower_bound) then
@@ -1343,7 +1347,9 @@ module atm_core
          end if 
          ewp(k) = 0.5*(1.0 + epssm_coeff_w(k)) 
          ewm(k) = 0.5*(1.0 - epssm_coeff_w(k)) 
+#ifdef MPAS_DEBUG
          call mpas_log_write('k, ewp, ewm $i $r $r ',intArgs=(/k/),realArgs=(/ewp(k),ewm(k)/))
+#endif
       end do
 
       deallocate(height_u_levels)
