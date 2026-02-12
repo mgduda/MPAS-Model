@@ -156,6 +156,7 @@ module atm_time_integration
        integer, intent(out) :: ierr
 
        logical, pointer :: config_positive_definite
+       real (kind=RKIND), pointer :: config_epssm
 
 
        call mpas_log_write('')
@@ -177,6 +178,37 @@ module atm_time_integration
                                messageType=MPAS_LOG_WARN)
            call mpas_log_write('&nhyd_model namelist group.', &
                                messageType=MPAS_LOG_WARN)
+           call mpas_log_write('')
+       end if
+
+       !
+       ! Check whether non-functional config_epssm namelist option has been specified
+       !
+       nullify(config_epssm)
+       call mpas_pool_get_config(blocklist % configs, 'config_epssm', config_epssm)
+
+       if (associated(config_epssm)) then
+           if (config_epssm /= 0.0_RKIND) then
+               call mpas_log_write('The specification of the off-centering parameter for the vertically implicit', &
+                                   messageType=MPAS_LOG_WARN)
+               call mpas_log_write('acoustic integration using config_epssm in the &nhyd_model namelist group is', &
+                                   messageType=MPAS_LOG_WARN)
+               call mpas_log_write('no longer supported.', &
+                                   messageType=MPAS_LOG_WARN)
+               call mpas_log_write('Please use the namelist options', &
+                                   messageType=MPAS_LOG_WARN)
+               call mpas_log_write('  config_epssm_minimum', &
+                                   messageType=MPAS_LOG_WARN)
+               call mpas_log_write('  config_epssm_maximum', &
+                                   messageType=MPAS_LOG_WARN)
+               call mpas_log_write('  config_epssm_transition_bottom_z', &
+                                   messageType=MPAS_LOG_WARN)
+               call mpas_log_write('  config_epssm_transition_top_z', &
+                                   messageType=MPAS_LOG_WARN)
+               call mpas_log_write('in the &damping namelist group to specify level-dependent off-centering parameters.', &
+                                   messageType=MPAS_LOG_WARN)
+               call mpas_log_write('')
+           end if
        end if
 
        call mpas_log_write(' ----- done checking dynamics settings -----')

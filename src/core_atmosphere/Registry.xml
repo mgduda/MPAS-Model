@@ -226,7 +226,7 @@
                      description="Mix full $\theta$ and $u$ fields, or mix perturbation from intitial state"
                      possible_values=".true. or .false."/>
 
-                <nml_option name="config_epssm" type="real" default_value="0.1"
+                <nml_option name="config_epssm" type="real" default_value="0.0" in_defaults="false"
                      units="-"
                      description="Off-centering parameter for the vertically implicit acoustic integration"
                      possible_values="Positive real values"/>
