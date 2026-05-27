@@ -14,6 +14,8 @@ module init_atm_core_interface
    use mpas_io_units
    use mpas_log, only : mpas_log_write
 
+   private :: setup_hydrometeor_packages
+
    contains
 
 
@@ -315,7 +317,98 @@ module init_atm_core_interface
          return
       end if
 
+      if (config_init_case == 7 .or. config_init_case == 9) then
+         if (met_stage_out) then
+             call setup_hydrometeor_packages(packages, configs, ierr)
+         end if
+      end if
+
    end function init_atm_setup_packages
+
+
+   !***********************************************************************
+   !
+   !  function setup_hydrometeor_packages
+   !
+   !> \brief   Package setup routine
+   !> \author  Michael Duda
+   !> \date    6 August 2014
+   !> \details 
+   !>  This routine is responsible for setting up packages for the
+   !>  init_atmosphere core. It may use ay logic based on configuration options
+   !>  to set packages variables to either .true. or .false. Model fields are
+   !>  not allocated until after this routine has been called.
+   !
+   !-----------------------------------------------------------------------
+   subroutine setup_hydrometeor_packages(packages, configs, ierr)
+
+      use init_atm_read_met, only : read_met_init, read_next_met_field, read_met_close, met_data
+      use mpas_timer, only : mpas_timer_start, mpas_timer_stop
+
+      implicit none
+
+      type (mpas_pool_type), intent(inout) :: packages
+      type (mpas_pool_type), intent(in) :: configs
+      integer, intent(out) :: ierr
+
+      character(len=StrKIND), pointer :: config_met_prefix, config_start_time
+      integer :: istatus
+      type (met_data) :: field
+
+      logical, pointer :: qc, qr
+
+
+      call mpas_timer_start('setup_hydrometeor_packages')
+
+      ierr = 0
+
+      call mpas_pool_get_config(configs, 'config_met_prefix', config_met_prefix)
+      call mpas_pool_get_config(configs, 'config_start_time', config_start_time)
+
+      call mpas_pool_get_package(packages, 'qcActive', qc)
+      call mpas_pool_get_package(packages, 'qrActive', qr)
+
+      if (.not. associated(config_met_prefix) &
+          .or. .not. associated(config_start_time) &
+          .or. .not. associated(qc) &
+          .or. .not. associated(qr) &
+         ) then
+
+         call mpas_log_write('One or more namelist options or packages could not be found when setting up hydrometeor packages.', &
+                             messageType=MPAS_LOG_ERR)
+
+         ierr = 1
+         return
+      end if
+
+      qc = .false.
+      qr = .false.
+
+      call mpas_log_write('Setting up hydrometeor packages from '//trim(config_met_prefix)//':'//config_start_time(1:13))
+
+      call read_met_init(trim(config_met_prefix), .false., config_start_time(1:13), istatus)
+
+      call read_next_met_field(field, istatus)
+      do while (istatus == 0)
+         if (trim(field % field) == 'QC') then
+            qc = .true.
+         else if (trim(field % field) == 'QR') then
+            qr = .true.
+         end if
+
+         deallocate(field % slab)
+         call read_next_met_field(field, istatus)
+      end do
+      call read_met_close()
+
+      call mpas_log_write('  QC = $l', logicArgs=[qc])
+      call mpas_log_write('  QR = $l', logicArgs=[qr])
+      call mpas_log_write('----- done setting up hydrometeor packages -----')
+      call mpas_log_write('')
+
+      call mpas_timer_stop('setup_hydrometeor_packages')
+
+   end subroutine setup_hydrometeor_packages
 
 
    !***********************************************************************
