@@ -385,6 +385,7 @@ module init_atm_core_interface
                              messageType=MPAS_LOG_ERR)
 
          ierr = 1
+         call mpas_timer_stop('setup_hydrometeor_packages')
          return
       end if
 
@@ -394,9 +395,18 @@ module init_atm_core_interface
       call mpas_log_write('Setting up hydrometeor packages from '//trim(config_met_prefix)//':'//config_start_time(1:13))
 
       if (dminfo % my_proc_id == IO_NODE) then
-         call read_met_init(trim(config_met_prefix), .false., config_start_time(1:13), istatus)
+         call read_met_init(trim(config_met_prefix), .false., config_start_time(1:13), ierr)
 
-         call read_next_met_field(field, istatus)
+         if (ierr == 0) then
+            call read_next_met_field(field, istatus)
+         else
+            call mpas_log_write('Could not open intermediate file ' &
+                                //trim(config_met_prefix)//':'//config_start_time(1:13) &
+                                //' to set up hydrometeor packages.', &
+                                messageType=MPAS_LOG_ERR)
+            istatus = 1
+         end if
+
          do while (istatus == 0)
             if (trim(field % field) == 'QC') then
                qc = .true.
@@ -415,11 +425,19 @@ module init_atm_core_interface
 
          call read_met_close()
 
+         call mpas_dmpar_bcast_int(dminfo, ierr)
          call mpas_dmpar_bcast_logical(dminfo, qc)
          call mpas_dmpar_bcast_logical(dminfo, qr)
       else
+         call mpas_dmpar_bcast_int(dminfo, ierr)
          call mpas_dmpar_bcast_logical(dminfo, qc)
          call mpas_dmpar_bcast_logical(dminfo, qr)
+      end if
+
+      if (ierr /= 0) then
+         call mpas_log_write('Failed to set up hydrometeor packages.', messageType=MPAS_LOG_ERR)
+         call mpas_timer_stop('setup_hydrometeor_packages')
+         return
       end if
 
       call mpas_log_write('  QC = $l', logicArgs=[qc])
