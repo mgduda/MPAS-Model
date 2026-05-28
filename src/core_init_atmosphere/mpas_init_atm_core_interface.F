@@ -102,7 +102,7 @@ module init_atm_core_interface
    !>  not allocated until after this routine has been called.
    !
    !-----------------------------------------------------------------------
-   function init_atm_setup_packages(configs, streamInfo, packages, iocontext) result(ierr)
+   function init_atm_setup_packages(configs, streamInfo, packages, iocontext, dminfo) result(ierr)
 
       use mpas_derived_types, only : mpas_pool_type, mpas_io_context_type, MPAS_streamInfo_type
       use mpas_pool_routines, only : mpas_pool_get_config, mpas_pool_get_package
@@ -113,6 +113,7 @@ module init_atm_core_interface
       type (MPAS_streamInfo_type), intent(inout) :: streamInfo
       type (mpas_pool_type), intent(inout) :: packages
       type (mpas_io_context_type), intent(inout) :: iocontext
+      type (dm_info), intent(in) :: dminfo
       integer :: ierr
       logical :: lexist
 
@@ -319,7 +320,7 @@ module init_atm_core_interface
 
       if (config_init_case == 7 .or. config_init_case == 9) then
          if (met_stage_out) then
-             call setup_hydrometeor_packages(packages, configs, ierr)
+             call setup_hydrometeor_packages(packages, configs, dminfo, ierr)
          end if
       end if
 
@@ -340,7 +341,7 @@ module init_atm_core_interface
    !>  not allocated until after this routine has been called.
    !
    !-----------------------------------------------------------------------
-   subroutine setup_hydrometeor_packages(packages, configs, ierr)
+   subroutine setup_hydrometeor_packages(packages, configs, dminfo, ierr)
 
       use init_atm_read_met, only : read_met_init, read_next_met_field, read_met_close, met_data
       use mpas_timer, only : mpas_timer_start, mpas_timer_stop
@@ -349,6 +350,7 @@ module init_atm_core_interface
 
       type (mpas_pool_type), intent(inout) :: packages
       type (mpas_pool_type), intent(in) :: configs
+      type (dm_info), intent(in) :: dminfo
       integer, intent(out) :: ierr
 
       character(len=StrKIND), pointer :: config_met_prefix, config_start_time
@@ -386,20 +388,34 @@ module init_atm_core_interface
 
       call mpas_log_write('Setting up hydrometeor packages from '//trim(config_met_prefix)//':'//config_start_time(1:13))
 
-      call read_met_init(trim(config_met_prefix), .false., config_start_time(1:13), istatus)
+      if (dminfo % my_proc_id == IO_NODE) then
+         call read_met_init(trim(config_met_prefix), .false., config_start_time(1:13), istatus)
 
-      call read_next_met_field(field, istatus)
-      do while (istatus == 0)
-         if (trim(field % field) == 'QC') then
-            qc = .true.
-         else if (trim(field % field) == 'QR') then
-            qr = .true.
-         end if
-
-         deallocate(field % slab)
          call read_next_met_field(field, istatus)
-      end do
-      call read_met_close()
+         do while (istatus == 0)
+            if (trim(field % field) == 'QC') then
+               qc = .true.
+            else if (trim(field % field) == 'QR') then
+               qr = .true.
+            end if
+
+            deallocate(field % slab)
+
+            ! Possible optimization: if all packages are true, there is no point in scanning through
+            ! the rest of the intermediate file, since this loop over fields can only switch packages
+            ! from false to true.
+
+            call read_next_met_field(field, istatus)
+         end do
+
+         call read_met_close()
+
+         call mpas_dmpar_bcast_logical(dminfo, qc)
+         call mpas_dmpar_bcast_logical(dminfo, qr)
+      else
+         call mpas_dmpar_bcast_logical(dminfo, qc)
+         call mpas_dmpar_bcast_logical(dminfo, qr)
+      end if
 
       call mpas_log_write('  QC = $l', logicArgs=[qc])
       call mpas_log_write('  QR = $l', logicArgs=[qr])
