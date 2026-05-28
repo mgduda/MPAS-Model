@@ -331,14 +331,19 @@ module init_atm_core_interface
    !
    !  function setup_hydrometeor_packages
    !
-   !> \brief   Package setup routine
+   !> \brief   Set up packages for hydrometeors based on contents of intermediate file
    !> \author  Michael Duda
-   !> \date    6 August 2014
-   !> \details 
-   !>  This routine is responsible for setting up packages for the
-   !>  init_atmosphere core. It may use ay logic based on configuration options
-   !>  to set packages variables to either .true. or .false. Model fields are
-   !>  not allocated until after this routine has been called.
+   !> \date    27 May 2026
+   !> \details
+   !> This routine is responsible for setting up packages for hydrometeor species (qc,
+   !> qr, etc.) based on the contents of the initial intermediate file (i.e., the
+   !> intermediate file valid at the start time of a simmulation; the assumption is
+   !> that all intermediate files contain the same set of fields. A hydrometeor
+   !> packages is set to true if and only if the intermediate file contains the
+   !> corresponding hydrometeor.
+   !>
+   !> If the setup of all hydrometeor packages is successful, a value of 0 is returned
+   !> in the ierr output argument; otherwise, a non-zero value is returned.
    !
    !-----------------------------------------------------------------------
    subroutine setup_hydrometeor_packages(packages, configs, dminfo, ierr)
