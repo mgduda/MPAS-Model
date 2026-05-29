@@ -14,7 +14,8 @@ module init_atm_core_interface
    use mpas_io_units
    use mpas_log, only : mpas_log_write
 
-   private :: mpas_split_string_new
+   private :: setup_hydrometeor_packages, &
+              mpas_split_string_new
 
    contains
 
@@ -318,7 +319,195 @@ module init_atm_core_interface
          return
       end if
 
+      if (config_init_case == 7 .or. config_init_case == 9) then
+         if (met_stage_out) then
+             call setup_hydrometeor_packages(packages, configs, dminfo, ierr)
+         end if
+      end if
+
    end function init_atm_setup_packages
+
+
+   !***********************************************************************
+   !
+   !  function setup_hydrometeor_packages
+   !
+   !> \brief   Set up packages for hydrometeors based on contents of intermediate file
+   !> \author  Michael Duda
+   !> \date    27 May 2026
+   !> \details
+   !> This routine is responsible for setting up packages for hydrometeor species (qc,
+   !> qr, etc.) based on the contents of the initial intermediate file (i.e., the
+   !> intermediate file valid at the start time of a simmulation; the assumption is
+   !> that all intermediate files contain the same set of fields. A hydrometeor
+   !> packages is set to true if and only if the intermediate file contains the
+   !> corresponding hydrometeor.
+   !>
+   !> If the setup of all hydrometeor packages is successful, a value of 0 is returned
+   !> in the ierr output argument; otherwise, a non-zero value is returned.
+   !
+   !-----------------------------------------------------------------------
+   subroutine setup_hydrometeor_packages(packages, configs, dminfo, ierr)
+
+      use init_atm_read_met, only : read_met_init, read_next_met_field, read_met_close, met_data
+      use mpas_timer, only : mpas_timer_start, mpas_timer_stop
+
+      implicit none
+
+      type (mpas_pool_type), intent(inout) :: packages
+      type (mpas_pool_type), intent(in) :: configs
+      type (dm_info), intent(in) :: dminfo
+      integer, intent(out) :: ierr
+
+      character(len=StrKIND), pointer :: config_active_hydrometeors
+      character(len=StrKIND), pointer :: config_met_prefix, config_start_time
+      integer :: istatus
+      type (met_data) :: field
+
+      integer :: i
+      character(len=:), dimension(:), allocatable :: hydrometeors
+
+      logical, pointer :: qc, qr
+
+
+      call mpas_timer_start('setup_hydrometeor_packages')
+
+      ierr = 0
+
+      call mpas_pool_get_config(configs, 'config_active_hydrometeors', config_active_hydrometeors)
+
+      if (.not. associated(config_active_hydrometeors)) then
+         call mpas_log_write("The namelist option 'config_active_hydrometeors' could not be found when setting up hydrometeor packages.", &
+                             messageType=MPAS_LOG_ERR)
+
+         ierr = 1
+         call mpas_timer_stop('setup_hydrometeor_packages')
+         return
+      end if
+
+      if (trim(config_active_hydrometeors) == 'detect_automatically') then
+
+         call mpas_pool_get_config(configs, 'config_met_prefix', config_met_prefix)
+         call mpas_pool_get_config(configs, 'config_start_time', config_start_time)
+
+         call mpas_pool_get_package(packages, 'qcActive', qc)
+         call mpas_pool_get_package(packages, 'qrActive', qr)
+
+         if (.not. associated(config_met_prefix) &
+             .or. .not. associated(config_start_time) &
+             .or. .not. associated(qc) &
+             .or. .not. associated(qr) &
+            ) then
+
+            call mpas_log_write('One or more namelist options or packages could not be found when setting up hydrometeor packages.', &
+                                messageType=MPAS_LOG_ERR)
+
+            ierr = 1
+            call mpas_timer_stop('setup_hydrometeor_packages')
+            return
+         end if
+
+         qc = .false.
+         qr = .false.
+
+         call mpas_log_write('Setting up hydrometeor packages from '//trim(config_met_prefix)//':'//config_start_time(1:13))
+
+         if (dminfo % my_proc_id == IO_NODE) then
+            call read_met_init(trim(config_met_prefix), .false., config_start_time(1:13), ierr)
+
+            if (ierr == 0) then
+               call read_next_met_field(field, istatus)
+            else
+               call mpas_log_write('Could not open intermediate file ' &
+                                   //trim(config_met_prefix)//':'//config_start_time(1:13) &
+                                   //' to set up hydrometeor packages.', &
+                                   messageType=MPAS_LOG_ERR)
+               istatus = 1
+            end if
+
+            do while (istatus == 0)
+               if (trim(field % field) == 'QC') then
+                  qc = .true.
+               else if (trim(field % field) == 'QR') then
+                  qr = .true.
+               end if
+
+               deallocate(field % slab)
+
+               ! Possible optimization: if all packages are true, there is no point in scanning through
+               ! the rest of the intermediate file, since this loop over fields can only switch packages
+               ! from false to true.
+
+               call read_next_met_field(field, istatus)
+            end do
+
+            call read_met_close()
+
+            call mpas_dmpar_bcast_int(dminfo, ierr)
+            call mpas_dmpar_bcast_logical(dminfo, qc)
+            call mpas_dmpar_bcast_logical(dminfo, qr)
+         else
+            call mpas_dmpar_bcast_int(dminfo, ierr)
+            call mpas_dmpar_bcast_logical(dminfo, qc)
+            call mpas_dmpar_bcast_logical(dminfo, qr)
+         end if
+
+      else
+
+         call mpas_pool_get_package(packages, 'qcActive', qc)
+         call mpas_pool_get_package(packages, 'qrActive', qr)
+
+         if (.not. associated(qc) &
+             .or. .not. associated(qr) &
+            ) then
+
+            call mpas_log_write('One or more packages could not be found when setting up hydrometeor packages.', &
+                                messageType=MPAS_LOG_ERR)
+
+            ierr = 1
+            call mpas_timer_stop('setup_hydrometeor_packages')
+            return
+         end if
+
+         qc = .false.
+         qr = .false.
+
+         call mpas_log_write('Setting up hydrometeor packages from config_active_hydrometeors list: ' &
+                             //trim(config_active_hydrometeors))
+
+         call mpas_split_string_new(trim(config_active_hydrometeors), ';', hydrometeors)
+
+         do i = 1, size(hydrometeors)
+            select case (trim(hydrometeors(i)))
+               case ('qc')
+                  qc = .true.
+               case ('qr')
+                  qr = .true.
+               case default
+                  call mpas_log_write('Unrecognized hydrometeor '//trim(hydrometeors(i)) &
+                                      //'found in config_active_hydrometeors', &
+                                      messageType=MPAS_LOG_WARN)
+            end select
+         end do
+
+         deallocate(hydrometeors)
+
+      end if
+
+      if (ierr /= 0) then
+         call mpas_log_write('Failed to set up hydrometeor packages.', messageType=MPAS_LOG_ERR)
+         call mpas_timer_stop('setup_hydrometeor_packages')
+         return
+      end if
+
+      call mpas_log_write('  QC = $l', logicArgs=[qc])
+      call mpas_log_write('  QR = $l', logicArgs=[qr])
+      call mpas_log_write('----- done setting up hydrometeor packages -----')
+      call mpas_log_write('')
+
+      call mpas_timer_stop('setup_hydrometeor_packages')
+
+   end subroutine setup_hydrometeor_packages
 
 
    !***********************************************************************

@@ -217,6 +217,11 @@
                      description="Whether to use specific-humidity as the first-guess moisture variable. If this option is False, relative humidity will be used."
                      possible_values="true or false"/>
 
+                <nml_option name="config_active_hydrometeors"   type="character"   default_value="detect_automatically"
+                     units="-"
+                     description="The set of hydrometeor species that are to be processed from input intermediate files when generating ICs and LBCs for real-data simulations."
+                     possible_values="`detect_automatically', or a semicolon-separated list of hydrometeor names (e.g., `qc;qr'"/>
+
         </nml_record>
 
         <nml_record name="vertical_grid" in_defaults="true">
@@ -387,6 +392,8 @@
                 <package name="first_guess_field" description="3-d atmospheric or land-surface fields on first-guess levels"/>
                 <package name="mp_thompson_aers_in" description="initialization of GOCART-based Thompson water- and ice-friendly aerosols"/>
                 <package name="noahmp" description="Whether to process, read, and write static fields only required by Noah-MP"/>
+                <package name="qc" description="Whether QC is available for inclusion in ICs and LBCs"/>
+                <package name="qr" description="Whether QR is available for inclusion in ICs and LBCs"/>
         </packages>
 
 
@@ -1159,10 +1166,12 @@
                              description="Water vapor mixing ratio"/>
 
                         <var name="qc" array_group="moist" units="kg kg^{-1}"
-                             description="Cloud water mixing ratio"/>
+                             description="Cloud water mixing ratio"
+                             packages="qc"/>
 
                         <var name="qr" array_group="moist" units="kg kg^{-1}"
-                             description="Rain water mixing ratio"/>
+                             description="Rain water mixing ratio"
+                             packages="qr"/>
 
                         <var name="nifa" array_group="number" units="nb kg^{-1}"
                              description="Gocart ice-friendly aerosol number concentration"
@@ -1203,10 +1212,12 @@
                              description="Water vapor mixing ratio on lateral boundary cells"/>
 
                         <var name="lbc_qc" array_group="moist" units="kg kg^{-1}"
-                             description="Cloud water mixing ratio on lateral boundary cells"/>
+                             description="Cloud water mixing ratio on lateral boundary cells"
+                             packages="qc"/>
 
                         <var name="lbc_qr" array_group="moist" units="kg kg^{-1}"
-                             description="Rain water mixing ratio on lateral boundary cells"/>
+                             description="Rain water mixing ratio on lateral boundary cells"
+                             packages="qr"/>
 
                         <var name="lbc_nifa" array_group="number" units="nb kg^{-1}"
                              description="Gocart ice-friendly aerosol number concentration on lateral boundary cells"
