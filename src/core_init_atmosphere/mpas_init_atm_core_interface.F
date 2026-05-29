@@ -14,6 +14,8 @@ module init_atm_core_interface
    use mpas_io_units
    use mpas_log, only : mpas_log_write
 
+   private :: mpas_split_string_new
+
    contains
 
 
@@ -521,6 +523,82 @@ module init_atm_core_interface
       call init_atm_generate_structs(block, block % structs, block % dimensions, block % packages)
 
    end function init_atm_setup_block
+
+
+   !-----------------------------------------------------------------------
+   !  routine mpas_split_string_new
+   !
+   !> \brief Splits a string at a specified delimiter, returning an array of strings
+   !> \author Michael Duda
+   !> \date   28 May 2026
+   !> \details
+   !>  This routine takes as input a string and a delimiter character, and returns an
+   !>  array of sub-strings from the input string that are separated by one or more
+   !>  delimiter characters.
+   !>
+   !>  If more than one delimiter character appears consecutively, no empty string
+   !>  in the output subStrings array is generated.
+   !>
+   !>  The length of the strings in the output subStrings argument is equal to the
+   !>  length of the longest substring in the input string.
+   !
+   !-----------------------------------------------------------------------
+   subroutine mpas_split_string_new(string, delimiter, subStrings)
+
+      implicit none
+
+      ! Arguments
+      character(len=*), intent(in) :: string
+      character, intent(in) :: delimiter
+      character(len=:), dimension(:), allocatable, intent(inout) :: subStrings
+
+      ! Local variables
+      integer :: i, j, n_strs, strlen, max_strlen
+
+
+      i = 1
+      n_strs = 0
+      strlen = 0
+      max_strlen = 1
+      PARSE_LOOP: do while (i <= len(string))
+         do while (string(i:i) == delimiter)
+            i = i + 1
+            if (i > len(string)) exit PARSE_LOOP
+         end do
+
+         n_strs = n_strs + 1
+         strlen = 0
+         do while (string(i:i) /= delimiter)
+            i = i + 1
+            strlen = strlen + 1
+            if (i > len(string)) exit
+         end do
+         max_strlen = max(strlen, max_strlen)
+      end do PARSE_LOOP
+
+      if (allocated(subStrings)) deallocate(subStrings)
+      allocate(character(len=max_strlen) :: subStrings(n_strs))
+
+      i = 1
+      n_strs = 0
+      COPY_LOOP: do while (i <= len(string))
+         do while (string(i:i) == delimiter)
+            i = i + 1
+            if (i > len(string)) exit COPY_LOOP
+         end do
+
+         n_strs = n_strs + 1
+         j = 1
+         do while (string(i:i) /= delimiter)
+            subStrings(n_strs)(j:j) = string(i:i)
+            i = i + 1
+            j = j + 1
+            if (i > len(string)) exit
+         end do
+         subStrings(n_strs)(j:max_strlen) = ''
+      end do COPY_LOOP
+
+   end subroutine mpas_split_string_new
 
 
 #include "setup_immutable_streams.inc"
