@@ -835,6 +835,15 @@ EXE_NAME=$(CORE)_model
 NAMELIST_SUFFIX=$(CORE)
 endif
 
+ifeq ($(NUOPC), true)
+ifneq ($(SUPPORTS_NUOPC_CAP),true)
+$(info ************ ERROR ************)
+$(info NUOPC build does not exist for the $(CORE) core.)
+$(info ************ ERROR ************)
+$(error Quitting.)
+endif
+endif
+
 override CPPFLAGS += -DMPAS_NAMELIST_SUFFIX=$(NAMELIST_SUFFIX)
 override CPPFLAGS += -DMPAS_EXE_NAME=$(EXE_NAME)
 
