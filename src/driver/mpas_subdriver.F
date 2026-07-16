@@ -280,7 +280,7 @@ module mpas_subdriver
          call mpas_log_write('Package setup failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
       end if
 
-      ierr = domain_ptr % core % setup_decompositions(domain_ptr % decompositions)
+      ierr = domain_ptr % core % setup_decompositions(domain_ptr % decompositions, domain_ptr % computed_dim_methods)
       if ( ierr /= 0 ) then
          call mpas_log_write('Decomposition setup failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
       end if

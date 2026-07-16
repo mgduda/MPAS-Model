@@ -35,10 +35,12 @@
    end interface
 
    abstract interface
-      function mpas_setup_decompositions_function(decompList) result(iErr)
+      function mpas_setup_decompositions_function(decompList, methodList) result(iErr)
          import mpas_decomp_list
+         import mpas_dim_size_fn_list
 
          type (mpas_decomp_list), pointer :: decompList
+         type (mpas_dim_size_fn_list), pointer :: methodList
          integer :: iErr
       end function mpas_setup_decompositions_function
    end interface

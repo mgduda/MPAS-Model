@@ -466,15 +466,17 @@ module init_atm_core_interface
    !>  domain type, and register any decompositons the core wants within it.
    !
    !-----------------------------------------------------------------------
-   function init_atm_setup_decompositions(decompList) result(ierr)
+   function init_atm_setup_decompositions(decompList, methodList) result(ierr)
 
-      use mpas_derived_types, only : mpas_decomp_list, mpas_decomp_function, MPAS_DECOMP_NOERR
+      use mpas_derived_types, only : mpas_decomp_list, mpas_decomp_function, MPAS_DECOMP_NOERR, &
+                                     mpas_dim_size_fn_list, mpas_computed_dim_size_function, MPAS_COMPUTED_DIM_NOERR
       use mpas_decomp, only : mpas_decomp_create_decomp_list, mpas_decomp_register_method, &
                               mpas_uniform_decomp 
 
       implicit none
 
       type (mpas_decomp_list), pointer :: decompList
+      type (mpas_dim_size_fn_list), pointer :: methodList
       integer :: ierr
 
       procedure (mpas_decomp_function), pointer :: decompFunc
