@@ -963,7 +963,7 @@ int parse_dimensions_from_registry(ezxml_t registry)/*{{{*/
 
 	fd = fopen("block_dimension_routines.inc", "w+");
 
-	fortprintf(fd, "   function %s_setup_derived_dimensions(readDimensions, dimensionPool, configPool) result(iErr)\n", core_string);
+	fortprintf(fd, "   function %s_setup_derived_dimensions(block, readDimensions, dimensionPool, configPool) result(iErr)\n", core_string);
 	fortprintf(fd, "\n");
 	fortprintf(fd, "      use mpas_derived_types\n");
 	fortprintf(fd, "      use mpas_pool_routines\n");
@@ -972,6 +972,7 @@ int parse_dimensions_from_registry(ezxml_t registry)/*{{{*/
 	fortprintf(fd, "\n");
 	fortprintf(fd, "      implicit none\n");
 	fortprintf(fd, "\n");
+	fortprintf(fd, "      type (block_type), intent(inout) :: block !< Input: Pointer to block\n");
 	fortprintf(fd, "      type (mpas_pool_type), intent(inout) :: readDimensions !< Input: Pool to pull read dimensions from\n");
 	fortprintf(fd, "      type (mpas_pool_type), intent(inout) :: configPool !< Input: Pool containing namelist options with configs\n");
 	fortprintf(fd, "      type (mpas_pool_type), intent(inout) :: dimensionPool !< Input/Output: Pool to add dimensions into\n");

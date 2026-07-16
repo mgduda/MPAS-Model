@@ -98,9 +98,11 @@
    end interface
 
    abstract interface
-      function mpas_setup_derived_dimensions_function(readDimensions, dimensionPool, configPool) result(iErr)
+      function mpas_setup_derived_dimensions_function(block, readDimensions, dimensionPool, configPool) result(iErr)
          import mpas_pool_type
+         import block_type
 
+         type (block_type), intent(inout) :: block
          type (mpas_pool_type), intent(inout) :: readDimensions
          type (mpas_pool_type), intent(inout) :: dimensionPool
          type (mpas_pool_type), intent(inout) :: configPool
