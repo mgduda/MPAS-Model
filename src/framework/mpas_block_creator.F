@@ -1265,7 +1265,7 @@ module mpas_block_creator
        end do
        call mpas_pool_set_error_level(err_level)
 
-       iErr = block_ptr % domain % core % setup_derived_dimensions(block_ptr, readableDimensions, block_ptr % dimensions, block_ptr % configs)
+       iErr = block_ptr % domain % core % setup_derived_dimensions(block_ptr, stream_manager, readableDimensions, block_ptr % dimensions, block_ptr % configs)
        if ( iErr /= 0 ) then
           call mpas_log_write('Derived dimension setup failed for core ' // trim(block_ptr % domain % core % coreName), MPAS_LOG_CRIT)
        end if

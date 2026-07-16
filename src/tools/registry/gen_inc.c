@@ -963,7 +963,7 @@ int parse_dimensions_from_registry(ezxml_t registry)/*{{{*/
 
 	fd = fopen("block_dimension_routines.inc", "w+");
 
-	fortprintf(fd, "   function %s_setup_derived_dimensions(block, readDimensions, dimensionPool, configPool) result(iErr)\n", core_string);
+	fortprintf(fd, "   function %s_setup_derived_dimensions(block, manager, readDimensions, dimensionPool, configPool) result(iErr)\n", core_string);
 	fortprintf(fd, "\n");
 	fortprintf(fd, "      use mpas_derived_types\n");
 	fortprintf(fd, "      use mpas_pool_routines\n");
@@ -974,6 +974,7 @@ int parse_dimensions_from_registry(ezxml_t registry)/*{{{*/
 	fortprintf(fd, "      implicit none\n");
 	fortprintf(fd, "\n");
 	fortprintf(fd, "      type (block_type), intent(inout) :: block !< Input: Pointer to block\n");
+	fortprintf(fd, "      type (mpas_streamManager_type), intent(inout) :: manager !< Input: Stream manager\n");
 	fortprintf(fd, "      type (mpas_pool_type), intent(inout) :: readDimensions !< Input: Pool to pull read dimensions from\n");
 	fortprintf(fd, "      type (mpas_pool_type), intent(inout) :: configPool !< Input: Pool containing namelist options with configs\n");
 	fortprintf(fd, "      type (mpas_pool_type), intent(inout) :: dimensionPool !< Input/Output: Pool to add dimensions into\n");
@@ -1126,8 +1127,8 @@ int parse_dimensions_from_registry(ezxml_t registry)/*{{{*/
 					fortprintf(fd, "call mpas_log_write('       %s = $i (%s)', intArgs=(/%s/))\n", dimname, option_name, option_name);
 				} else if(strncmp(dimdef, "function:", 9) == 0){
 					snprintf(option_name, 1024, "%s", (dimdef)+9);
-					fortprintf(fd, "         %s = %s_func(block)\n", dimname, option_name);
-					fortprintf(fd, "call mpas_log_write('       %s = $i (%s)', intArgs=(/%s_func(block)/))\n", dimname, option_name, option_name);
+					fortprintf(fd, "         %s = %s_func(block, manager)\n", dimname, option_name);
+					fortprintf(fd, "call mpas_log_write('       %s = $i (%s)', intArgs=(/%s_func(block, manager)/))\n", dimname, option_name, option_name);
 				} else {
 					fortprintf(fd, "         %s = %s\n", dimname, dimdef);
 					fortprintf(fd, "call mpas_log_write('       %s = $i', intArgs=(/%s/))\n", dimname, dimdef);
@@ -1141,7 +1142,7 @@ int parse_dimensions_from_registry(ezxml_t registry)/*{{{*/
 					fortprintf(fd, "         %s = %s\n", dimname, option_name);
 				} else if(strncmp(dimdef, "function:", 9) == 0){
 					snprintf(option_name, 1024, "%s", (dimdef)+9);
-					fortprintf(fd, "         %s = %s_func(block)\n", dimname, option_name);
+					fortprintf(fd, "         %s = %s_func(block, manager)\n", dimname, option_name);
 				} else {
 					fortprintf(fd, "         %s = %s\n", dimname, dimdef);
 				}

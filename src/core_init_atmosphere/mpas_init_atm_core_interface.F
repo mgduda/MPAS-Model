@@ -542,9 +542,10 @@ module init_atm_core_interface
    end function init_atm_setup_block
 
 
-   function cien(block) result(dim_size)
+   function cien(block, manager) result(dim_size)
 
       type (block_type), intent(in) :: block
+      type (mpas_streamManager_type), intent(inout) :: manager
 
       integer :: dim_size
 

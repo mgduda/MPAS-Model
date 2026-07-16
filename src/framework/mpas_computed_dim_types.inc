@@ -2,11 +2,12 @@
                          MPAS_COMPUTED_DIM_ERROR = -1
 
    abstract interface
-      function mpas_computed_dim_size_fn(block) result(dim_size)
+      function mpas_computed_dim_size_fn(block, manager) result(dim_size)
          import block_type
          import mpas_streamManager_type
 
          type (block_type), intent(in) :: block
+         type (mpas_streamManager_type), intent(inout) :: manager
          integer :: dim_size
       end function mpas_computed_dim_size_fn
    end interface
