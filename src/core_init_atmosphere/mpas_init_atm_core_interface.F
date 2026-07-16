@@ -469,9 +469,10 @@ module init_atm_core_interface
    function init_atm_setup_decompositions(decompList, methodList) result(ierr)
 
       use mpas_derived_types, only : mpas_decomp_list, mpas_decomp_function, MPAS_DECOMP_NOERR, &
-                                     mpas_dim_size_fn_list, mpas_computed_dim_size_function, MPAS_COMPUTED_DIM_NOERR
+                                     mpas_dim_size_fn_list, mpas_computed_dim_size_fn, MPAS_COMPUTED_DIM_NOERR
       use mpas_decomp, only : mpas_decomp_create_decomp_list, mpas_decomp_register_method, &
                               mpas_uniform_decomp 
+      use mpas_computed_dims, only : mpas_computed_dims_create_list, mpas_computed_dims_register_method
 
       implicit none
 
@@ -480,6 +481,7 @@ module init_atm_core_interface
       integer :: ierr
 
       procedure (mpas_decomp_function), pointer :: decompFunc
+      procedure (mpas_computed_dim_size_fn), pointer :: dimSizeFunc
 
       ierr = 0
 
@@ -491,6 +493,22 @@ module init_atm_core_interface
 
       if ( ierr == MPAS_DECOMP_NOERR ) then
          ierr = 0
+      else
+         ierr = 1
+         return
+      end if
+
+      call mpas_computed_dims_create_list(methodList)
+
+      dimSizeFunc => cien
+
+      call mpas_computed_dims_register_method(methodList, 'cien', dimSizeFunc, ierr)
+
+      if ( ierr == MPAS_COMPUTED_DIM_NOERR ) then
+         ierr = 0
+      else
+         ierr = 1
+         return
       end if
 
    end function init_atm_setup_decompositions
@@ -522,6 +540,17 @@ module init_atm_core_interface
       call init_atm_generate_structs(block, block % structs, block % dimensions, block % packages)
 
    end function init_atm_setup_block
+
+
+   function cien(block) result(dim_size)
+
+      type (block_type), intent(in) :: block
+
+      integer :: dim_size
+
+      dim_size = 100
+
+   end function cien
 
 
 #include "setup_immutable_streams.inc"

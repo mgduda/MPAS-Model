@@ -969,6 +969,7 @@ int parse_dimensions_from_registry(ezxml_t registry)/*{{{*/
 	fortprintf(fd, "      use mpas_pool_routines\n");
 	fortprintf(fd, "      use mpas_io_units\n");
 	fortprintf(fd, "      use mpas_log, only : mpas_log_write\n");
+	fortprintf(fd, "      use mpas_computed_dims\n");
 	fortprintf(fd, "\n");
 	fortprintf(fd, "      implicit none\n");
 	fortprintf(fd, "\n");
@@ -1028,6 +1029,26 @@ int parse_dimensions_from_registry(ezxml_t registry)/*{{{*/
 
 	fortprintf(fd, "\n");
 
+	// Define all function pointers that will be used
+	for (dims_xml = ezxml_child(registry, "dims"); dims_xml; dims_xml = dims_xml->next){
+		for (dim_xml = ezxml_child(dims_xml, "dim"); dim_xml; dim_xml = dim_xml->next){
+			dimname = ezxml_attr(dim_xml, "name");
+			dimdef = ezxml_attr(dim_xml, "definition");
+
+			if(dimdef != NULL){
+				/* Fuction-defined dimension */
+				if(strncmp(dimdef, "function:", 9) == 0){
+					snprintf(option_name, 1024, "%s", (dimdef)+9);
+					/* Need to define a variable to hold the namelist value */
+					/* First need to find the registry defined namlist option, so we can determine type: */
+					fortprintf(fd, "      procedure(mpas_computed_dim_size_fn), pointer :: %s_func\n", option_name);
+				}
+			}
+		}
+	}
+
+	fortprintf(fd, "\n");
+
 	fortprintf(fd, "      iErr = 0\n");
 	fortprintf(fd, "      errLevel = mpas_pool_get_error_level()\n");
 	fortprintf(fd, "      call mpas_pool_set_error_level(MPAS_POOL_SILENT)\n");
@@ -1047,6 +1068,26 @@ int parse_dimensions_from_registry(ezxml_t registry)/*{{{*/
 
 					fortprintf(fd, "      nullify(%s)\n", option_name);
 					fortprintf(fd, "      call mpas_pool_get_config(configPool, '%s', %s)\n", option_name, option_name);
+				}
+			}
+		}
+	}
+
+	fortprintf(fd, "\n");
+
+	/* Also, get all functions, so any derived dimensions can be properly defined based on them */
+	for (dims_xml = ezxml_child(registry, "dims"); dims_xml; dims_xml = dims_xml->next){
+		for (dim_xml = ezxml_child(dims_xml, "dim"); dim_xml; dim_xml = dim_xml->next){
+			dimname = ezxml_attr(dim_xml, "name");
+			dimdef = ezxml_attr(dim_xml, "definition");
+
+			if(dimdef != NULL){
+				/* Namelist defined dimension */
+				if(strncmp(dimdef, "function:", 9) == 0){
+					snprintf(option_name, 1024, "%s", (dimdef)+9);
+
+					fortprintf(fd, "      nullify(%s_func)\n", option_name);
+					fortprintf(fd, "      %s_func => mpas_computed_dims_get_method(block %% domain %% computed_dim_methods, '%s')\n", option_name, option_name);
 				}
 			}
 		}
@@ -1083,6 +1124,10 @@ int parse_dimensions_from_registry(ezxml_t registry)/*{{{*/
 					snprintf(option_name, 1024, "%s", (dimdef)+9);
 					fortprintf(fd, "         %s = %s\n", dimname, option_name);
 					fortprintf(fd, "call mpas_log_write('       %s = $i (%s)', intArgs=(/%s/))\n", dimname, option_name, option_name);
+				} else if(strncmp(dimdef, "function:", 9) == 0){
+					snprintf(option_name, 1024, "%s", (dimdef)+9);
+					fortprintf(fd, "         %s = %s_func(block)\n", dimname, option_name);
+					fortprintf(fd, "call mpas_log_write('       %s = $i (%s)', intArgs=(/%s_func(block)/))\n", dimname, option_name, option_name);
 				} else {
 					fortprintf(fd, "         %s = %s\n", dimname, dimdef);
 					fortprintf(fd, "call mpas_log_write('       %s = $i', intArgs=(/%s/))\n", dimname, dimdef);
@@ -1094,6 +1139,9 @@ int parse_dimensions_from_registry(ezxml_t registry)/*{{{*/
 				if(strncmp(dimdef, "namelist:", 9) == 0){
 					snprintf(option_name, 1024, "%s", (dimdef)+9);
 					fortprintf(fd, "         %s = %s\n", dimname, option_name);
+				} else if(strncmp(dimdef, "function:", 9) == 0){
+					snprintf(option_name, 1024, "%s", (dimdef)+9);
+					fortprintf(fd, "         %s = %s_func(block)\n", dimname, option_name);
 				} else {
 					fortprintf(fd, "         %s = %s\n", dimname, dimdef);
 				}

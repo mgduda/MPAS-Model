@@ -29,39 +29,45 @@ module mpas_computed_dims
 
    implicit none
 
-   contains
 
-#if 0
+contains
+
+
+   function three_hundred(block) result(dim_size)
+
+      type (block_type), intent(in) :: block
+
+      integer :: dim_size
+
+      dim_size = 300
+
+   end function three_hundred
+
+
 !-----------------------------------------------------------------------
-!  routine mpas_decomp_create_decomp_list
+!  routine mpas_computed_dims_create_list
 !
-!> \brief MPAS decomp list create routine
+!> \brief MPAS method list create routine
 !> \author Doug Jacobsen
 !> \date   03/11/2015
 !> \details
 !>  This routine creates a decomposition list.
 !
 !-----------------------------------------------------------------------
-   subroutine mpas_decomp_create_decomp_list(decompList)!{{{
-      type (mpas_decomp_list), pointer :: decompList
+   subroutine mpas_computed_dims_create_list(methodList)
+      type (mpas_dim_size_fn_list), pointer :: methodList
 
-      integer :: errLocal
+      DEBUG_WRITE('Creating computed dimensions list')
 
-      DECOMP_DEBUG_WRITE('* Creating decomposition list.')
-
-      if ( .not. associated(decompList) ) then
-         allocate(decompList)
-         decompList % decompName = ''
-         decompList % nameLen = -1
-         nullify(decompList % decompFunc)
-         nullify(decompList % next)
+      if ( .not. associated(methodList) ) then
+         allocate(methodList)
       end if
 
-   end subroutine!}}}
+   end subroutine mpas_computed_dims_create_list
 
 
 !-----------------------------------------------------------------------
-!  routine mpas_decomp_destroy_decomp_list
+!  routine mpas_computed_dims_destroy_list
 !
 !> \brief MPAS decomp list destruction routine
 !> \author Doug Jacobsen
@@ -70,27 +76,27 @@ module mpas_computed_dims
 !>  This routine destroys a decomposition list.
 !
 !-----------------------------------------------------------------------
-   subroutine mpas_decomp_destroy_decomp_list(decompList)!{{{
-      type (mpas_decomp_list), pointer :: decompList
+   subroutine mpas_computed_dims_destroy_list(methodList)
+      type (mpas_dim_size_fn_list), pointer :: methodList
 
-      type (mpas_decomp_list), pointer :: decompCursor
+      type (mpas_dim_size_fn_list), pointer :: methodCursor
 
-      DECOMP_DEBUG_WRITE('* Destroying decomposition list.')
+      DEBUG_WRITE('Destroying decomposition list')
 
-      do while (associated(decompList % next))
-         decompCursor => decompList % next
+      do while (associated(methodList % next))
+         methodCursor => methodList % next
 
-         if ( associated(decompCursor % next) ) then
-            decompList % next => decompCursor % next
+         if ( associated(methodCursor % next) ) then
+            methodList % next => methodCursor % next
          else
-            nullify(decompList % next)
+            nullify(methodList % next)
          end if
 
-         deallocate(decompCursor)
+         deallocate(methodCursor)
       end do
 
-      deallocate(decompList)
-   end subroutine mpas_decomp_destroy_decomp_list!}}}
+      deallocate(methodList)
+   end subroutine mpas_computed_dims_destroy_list
 
 
 !-----------------------------------------------------------------------
@@ -101,49 +107,49 @@ module mpas_computed_dims
 !> \date   03/11/2015
 !> \details
 !>  This routine registers a decomposition function in a decomposition list.
-!>  If present, the optional argument iErr is set to MPAS_DECOMP_ERROR if 
-!>  the function is already registered and to MPAS_DECOMP_NOERR otherwise.
+!>  If present, the optional argument iErr is set to MPAS_COMPUTED_DIM_ERROR if 
+!>  the function is already registered and to MPAS_COMPUTED_DIM_NOERR otherwise.
 !
 !-----------------------------------------------------------------------
-   subroutine mpas_decomp_register_method(decompList, decompName, decompFunc, iErr)!{{{
-      type (mpas_decomp_list), pointer :: decompList
-      character (len=*), intent(in) :: decompName
-      procedure (mpas_decomp_function), pointer :: decompFunc
+   subroutine mpas_computed_dims_register_method(methodList, methodName, methodFunc, iErr)
+      type (mpas_dim_size_fn_list), pointer :: methodList
+      character (len=*), intent(in) :: methodName
+      procedure (mpas_computed_dim_size_fn), pointer :: methodFunc
       integer, intent(out) :: iErr
 
-      type (mpas_decomp_list), pointer :: decompCursor
-      type (mpas_decomp_list), pointer :: decompCursorPrev
+      type (mpas_dim_size_fn_list), pointer :: methodCursor
+      type (mpas_dim_size_fn_list), pointer :: methodCursorPrev
       integer :: nameLen
 
-      iErr = MPAS_DECOMP_NOERR
+      iErr = MPAS_COMPUTED_DIM_NOERR
 
-      nameLen = len_trim(decompName)
+      nameLen = len_trim(methodName)
 
-      decompCursor => decompList
-      nullify(decompCursorPrev)
-      do while (associated(decompCursor))
-         if ( nameLen == decompCursor % nameLen ) then
-            if ( trim(decompName) == trim(decompCursor % decompName) ) then
-               DECOMP_DEBUG_WRITE('Decomposition ' // trim(decompName) // ' is already registered.')
-               iErr = MPAS_DECOMP_ERROR
+      methodCursor => methodList
+      nullify(methodCursorPrev)
+      do while (associated(methodCursor))
+         if ( nameLen == methodCursor % nameLen ) then
+            if ( trim(methodName) == trim(methodCursor % funcName) ) then
+               DEBUG_WRITE('Decomposition ' // trim(methodName) // ' is already registered.')
+               iErr = MPAS_COMPUTED_DIM_ERROR
                return
             end if
          end if
-         decompCursorPrev => decompCursor
-         decompCursor => decompCursor % next
+         methodCursorPrev => methodCursor
+         methodCursor => methodCursor % next
       end do
 
-      decompCursor => decompCursorPrev
+      methodCursor => methodCursorPrev
 
-      DECOMP_DEBUG_WRITE('* Registering decomposition '//trim(decompName))
+      DEBUG_WRITE('* Registering decomposition '//trim(methodName))
 
-      allocate(decompCursor % next)
-      decompCursor => decompCursor % next
-      decompCursor % decompName = decompName
-      decompCursor % decompFunc => decompFunc
-      decompCursor % nameLen = nameLen
-      nullify(decompCursor % next)
-   end subroutine mpas_decomp_register_method!}}}
+      allocate(methodCursor % next)
+      methodCursor => methodCursor % next
+      methodCursor % funcName = methodName
+      methodCursor % dimSizeFunc => methodFunc
+      methodCursor % nameLen = nameLen
+      nullify(methodCursor % next)
+   end subroutine mpas_computed_dims_register_method
 
 
 !-----------------------------------------------------------------------
@@ -154,39 +160,45 @@ module mpas_computed_dims
 !> \date   03/11/2015
 !> \details
 !>  This routine querys a decomposition list for a specific decomposition function.
-!>  If present, the optional argument iErr is set to MPAS_DECOMP_ERROR if 
-!>  the requested function is not found and to MPAS_DECOMP_NOERR otherwise.
+!>  If present, the optional argument iErr is set to MPAS_COMPUTED_DIM_ERROR if 
+!>  the requested function is not found and to MPAS_COMPUTED_DIM_NOERR otherwise.
 !
 !-----------------------------------------------------------------------
-   subroutine mpas_decomp_get_method(decompList, decompName, decompFunc, iErr)!{{{
-      type (mpas_decomp_list), pointer :: decompList
-      character (len=*), intent(in) :: decompName
-      procedure (mpas_decomp_function), pointer :: decompFunc
-      integer, intent(out) :: iErr
+   function mpas_computed_dims_get_method(methodFuncList, methodName) result(method)
 
-      type (mpas_decomp_list), pointer :: decompCursor
+      ! Arguments
+      type (mpas_dim_size_fn_list), pointer :: methodFuncList
+      character(len=*), intent(in) :: methodName
+
+      ! Return value
+      procedure(mpas_computed_dim_size_fn), pointer :: method
+
+      ! Local variables
+      type (mpas_dim_size_fn_list), pointer :: methodCursor
       integer :: nameLen
 
-      iErr = MPAS_DECOMP_NOERR
+!      method => three_hundred
 
-      nameLen = len_trim(decompName)
+!      iErr = MPAS_COMPUTED_DIM_NOERR
 
-      decompCursor => decompList
-      do while (associated(decompCursor))
-         if ( nameLen == decompCursor % nameLen ) then
-            if ( trim(decompCursor % decompName) == trim(decompName) ) then
-               DECOMP_DEBUG_WRITE('* Returning decomposition '//trim(decompName))
-               decompFunc => decompCursor % decompFunc
+      nameLen = len_trim(methodName)
+
+      methodCursor => methodFuncList
+      do while (associated(methodCursor))
+         if ( nameLen == methodCursor % nameLen ) then
+            if ( trim(methodCursor % funcName) == trim(methodName) ) then
+               DEBUG_WRITE('Returning method '//trim(methodName))
+               method => methodCursor % dimSizeFunc
                return
             end if
          end if
-         decompCursor => decompCursor % next
+         methodCursor => methodCursor % next
       end do
 
-      iErr = MPAS_DECOMP_ERROR
-      DECOMP_DEBUG_WRITE('Decomposition '//trim(decompName)//' not found in decomposition list.')
+!      iErr = MPAS_COMPUTED_DIM_ERROR
+!      DEBUG_WRITE('Decomposition '//trim(methodName)//' not found in decomposition list.')
 
-   end subroutine mpas_decomp_get_method!}}}
+   end function mpas_computed_dims_get_method
 
 
 !-----------------------------------------------------------------------
@@ -199,83 +211,38 @@ module mpas_computed_dims
 !>  This routine removes a specific decomposition function from a  decomposition list.
 !
 !-----------------------------------------------------------------------
-   subroutine mpas_decomp_remove_method(decompList, decompName, iErr)!{{{
-      type (mpas_decomp_list), pointer :: decompList
-      character (len=*), intent(in) :: decompName
+   subroutine mpas_computed_dims_remove_method(methodList, methodName, iErr)
+      type (mpas_dim_size_fn_list), pointer :: methodList
+      character (len=*), intent(in) :: methodName
       integer, intent(out) :: iErr
 
       integer :: nameLen
-      type (mpas_decomp_list), pointer :: decompCursor, decompCursorPrev
+      type (mpas_dim_size_fn_list), pointer :: methodCursor, methodCursorPrev
 
-      iErr = MPAS_DECOMP_NOERR
+      iErr = MPAS_COMPUTED_DIM_NOERR
 
-      nameLen = len_trim(decompName)
+      nameLen = len_trim(methodName)
 
-      decompCursor => decompList
-      nullify(decompCursorPrev)
-      do while (associated(decompCursor))
-         if ( nameLen == decompCursor % nameLen ) then
-            if ( trim(decompCursor % decompName) == trim(decompName) ) then
-               DECOMP_DEBUG_WRITE('* Removing decomposition '//trim(decompName))
+      methodCursor => methodList
+      nullify(methodCursorPrev)
+      do while (associated(methodCursor))
+         if ( nameLen == methodCursor % nameLen ) then
+            if ( trim(methodCursor % funcName) == trim(methodName) ) then
+               DEBUG_WRITE('* Removing methodosition '//trim(methodName))
 
-               if ( associated(decompCursor % next) ) then
-                  decompCursorPrev % next => decompCursor % next
+               if ( associated(methodCursor % next) ) then
+                  methodCursorPrev % next => methodCursor % next
                else
-                  nullify(decompCursorPrev % next)
+                  nullify(methodCursorPrev % next)
                end if
 
-               deallocate(decompCursor)
+               deallocate(methodCursor)
                return
             end if
          end if
-         decompCursorPrev => decompCursor
-         decompCursor => decompCursor % next
+         methodCursorPrev => methodCursor
+         methodCursor => methodCursor % next
       end do
-   end subroutine mpas_decomp_remove_method!}}}
-
-
-!-----------------------------------------------------------------------
-!  function mpas_uniform_decomp
-!
-!> \brief MPAS uniform decomposition function
-!> \author Doug Jacobsen
-!> \date   03/11/2015
-!> \details
-!>  This function provides the owned indices for a uniform decomposition method.
-!
-!-----------------------------------------------------------------------
-   function mpas_uniform_decomp(block, manager, globalDimSize, numBlocks, ownedIndices) result(iErr)!{{{
-      type (block_type), intent(in) :: block
-      type (mpas_streamManager_type), intent(inout) :: manager
-      integer, intent(in) :: globalDimSize
-      integer, intent(in) :: numBlocks
-
-      integer, dimension(:), pointer :: ownedIndices
-
-      integer :: iErr
-
-      integer :: blockDimSize, blockStart, i
-
-      iErr = 0
-
-      DECOMP_DEBUG_WRITE('* Providing a uniform decomposition')
-
-      blockDimSize = globalDimSize / numBlocks
-      if ( block % blockID < mod(globalDimSize, numBlocks) ) then
-         blockDimSize = blockDimSize + 1
-      end if
-
-      blockStart = block % blockID * blockDimSize
-      if ( block % blockID >= mod(globalDimSize, numBlocks) ) then
-         blockStart = blockStart + mod(globalDimSize, numBlocks)
-      end if
-
-      allocate(ownedIndices(blockDimSize))
-      do i = 1, blockDimSize
-         ownedIndices(i) = blockStart + i
-      end do
-
-   end function mpas_uniform_decomp!}}}
-#endif
+   end subroutine mpas_computed_dims_remove_method
 
 end module mpas_computed_dims
