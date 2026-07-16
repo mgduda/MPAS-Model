@@ -171,10 +171,12 @@ int validate_reg_xml(ezxml_t registry)/*{{{*/
 			}
 
 			if (dimdef != NULL){
+#if 0
 				if ( dimdecomp != NULL ) {
 					fprintf(stderr, "ERROR: Dimension %s cannot have a decomposition and a definition attribute.\n", dimname);
 					return 1;
 				}
+#endif
 				if (strncmp(dimdef, "namelist:", 9) == 0){
 					found = 0;
 					snprintf(name_holder, 1024, "%s",dimdef);

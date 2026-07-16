@@ -1163,7 +1163,7 @@ int parse_dimensions_from_registry(ezxml_t registry)/*{{{*/
 			dimdecomp = ezxml_attr(dim_xml, "decomposition");
 
 			if ( dimdecomp != NULL && strcmp(dimdecomp, "none") != 0 ) {
-				fortprintf(fd, "      call mpas_pool_get_dimension(readDimensions, '%s', %s)\n", dimname, dimname);
+				fortprintf(fd, "      call mpas_pool_get_dimension(dimensionPool, '%s', %s)\n", dimname, dimname);
 				fortprintf(fd, "      if ( .not. associated(%s)) then\n", dimname);
 				fortprintf(fd, "         call mpas_log_write('Dimension ''%s'' was not defined, and cannot be decomposed.', MPAS_LOG_WARN)\n", dimname);
 				fortprintf(fd, "      else\n");
