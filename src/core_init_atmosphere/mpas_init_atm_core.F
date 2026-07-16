@@ -34,6 +34,9 @@ module init_atm_core
       real (kind=RKIND), pointer :: sphere_radius
       integer :: ierr
 
+      integer, pointer :: nBdyCells
+      integer, dimension(:), pointer :: bdyParentCellID
+
 
       ierr = 0
 
@@ -46,6 +49,12 @@ module init_atm_core
          call mpas_pool_get_array(state, 'initial_time', initial_time)
          call mpas_pool_get_config(mesh, 'sphere_radius', sphere_radius)
          call mpas_pool_get_config(block % configs, 'config_start_time', config_start_time)
+
+         call mpas_pool_get_dimension(mesh, 'nBdyCells', nBdyCells)
+         call mpas_log_write('MGD nBdyCells = $i', intArgs=[nBdyCells])
+
+         call mpas_pool_get_array(mesh, 'bdyParentCellID', bdyParentCellID)
+         bdyParentCellID(:) = block % domain % dminfo % my_proc_id
 
          startTimeStamp = config_start_time
          xtime = config_start_time
