@@ -591,16 +591,16 @@ module init_atm_core_interface
       character(len=StrKIND) :: mesh_stream, mesh_filename
       type (MPAS_streamInfo_type) :: streamInfo
 
-      integer, pointer :: nCellsSolve
+      integer, pointer :: nElemsSolve
 
-      integer, dimension(:), pointer :: indexToCellID
-      integer, dimension(:), pointer :: bdyMaskCell
+      integer, dimension(:), pointer :: indexToElemID
+      integer, dimension(:), pointer :: bdyMaskElem
       integer :: fieldtype
 
       type (MPAS_IO_Handle_type) :: handle
 
-      integer :: iCell
-      integer :: nBdyCells_local, nBdyCells
+      integer :: iElem
+      integer :: nBdyElems_local, nBdyElems
 
 
       ierr = init_atm_get_mesh_stream(block % configs, streamInfo, mesh_stream)
@@ -610,24 +610,24 @@ module init_atm_core_interface
       call mpas_log_write('Mesh filename is '//trim(mesh_filename))
 
 
-      nullify(indexToCellID)
-      call mpas_pool_get_array(block % allFields, 'indexTo'//elemType//'ID_blk', indexToCellID)
+      nullify(indexToElemID)
+      call mpas_pool_get_array(block % allFields, 'indexTo'//elemType//'ID_blk', indexToElemID)
 
-      nullify(nCellsSolve)
-      call mpas_pool_get_dimension(block % dimensions, 'n'//elemTypePlural//'Solve', nCellsSolve)
+      nullify(nElemsSolve)
+      call mpas_pool_get_dimension(block % dimensions, 'n'//elemTypePlural//'Solve', nElemsSolve)
 
-      if (associated(nCellsSolve)) then
-          call mpas_log_write('Found nCellsSolve $i', intArgs=[nCellsSolve])
+      if (associated(nElemsSolve)) then
+          call mpas_log_write('Found nElemsSolve $i', intArgs=[nElemsSolve])
       else
-          call mpas_log_write('Could not find nCellsSolve')
+          call mpas_log_write('Could not find nElemsSolve')
       end if
 
-      allocate(bdyMaskCell(nCellsSolve))
+      allocate(bdyMaskElem(nElemsSolve))
 
-      if (associated(indexToCellID)) then
-          call mpas_log_write('Found indexToCellID')
+      if (associated(indexToElemID)) then
+          call mpas_log_write('Found indexToElemID')
       else
-          call mpas_log_write('Could not find indexToCellID')
+          call mpas_log_write('Could not find indexToElemID')
       end if
 
       handle = MPAS_io_open(trim(mesh_filename), MPAS_IO_READ, MPAS_IO_NETCDF, manager % ioContext, ierr=ierr)
@@ -639,23 +639,23 @@ module init_atm_core_interface
 
       call MPAS_io_inq_var(handle, 'bdyMask'//elemType, fieldtype=fieldtype, ierr=ierr)
       if (ierr /= MPAS_IO_NOERR) then
-          call mpas_log_write('MGD  - Error inquiring about bdyMaskCell', messageType=MPAS_LOG_ERR)
+          call mpas_log_write('MGD  - Error inquiring about bdyMaskElem', messageType=MPAS_LOG_ERR)
       else
-          call mpas_log_write('MGD - OK inquiring about bdyMaskCell')
+          call mpas_log_write('MGD - OK inquiring about bdyMaskElem')
       end if
 
-      call MPAS_io_set_var_indices(handle, 'bdyMask'//elemType, indexToCellID(1:nCellsSolve), ierr)
+      call MPAS_io_set_var_indices(handle, 'bdyMask'//elemType, indexToElemID(1:nElemsSolve), ierr)
       if (ierr /= MPAS_IO_NOERR) then
           call mpas_log_write('MGD  - Error setting indices', messageType=MPAS_LOG_ERR)
       else
           call mpas_log_write('MGD - OK setting indices')
       end if
 
-      call MPAS_io_get_var(handle, 'bdyMask'//elemType, bdyMaskCell, ierr=ierr)
+      call MPAS_io_get_var(handle, 'bdyMask'//elemType, bdyMaskElem, ierr=ierr)
       if (ierr /= MPAS_IO_NOERR) then
-          call mpas_log_write('MGD  - Error reading bdyMaskCell', messageType=MPAS_LOG_ERR)
+          call mpas_log_write('MGD  - Error reading bdyMaskElem', messageType=MPAS_LOG_ERR)
       else
-          call mpas_log_write('MGD - OK reading bdyMaskCell')
+          call mpas_log_write('MGD - OK reading bdyMaskElem')
       end if
 
       call MPAS_io_close(handle)
@@ -665,20 +665,20 @@ module init_atm_core_interface
           call mpas_log_write('MGD - OK closing '//trim(mesh_filename))
       end if
 
-      call mpas_log_write('Min/max bdyMaskCell=$i $i', intArgs=[minval(bdyMaskCell), maxval(bdyMaskCell)])
+      call mpas_log_write('Min/max bdyMaskElem=$i $i', intArgs=[minval(bdyMaskElem), maxval(bdyMaskElem)])
 
-      nBdyCells_local = 0
-      do iCell = 1, nCellsSolve
-          if (bdyMaskCell(iCell) > 0) nBdyCells_local = nBdyCells_local + 1
+      nBdyElems_local = 0
+      do iElem = 1, nElemsSolve
+          if (bdyMaskElem(iElem) > 0) nBdyElems_local = nBdyElems_local + 1
       end do
 
-      call mpas_dmpar_sum_int(block % domain % dminfo, nBdyCells_local, nBdyCells)
+      call mpas_dmpar_sum_int(block % domain % dminfo, nBdyElems_local, nBdyElems)
 
-      call mpas_log_write('nBdyCells = $i', intArgs=[nBdyCells])
+      call mpas_log_write('nBdyElems = $i', intArgs=[nBdyElems])
 
-      deallocate(bdyMaskCell)
+      deallocate(bdyMaskElem)
 
-      dim_size = nBdyCells
+      dim_size = nBdyElems
 
    end function num_boundary_elems
 
@@ -745,16 +745,16 @@ module init_atm_core_interface
       character(len=StrKIND) :: mesh_stream, mesh_filename
       type (MPAS_streamInfo_type) :: streamInfo
 
-      integer, pointer :: nCellsSolve
+      integer, pointer :: nElemsSolve
 
-      integer, dimension(:), pointer :: indexToCellID
-      integer, dimension(:), pointer :: bdyMaskCell
+      integer, dimension(:), pointer :: indexToElemID
+      integer, dimension(:), pointer :: bdyMaskElem
       integer :: fieldtype
 
       type (MPAS_IO_Handle_type) :: handle
 
-      integer :: iCell
-      integer :: nBdyCells_local, nBdyCells
+      integer :: iElem
+      integer :: nBdyElems_local, nBdyElems
 
       type (MPI_Comm) :: comm
       type (MPI_Request) :: req
@@ -777,24 +777,24 @@ module init_atm_core_interface
       call mpas_log_write('Mesh filename is '//trim(mesh_filename))
 
 
-      nullify(indexToCellID)
-      call mpas_pool_get_array(block % allFields, 'indexTo'//elemType//'ID_blk', indexToCellID)
+      nullify(indexToElemID)
+      call mpas_pool_get_array(block % allFields, 'indexTo'//elemType//'ID_blk', indexToElemID)
 
-      nullify(nCellsSolve)
-      call mpas_pool_get_dimension(block % dimensions, 'n'//elemTypePlural//'Solve', nCellsSolve)
+      nullify(nElemsSolve)
+      call mpas_pool_get_dimension(block % dimensions, 'n'//elemTypePlural//'Solve', nElemsSolve)
 
-      if (associated(nCellsSolve)) then
-          call mpas_log_write('Found nCellsSolve $i', intArgs=[nCellsSolve])
+      if (associated(nElemsSolve)) then
+          call mpas_log_write('Found nElemsSolve $i', intArgs=[nElemsSolve])
       else
-          call mpas_log_write('Could not find nCellsSolve')
+          call mpas_log_write('Could not find nElemsSolve')
       end if
 
-      allocate(bdyMaskCell(nCellsSolve))
+      allocate(bdyMaskElem(nElemsSolve))
 
-      if (associated(indexToCellID)) then
-          call mpas_log_write('Found indexToCellID')
+      if (associated(indexToElemID)) then
+          call mpas_log_write('Found indexToElemID')
       else
-          call mpas_log_write('Could not find indexToCellID')
+          call mpas_log_write('Could not find indexToElemID')
       end if
 
       handle = MPAS_io_open(trim(mesh_filename), MPAS_IO_READ, MPAS_IO_NETCDF, manager % ioContext, ierr=ierr)
@@ -806,23 +806,23 @@ module init_atm_core_interface
 
       call MPAS_io_inq_var(handle, 'bdyMask'//elemtype, fieldtype=fieldtype, ierr=ierr)
       if (ierr /= MPAS_IO_NOERR) then
-          call mpas_log_write('MGD  - Error inquiring about bdyMaskCell', messageType=MPAS_LOG_ERR)
+          call mpas_log_write('MGD  - Error inquiring about bdyMaskElem', messageType=MPAS_LOG_ERR)
       else
-          call mpas_log_write('MGD - OK inquiring about bdyMaskCell')
+          call mpas_log_write('MGD - OK inquiring about bdyMaskElem')
       end if
 
-      call MPAS_io_set_var_indices(handle, 'bdyMask'//elemType, indexToCellID(1:nCellsSolve), ierr)
+      call MPAS_io_set_var_indices(handle, 'bdyMask'//elemType, indexToElemID(1:nElemsSolve), ierr)
       if (ierr /= MPAS_IO_NOERR) then
           call mpas_log_write('MGD  - Error setting indices', messageType=MPAS_LOG_ERR)
       else
           call mpas_log_write('MGD - OK setting indices')
       end if
 
-      call MPAS_io_get_var(handle, 'bdyMask'//elemType, bdyMaskCell, ierr=ierr)
+      call MPAS_io_get_var(handle, 'bdyMask'//elemType, bdyMaskElem, ierr=ierr)
       if (ierr /= MPAS_IO_NOERR) then
-          call mpas_log_write('MGD  - Error reading bdyMaskCell', messageType=MPAS_LOG_ERR)
+          call mpas_log_write('MGD  - Error reading bdyMaskElem', messageType=MPAS_LOG_ERR)
       else
-          call mpas_log_write('MGD - OK reading bdyMaskCell')
+          call mpas_log_write('MGD - OK reading bdyMaskElem')
       end if
 
       call MPAS_io_close(handle)
@@ -832,19 +832,19 @@ module init_atm_core_interface
           call mpas_log_write('MGD - OK closing '//trim(mesh_filename))
       end if
 
-      call mpas_log_write('Again, Min/max bdyMaskCell=$i $i', intArgs=[minval(bdyMaskCell), maxval(bdyMaskCell)])
+      call mpas_log_write('Again, Min/max bdyMaskElem=$i $i', intArgs=[minval(bdyMaskElem), maxval(bdyMaskElem)])
 
-      nBdyCells = 0
-      do iCell = 1, nCellsSolve
-          if (bdyMaskCell(iCell) > 0) nBdyCells = nBdyCells + 1
+      nBdyElems = 0
+      do iElem = 1, nElemsSolve
+          if (bdyMaskElem(iElem) > 0) nBdyElems = nBdyElems + 1
       end do
 
-!      call mpas_dmpar_sum_int(block % domain % dminfo, nBdyCells_local, nBdyCells)
+!      call mpas_dmpar_sum_int(block % domain % dminfo, nBdyElems_local, nBdyElems)
 
-      if (nBdyCells > 0) then
-          call mpas_log_write('Again, nBdyCells = $i', intArgs=[nBdyCells])
+      if (nBdyElems > 0) then
+          call mpas_log_write('Again, nBdyElems = $i', intArgs=[nBdyElems])
       else
-          call mpas_log_write('No boundary cells')
+          call mpas_log_write('No boundary Elems')
       end if
 
       comm = block % domain % dminfo % comm
@@ -863,11 +863,11 @@ module init_atm_core_interface
           call mpas_log_write('myRank = $i', intArgs=[myRank])
       end if
 
-      allocate(temp(2,nBdyCells))
+      allocate(temp(2,nBdyElems))
       i = 1
-      do iCell = 1, nCellsSolve
-          if (bdyMaskCell(iCell) > 0) then
-              temp(1,i) = indexToCellID(iCell)
+      do iElem = 1, nElemsSolve
+          if (bdyMaskElem(iElem) > 0) then
+              temp(1,i) = indexToElemID(iElem)
               i = i + 1
           end if
       end do
@@ -876,19 +876,19 @@ module init_atm_core_interface
 !    write(0,*) temp(1,:)
 !end if
 
-      call mpas_quicksort(nBdyCells, temp)
+      call mpas_quicksort(nBdyElems, temp)
 
 !if (myRank == 27) then
 !    write(0,*) temp(1,:)
 !end if
 
-      do iCell = 1, nBdyCells
-          temp(2,iCell) = iCell
+      do iElem = 1, nBdyElems
+          temp(2,iElem) = iElem
       end do
 
       srcRank = mod(myRank + nRanks - 1, nRanks)
       dstRank = mod(myRank + 1, nRanks)
-      n = nBdyCells
+      n = nBdyElems
       allocate(bdyIDs(n))
 
       bdyIDs(:) = temp(1,:)
@@ -924,7 +924,7 @@ module init_atm_core_interface
           n = n_next
 
           do j = 1, n
-              do k = nBdyCells, 1, -1
+              do k = nBdyElems, 1, -1
                   if (bdyIDs(j) < temp(1,k)) then
                       temp(2,k) = temp(2,k) + 1
                   else
@@ -936,15 +936,15 @@ module init_atm_core_interface
       end do
       deallocate(bdyIDs)
 
-!      do k = 1, nBdyCells
+!      do k = 1, nBdyElems
 !          call mpas_log_write('BC $i', intArgs=[temp(2,k)])
 !      end do
 
-      allocate(ownedIndices(nBdyCells))
+      allocate(ownedIndices(nBdyElems))
       ownedIndices(:) = temp(2,:)
 
       deallocate(temp)
-      deallocate(bdyMaskCell)
+      deallocate(bdyMaskElem)
 
    end function boundary_elems
 
