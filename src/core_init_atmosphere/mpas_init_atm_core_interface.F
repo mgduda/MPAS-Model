@@ -489,6 +489,9 @@ module init_atm_core_interface
       decompFunc => boundary_cells
       call mpas_decomp_register_method(decompList, 'boundary_cells', decompFunc, ierr)
 
+      decompFunc => boundary_edges
+      call mpas_decomp_register_method(decompList, 'boundary_edges', decompFunc, ierr)
+
       if ( ierr == MPAS_DECOMP_NOERR ) then
          ierr = 0
       else
@@ -499,8 +502,10 @@ module init_atm_core_interface
       call mpas_computed_dims_create_list(methodList)
 
       dimSizeFunc => num_boundary_cells
-
       call mpas_computed_dims_register_method(methodList, 'num_boundary_cells', dimSizeFunc, ierr)
+
+      dimSizeFunc => num_boundary_edges
+      call mpas_computed_dims_register_method(methodList, 'num_boundary_edges', dimSizeFunc, ierr)
 
       if ( ierr == MPAS_COMPUTED_DIM_NOERR ) then
          ierr = 0
@@ -550,6 +555,38 @@ module init_atm_core_interface
 
       integer :: dim_size
 
+      dim_size = num_boundary_elems(block, manager, 'Cell', 'Cells')
+
+   end function num_boundary_cells
+
+
+   function num_boundary_edges(block, manager) result(dim_size)
+
+      use mpas_stream_manager, only : MPAS_get_stream_filename
+      use mpas_io_streams
+
+      type (block_type), intent(in) :: block
+      type (mpas_streamManager_type), intent(inout) :: manager
+
+      integer :: dim_size
+
+      dim_size = num_boundary_elems(block, manager, 'Edge', 'Edges')
+
+   end function num_boundary_edges
+
+
+   function num_boundary_elems(block, manager, elemType, elemTypePlural) result(dim_size)
+
+      use mpas_stream_manager, only : MPAS_get_stream_filename
+      use mpas_io_streams
+
+      type (block_type), intent(in) :: block
+      type (mpas_streamManager_type), intent(inout) :: manager
+      character(len=*), intent(in) :: elemType
+      character(len=*), intent(in) :: elemTypePlural
+
+      integer :: dim_size
+
       integer :: ierr
       character(len=StrKIND) :: mesh_stream, mesh_filename
       type (MPAS_streamInfo_type) :: streamInfo
@@ -574,10 +611,10 @@ module init_atm_core_interface
 
 
       nullify(indexToCellID)
-      call mpas_pool_get_array(block % allFields, 'indexToCellID_blk', indexToCellID)
+      call mpas_pool_get_array(block % allFields, 'indexTo'//elemType//'ID_blk', indexToCellID)
 
       nullify(nCellsSolve)
-      call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', nCellsSolve)
+      call mpas_pool_get_dimension(block % dimensions, 'n'//elemTypePlural//'Solve', nCellsSolve)
 
       if (associated(nCellsSolve)) then
           call mpas_log_write('Found nCellsSolve $i', intArgs=[nCellsSolve])
@@ -600,21 +637,21 @@ module init_atm_core_interface
           call mpas_log_write('MGD - OK opening '//trim(mesh_filename))
       end if
 
-      call MPAS_io_inq_var(handle, 'bdyMaskCell', fieldtype=fieldtype, ierr=ierr)
+      call MPAS_io_inq_var(handle, 'bdyMask'//elemType, fieldtype=fieldtype, ierr=ierr)
       if (ierr /= MPAS_IO_NOERR) then
           call mpas_log_write('MGD  - Error inquiring about bdyMaskCell', messageType=MPAS_LOG_ERR)
       else
           call mpas_log_write('MGD - OK inquiring about bdyMaskCell')
       end if
 
-      call MPAS_io_set_var_indices(handle, 'bdyMaskCell', indexToCellID(1:nCellsSolve), ierr)
+      call MPAS_io_set_var_indices(handle, 'bdyMask'//elemType, indexToCellID(1:nCellsSolve), ierr)
       if (ierr /= MPAS_IO_NOERR) then
           call mpas_log_write('MGD  - Error setting indices', messageType=MPAS_LOG_ERR)
       else
           call mpas_log_write('MGD - OK setting indices')
       end if
 
-      call MPAS_io_get_var(handle, 'bdyMaskCell', bdyMaskCell, ierr=ierr)
+      call MPAS_io_get_var(handle, 'bdyMask'//elemType, bdyMaskCell, ierr=ierr)
       if (ierr /= MPAS_IO_NOERR) then
           call mpas_log_write('MGD  - Error reading bdyMaskCell', messageType=MPAS_LOG_ERR)
       else
@@ -643,7 +680,7 @@ module init_atm_core_interface
 
       dim_size = nBdyCells
 
-   end function num_boundary_cells
+   end function num_boundary_elems
 
 
    function boundary_cells(block, manager, globalDimSize, numBlocks, ownedIndices) result(iErr)
@@ -662,9 +699,49 @@ module init_atm_core_interface
 
       integer :: iErr
       
-      integer :: blockDimSize, blockStart, i
+      iErr = boundary_elems(block, manager, globalDimSize, numBlocks, ownedIndices, 'Cell', 'Cells')
 
-!-------------------------------------------------------------------------------
+   end function boundary_cells
+
+
+   function boundary_edges(block, manager, globalDimSize, numBlocks, ownedIndices) result(iErr)
+
+      use mpas_stream_manager, only : MPAS_get_stream_filename
+      use mpas_io_streams
+      use mpi_f08
+      use mpas_sort
+
+      type (block_type), intent(in) :: block
+      type (mpas_streamManager_type), intent(inout) :: manager
+      integer, intent(in) :: globalDimSize
+      integer, intent(in) :: numBlocks
+
+      integer, dimension(:), pointer :: ownedIndices
+
+      integer :: iErr
+      
+      iErr = boundary_elems(block, manager, globalDimSize, numBlocks, ownedIndices, 'Edge', 'Edges')
+
+   end function boundary_edges
+
+
+   function boundary_elems(block, manager, globalDimSize, numBlocks, ownedIndices, elemType, elemTypePlural) result(iErr)
+
+      use mpas_stream_manager, only : MPAS_get_stream_filename
+      use mpas_io_streams
+      use mpi_f08
+      use mpas_sort
+
+      type (block_type), intent(in) :: block
+      type (mpas_streamManager_type), intent(inout) :: manager
+      integer, intent(in) :: globalDimSize
+      integer, intent(in) :: numBlocks
+      integer, dimension(:), pointer :: ownedIndices
+      character(len=*), intent(in) :: elemType
+      character(len=*), intent(in) :: elemTypePlural
+
+      integer :: iErr
+      
       character(len=StrKIND) :: mesh_stream, mesh_filename
       type (MPAS_streamInfo_type) :: streamInfo
 
@@ -685,34 +762,14 @@ module init_atm_core_interface
 
       integer, dimension(:,:), allocatable :: temp
 
-      integer :: j, k
+      integer :: i, j, k
       integer :: n, n_next
       integer, dimension(:), pointer :: bdyIDs, bdyIDs_next
       integer :: srcRank, dstRank
 
-!-------------------------------------------------------------------------------
-
 
       iErr = 0
       
-#if 0
-      blockDimSize = globalDimSize / numBlocks
-      if ( block % blockID < mod(globalDimSize, numBlocks) ) then
-         blockDimSize = blockDimSize + 1
-      end if
-
-      blockStart = block % blockID * blockDimSize
-      if ( block % blockID >= mod(globalDimSize, numBlocks) ) then
-         blockStart = blockStart + mod(globalDimSize, numBlocks)
-      end if
-
-      allocate(ownedIndices(blockDimSize))
-      do i = 1, blockDimSize
-         ownedIndices(i) = blockStart + i
-      end do
-#endif
-
-!-------------------------------------------------------------------------------
       ierr = init_atm_get_mesh_stream(block % configs, streamInfo, mesh_stream)
       call mpas_log_write('Mesh stream is '//trim(mesh_stream))
 
@@ -721,10 +778,10 @@ module init_atm_core_interface
 
 
       nullify(indexToCellID)
-      call mpas_pool_get_array(block % allFields, 'indexToCellID_blk', indexToCellID)
+      call mpas_pool_get_array(block % allFields, 'indexTo'//elemType//'ID_blk', indexToCellID)
 
       nullify(nCellsSolve)
-      call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', nCellsSolve)
+      call mpas_pool_get_dimension(block % dimensions, 'n'//elemTypePlural//'Solve', nCellsSolve)
 
       if (associated(nCellsSolve)) then
           call mpas_log_write('Found nCellsSolve $i', intArgs=[nCellsSolve])
@@ -747,21 +804,21 @@ module init_atm_core_interface
           call mpas_log_write('MGD - OK opening '//trim(mesh_filename))
       end if
 
-      call MPAS_io_inq_var(handle, 'bdyMaskCell', fieldtype=fieldtype, ierr=ierr)
+      call MPAS_io_inq_var(handle, 'bdyMask'//elemtype, fieldtype=fieldtype, ierr=ierr)
       if (ierr /= MPAS_IO_NOERR) then
           call mpas_log_write('MGD  - Error inquiring about bdyMaskCell', messageType=MPAS_LOG_ERR)
       else
           call mpas_log_write('MGD - OK inquiring about bdyMaskCell')
       end if
 
-      call MPAS_io_set_var_indices(handle, 'bdyMaskCell', indexToCellID(1:nCellsSolve), ierr)
+      call MPAS_io_set_var_indices(handle, 'bdyMask'//elemType, indexToCellID(1:nCellsSolve), ierr)
       if (ierr /= MPAS_IO_NOERR) then
           call mpas_log_write('MGD  - Error setting indices', messageType=MPAS_LOG_ERR)
       else
           call mpas_log_write('MGD - OK setting indices')
       end if
 
-      call MPAS_io_get_var(handle, 'bdyMaskCell', bdyMaskCell, ierr=ierr)
+      call MPAS_io_get_var(handle, 'bdyMask'//elemType, bdyMaskCell, ierr=ierr)
       if (ierr /= MPAS_IO_NOERR) then
           call mpas_log_write('MGD  - Error reading bdyMaskCell', messageType=MPAS_LOG_ERR)
       else
@@ -879,9 +936,9 @@ module init_atm_core_interface
       end do
       deallocate(bdyIDs)
 
-      do k = 1, nBdyCells
-          call mpas_log_write('BC $i', intArgs=[temp(2,k)])
-      end do
+!      do k = 1, nBdyCells
+!          call mpas_log_write('BC $i', intArgs=[temp(2,k)])
+!      end do
 
       allocate(ownedIndices(nBdyCells))
       ownedIndices(:) = temp(2,:)
@@ -889,7 +946,7 @@ module init_atm_core_interface
       deallocate(temp)
       deallocate(bdyMaskCell)
 
-   end function boundary_cells
+   end function boundary_elems
 
 
 #include "setup_immutable_streams.inc"

@@ -35,9 +35,10 @@ module init_atm_core
       integer :: ierr
 
       integer :: i, j
-!      integer, pointer :: nBdyCells
       integer, pointer :: nCellsSolve
       integer, dimension(:), pointer :: bdyParentCellID, bdyMaskCell, indexToCellID
+      integer, pointer :: nEdgesSolve
+      integer, dimension(:), pointer :: bdyParentEdgeID, bdyMaskEdge, indexToEdgeID
 
 
       ierr = 0
@@ -76,20 +77,29 @@ module init_atm_core
       call MPAS_stream_mgr_read(domain % streamManager, whence=MPAS_STREAM_NEAREST, ierr=ierr)
       call MPAS_stream_mgr_reset_alarms(domain % streamManager, direction=MPAS_STREAM_INPUT, ierr=ierr)
 
-!         call mpas_pool_get_dimension(mesh, 'nBdyCells', nBdyCells)
-         call mpas_pool_get_dimension(mesh, 'nCellsSolve', nCellsSolve)
-!         call mpas_log_write('MGD nBdyCells = $i', intArgs=[nBdyCells])
+      call mpas_pool_get_dimension(mesh, 'nCellsSolve', nCellsSolve)
+      call mpas_pool_get_array(mesh, 'bdyParentCellID', bdyParentCellID)
+      call mpas_pool_get_array(mesh, 'bdyMaskCell', bdyMaskCell)
+      call mpas_pool_get_array(mesh, 'indexToCellID', indexToCellID)
+      j = 1
+      do i = 1, nCellsSolve
+          if (bdyMaskCell(i) > 0) then
+             bdyParentCellID(j) = indexToCellID(i)
+             j = j + 1
+          end if
+      end do
 
-         call mpas_pool_get_array(mesh, 'bdyParentCellID', bdyParentCellID)
-         call mpas_pool_get_array(mesh, 'bdyMaskCell', bdyMaskCell)
-         call mpas_pool_get_array(mesh, 'indexToCellID', indexToCellID)
-         j = 1
-         do i = 1, nCellsSolve
-             if (bdyMaskCell(i) > 0) then
-                bdyParentCellID(j) = indexToCellID(i)
-                j = j + 1
-             end if
-         end do
+      call mpas_pool_get_dimension(mesh, 'nEdgesSolve', nEdgesSolve)
+      call mpas_pool_get_array(mesh, 'bdyParentEdgeID', bdyParentEdgeID)
+      call mpas_pool_get_array(mesh, 'bdyMaskEdge', bdyMaskEdge)
+      call mpas_pool_get_array(mesh, 'indexToEdgeID', indexToEdgeID)
+      j = 1
+      do i = 1, nEdgesSolve
+          if (bdyMaskEdge(i) > 0) then
+             bdyParentEdgeID(j) = indexToEdgeID(i)
+             j = j + 1
+          end if
+      end do
 
    end function init_atm_core_init
    
