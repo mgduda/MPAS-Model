@@ -44,9 +44,7 @@
                      description="The number of prescribed pressure levels in the climatological GOCART data set"/>
                 <dim name="nMonths" definition="namelist:config_months"
                      description="The number of months in a year"/>
-                <dim name="nBdyCells" definition="100" decomposition="uniform"
-                     description="The number of boundary cells in the mesh"/>
-                <dim name="nBdyEdges" definition="function:cien" decomposition="uniform"
+                <dim name="nBdyCells" definition="function:num_boundary_cells" decomposition="boundary_cells"
                      description="The number of boundary cells in the mesh"/>
         </dims>
 
@@ -637,7 +635,6 @@
                         <var name="rh2" packages="met_stage_out"/>
                         <var name="t2m" packages="met_stage_out"/>
                         <var name="bdyParentCellID"/>
-                        <var name="bdyParentEdgeID"/>
 		</stream>
 
                 <stream name="ugwp_oro_data"
@@ -707,9 +704,6 @@
 
                 <var name="bdyParentCellID" type="integer" dimensions="nBdyCells" units="-"
                      description="Indices of full-domain parent cells for boundary cells"/>
-
-                <var name="bdyParentEdgeID" type="integer" dimensions="nBdyEdges" units="-"
-                     description="Indices of full-domain parent cells for boundary edges"/>
 
                 <var name="latCell" type="real" dimensions="nCells" units="rad"
                      description="Latitude of cells"/>

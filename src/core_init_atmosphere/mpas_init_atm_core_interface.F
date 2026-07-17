@@ -470,8 +470,7 @@ module init_atm_core_interface
 
       use mpas_derived_types, only : mpas_decomp_list, mpas_decomp_function, MPAS_DECOMP_NOERR, &
                                      mpas_dim_size_fn_list, mpas_computed_dim_size_fn, MPAS_COMPUTED_DIM_NOERR
-      use mpas_decomp, only : mpas_decomp_create_decomp_list, mpas_decomp_register_method, &
-                              mpas_uniform_decomp 
+      use mpas_decomp, only : mpas_decomp_create_decomp_list, mpas_decomp_register_method
       use mpas_computed_dims, only : mpas_computed_dims_create_list, mpas_computed_dims_register_method
 
       implicit none
@@ -487,9 +486,8 @@ module init_atm_core_interface
 
       call mpas_decomp_create_decomp_list(decompList)
 
-      decompFunc => uniform_decomp
-
-      call mpas_decomp_register_method(decompList, 'uniform', decompFunc, ierr)
+      decompFunc => boundary_cells
+      call mpas_decomp_register_method(decompList, 'boundary_cells', decompFunc, ierr)
 
       if ( ierr == MPAS_DECOMP_NOERR ) then
          ierr = 0
@@ -500,9 +498,9 @@ module init_atm_core_interface
 
       call mpas_computed_dims_create_list(methodList)
 
-      dimSizeFunc => cien
+      dimSizeFunc => num_boundary_cells
 
-      call mpas_computed_dims_register_method(methodList, 'cien', dimSizeFunc, ierr)
+      call mpas_computed_dims_register_method(methodList, 'num_boundary_cells', dimSizeFunc, ierr)
 
       if ( ierr == MPAS_COMPUTED_DIM_NOERR ) then
          ierr = 0
@@ -542,7 +540,7 @@ module init_atm_core_interface
    end function init_atm_setup_block
 
 
-   function cien(block, manager) result(dim_size)
+   function num_boundary_cells(block, manager) result(dim_size)
 
       use mpas_stream_manager, only : MPAS_get_stream_filename
       use mpas_io_streams
@@ -645,13 +643,15 @@ module init_atm_core_interface
 
       dim_size = nBdyCells
 
-   end function cien
+   end function num_boundary_cells
 
 
-   function uniform_decomp(block, manager, globalDimSize, numBlocks, ownedIndices) result(iErr)
+   function boundary_cells(block, manager, globalDimSize, numBlocks, ownedIndices) result(iErr)
 
       use mpas_stream_manager, only : MPAS_get_stream_filename
       use mpas_io_streams
+      use mpi_f08
+      use mpas_sort
 
       type (block_type), intent(in) :: block
       type (mpas_streamManager_type), intent(inout) :: manager
@@ -664,21 +664,38 @@ module init_atm_core_interface
       
       integer :: blockDimSize, blockStart, i
 
-
-      ! -- for testing stream reads
+!-------------------------------------------------------------------------------
       character(len=StrKIND) :: mesh_stream, mesh_filename
       type (MPAS_streamInfo_type) :: streamInfo
 
-      type (field1DInteger), pointer :: bdyMaskCellField
-      integer, dimension(:), pointer :: bdyMaskCell
-
       integer, pointer :: nCellsSolve
 
-      type (MPAS_Stream_type) :: stream
+      integer, dimension(:), pointer :: indexToCellID
+      integer, dimension(:), pointer :: bdyMaskCell
+      integer :: fieldtype
 
-      
+      type (MPAS_IO_Handle_type) :: handle
+
+      integer :: iCell
+      integer :: nBdyCells_local, nBdyCells
+
+      type (MPI_Comm) :: comm
+      type (MPI_Request) :: req
+      integer :: nRanks, myRank
+
+      integer, dimension(:,:), allocatable :: temp
+
+      integer :: j, k
+      integer :: n, n_next
+      integer, dimension(:), pointer :: bdyIDs, bdyIDs_next
+      integer :: srcRank, dstRank
+
+!-------------------------------------------------------------------------------
+
+
       iErr = 0
       
+#if 0
       blockDimSize = globalDimSize / numBlocks
       if ( block % blockID < mod(globalDimSize, numBlocks) ) then
          blockDimSize = blockDimSize + 1
@@ -693,18 +710,18 @@ module init_atm_core_interface
       do i = 1, blockDimSize
          ownedIndices(i) = blockStart + i
       end do
+#endif
 
+!-------------------------------------------------------------------------------
       ierr = init_atm_get_mesh_stream(block % configs, streamInfo, mesh_stream)
       call mpas_log_write('Mesh stream is '//trim(mesh_stream))
 
       call MPAS_get_stream_filename(manager, trim(mesh_stream), filename=mesh_filename)
       call mpas_log_write('Mesh filename is '//trim(mesh_filename))
 
-      nullify(bdyMaskCellField)
-      call mpas_pool_get_field(block % allFields, 'bdyMaskCell', bdyMaskCellField)
 
-      nullify(bdyMaskCell)
-      call mpas_pool_get_array(block % allFields, 'indexToCellID_blk', bdyMaskCell)
+      nullify(indexToCellID)
+      call mpas_pool_get_array(block % allFields, 'indexToCellID_blk', indexToCellID)
 
       nullify(nCellsSolve)
       call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', nCellsSolve)
@@ -715,29 +732,164 @@ module init_atm_core_interface
           call mpas_log_write('Could not find nCellsSolve')
       end if
 
-      if (associated(bdyMaskCellField)) then
-          call mpas_log_write('Found bdyMaskCellField')
+      allocate(bdyMaskCell(nCellsSolve))
+
+      if (associated(indexToCellID)) then
+          call mpas_log_write('Found indexToCellID')
       else
-          call mpas_log_write('Could not find bdyMaskCellField')
+          call mpas_log_write('Could not find indexToCellID')
       end if
 
-      if (associated(bdyMaskCell)) then
-          call mpas_log_write('Found bdyMaskCell')
+      handle = MPAS_io_open(trim(mesh_filename), MPAS_IO_READ, MPAS_IO_NETCDF, manager % ioContext, ierr=ierr)
+      if (ierr /= MPAS_IO_NOERR) then
+          call mpas_log_write('MGD  - Error opening '//trim(mesh_filename), messageType=MPAS_LOG_ERR)
       else
-          call mpas_log_write('Could not find bdyMaskCell')
+          call mpas_log_write('MGD - OK opening '//trim(mesh_filename))
       end if
 
-!      call MPAS_createStream(stream, block % domain % ioContext, trim(mesh_filename), MPAS_IO_NETCDF, MPAS_IO_READ)
-!      call MPAS_streamAddField(stream, bdyMaskCellField)
-!      call MPAS_readStream(stream, 1)
-!      call MPAS_closeStream(stream)
+      call MPAS_io_inq_var(handle, 'bdyMaskCell', fieldtype=fieldtype, ierr=ierr)
+      if (ierr /= MPAS_IO_NOERR) then
+          call mpas_log_write('MGD  - Error inquiring about bdyMaskCell', messageType=MPAS_LOG_ERR)
+      else
+          call mpas_log_write('MGD - OK inquiring about bdyMaskCell')
+      end if
 
-      call mpas_log_write('nCellsSolve = $i', intArgs=[nCellsSolve])
-      call mpas_log_write('Min/max bdyMaskCell=$i $i', &
-                          intArgs=[minval(bdyMaskCell(1:nCellsSolve)), maxval(bdyMaskCell(1:nCellsSolve))])
-      call mpas_log_write('size(bdyMaskCell)=$i', intArgs=[size(bdyMaskCell)])
-      
-   end function uniform_decomp
+      call MPAS_io_set_var_indices(handle, 'bdyMaskCell', indexToCellID(1:nCellsSolve), ierr)
+      if (ierr /= MPAS_IO_NOERR) then
+          call mpas_log_write('MGD  - Error setting indices', messageType=MPAS_LOG_ERR)
+      else
+          call mpas_log_write('MGD - OK setting indices')
+      end if
+
+      call MPAS_io_get_var(handle, 'bdyMaskCell', bdyMaskCell, ierr=ierr)
+      if (ierr /= MPAS_IO_NOERR) then
+          call mpas_log_write('MGD  - Error reading bdyMaskCell', messageType=MPAS_LOG_ERR)
+      else
+          call mpas_log_write('MGD - OK reading bdyMaskCell')
+      end if
+
+      call MPAS_io_close(handle)
+      if (ierr /= MPAS_IO_NOERR) then
+          call mpas_log_write('MGD  - Error closing '//trim(mesh_filename), messageType=MPAS_LOG_ERR)
+      else
+          call mpas_log_write('MGD - OK closing '//trim(mesh_filename))
+      end if
+
+      call mpas_log_write('Again, Min/max bdyMaskCell=$i $i', intArgs=[minval(bdyMaskCell), maxval(bdyMaskCell)])
+
+      nBdyCells = 0
+      do iCell = 1, nCellsSolve
+          if (bdyMaskCell(iCell) > 0) nBdyCells = nBdyCells + 1
+      end do
+
+!      call mpas_dmpar_sum_int(block % domain % dminfo, nBdyCells_local, nBdyCells)
+
+      if (nBdyCells > 0) then
+          call mpas_log_write('Again, nBdyCells = $i', intArgs=[nBdyCells])
+      else
+          call mpas_log_write('No boundary cells')
+      end if
+
+      comm = block % domain % dminfo % comm
+
+      call MPI_Comm_size(comm, nRanks, ierr)
+      if (ierr /= MPI_SUCCESS) then
+          call mpas_log_write('Failed to get comm size', messageType=MPAS_LOG_ERR)
+      else
+          call mpas_log_write('nRanks = $i', intArgs=[nRanks])
+      end if
+
+      call MPI_Comm_rank(comm, myRank, ierr)
+      if (ierr /= MPI_SUCCESS) then
+          call mpas_log_write('Failed to get comm rank', messageType=MPAS_LOG_ERR)
+      else
+          call mpas_log_write('myRank = $i', intArgs=[myRank])
+      end if
+
+      allocate(temp(2,nBdyCells))
+      i = 1
+      do iCell = 1, nCellsSolve
+          if (bdyMaskCell(iCell) > 0) then
+              temp(1,i) = indexToCellID(iCell)
+              i = i + 1
+          end if
+      end do
+
+!if (myRank == 27) then
+!    write(0,*) temp(1,:)
+!end if
+
+      call mpas_quicksort(nBdyCells, temp)
+
+!if (myRank == 27) then
+!    write(0,*) temp(1,:)
+!end if
+
+      do iCell = 1, nBdyCells
+          temp(2,iCell) = iCell
+      end do
+
+      srcRank = mod(myRank + nRanks - 1, nRanks)
+      dstRank = mod(myRank + 1, nRanks)
+      n = nBdyCells
+      allocate(bdyIDs(n))
+
+      bdyIDs(:) = temp(1,:)
+
+      do i = 1, nRanks - 1
+          call MPI_Irecv(n_next, 1, MPI_INTEGER, srcRank, srcRank, comm, req, ierr)
+          if (ierr /= MPI_SUCCESS) call mpas_log_write('Recv from $i failed', intArgs=[srcRank], messageType=MPAS_LOG_ERR)
+
+          call MPI_Send(n, 1, MPI_INTEGER, dstRank, myRank, comm, ierr)
+          if (ierr /= MPI_SUCCESS) call mpas_log_write('Send to $i failed', intArgs=[dstRank], messageType=MPAS_LOG_ERR)
+
+          call MPI_Wait(req, MPI_STATUS_IGNORE, ierr)
+          if (ierr /= MPI_SUCCESS) call mpas_log_write('Request failed', messageType=MPAS_LOG_ERR)
+
+          call mpas_log_write('Now handling $i boundary elements...', intArgs=[n_next])
+
+          allocate(bdyIDs_next(n_next))
+
+! Optimization: if n/n_next is 0, no need to send/recv
+! Once we have a separate communicator for tasks that have bdy elements, this will not apply
+
+          call MPI_Irecv(bdyIDs_next, n_next, MPI_INTEGER, srcRank, srcRank, comm, req, ierr)
+          if (ierr /= MPI_SUCCESS) call mpas_log_write('Recv from $i failed', intArgs=[srcRank], messageType=MPAS_LOG_ERR)
+
+          call MPI_Send(bdyIDs, n, MPI_INTEGER, dstRank, myRank, comm, ierr)
+          if (ierr /= MPI_SUCCESS) call mpas_log_write('Send to $i failed', intArgs=[dstRank], messageType=MPAS_LOG_ERR)
+
+          call MPI_Wait(req, MPI_STATUS_IGNORE, ierr)
+          if (ierr /= MPI_SUCCESS) call mpas_log_write('Request failed', messageType=MPAS_LOG_ERR)
+
+          deallocate(bdyIDs)
+          bdyIDs => bdyIDs_next
+          n = n_next
+
+          do j = 1, n
+              do k = nBdyCells, 1, -1
+                  if (bdyIDs(j) < temp(1,k)) then
+                      temp(2,k) = temp(2,k) + 1
+                  else
+                      exit
+                  end if
+              end do
+          end do
+
+      end do
+      deallocate(bdyIDs)
+
+      do k = 1, nBdyCells
+          call mpas_log_write('BC $i', intArgs=[temp(2,k)])
+      end do
+
+      allocate(ownedIndices(nBdyCells))
+      ownedIndices(:) = temp(2,:)
+
+      deallocate(temp)
+      deallocate(bdyMaskCell)
+
+   end function boundary_cells
 
 
 #include "setup_immutable_streams.inc"

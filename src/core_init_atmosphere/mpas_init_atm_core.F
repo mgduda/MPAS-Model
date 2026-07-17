@@ -34,8 +34,10 @@ module init_atm_core
       real (kind=RKIND), pointer :: sphere_radius
       integer :: ierr
 
-      integer, pointer :: nBdyCells
-      integer, dimension(:), pointer :: bdyParentCellID
+      integer :: i, j
+!      integer, pointer :: nBdyCells
+      integer, pointer :: nCellsSolve
+      integer, dimension(:), pointer :: bdyParentCellID, bdyMaskCell, indexToCellID
 
 
       ierr = 0
@@ -49,12 +51,6 @@ module init_atm_core
          call mpas_pool_get_array(state, 'initial_time', initial_time)
          call mpas_pool_get_config(mesh, 'sphere_radius', sphere_radius)
          call mpas_pool_get_config(block % configs, 'config_start_time', config_start_time)
-
-         call mpas_pool_get_dimension(mesh, 'nBdyCells', nBdyCells)
-         call mpas_log_write('MGD nBdyCells = $i', intArgs=[nBdyCells])
-
-         call mpas_pool_get_array(mesh, 'bdyParentCellID', bdyParentCellID)
-         bdyParentCellID(:) = block % domain % dminfo % my_proc_id
 
          startTimeStamp = config_start_time
          xtime = config_start_time
@@ -79,6 +75,21 @@ module init_atm_core
       !
       call MPAS_stream_mgr_read(domain % streamManager, whence=MPAS_STREAM_NEAREST, ierr=ierr)
       call MPAS_stream_mgr_reset_alarms(domain % streamManager, direction=MPAS_STREAM_INPUT, ierr=ierr)
+
+!         call mpas_pool_get_dimension(mesh, 'nBdyCells', nBdyCells)
+         call mpas_pool_get_dimension(mesh, 'nCellsSolve', nCellsSolve)
+!         call mpas_log_write('MGD nBdyCells = $i', intArgs=[nBdyCells])
+
+         call mpas_pool_get_array(mesh, 'bdyParentCellID', bdyParentCellID)
+         call mpas_pool_get_array(mesh, 'bdyMaskCell', bdyMaskCell)
+         call mpas_pool_get_array(mesh, 'indexToCellID', indexToCellID)
+         j = 1
+         do i = 1, nCellsSolve
+             if (bdyMaskCell(i) > 0) then
+                bdyParentCellID(j) = indexToCellID(i)
+                j = j + 1
+             end if
+         end do
 
    end function init_atm_core_init
    
