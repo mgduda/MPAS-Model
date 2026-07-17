@@ -487,7 +487,7 @@ module init_atm_core_interface
 
       call mpas_decomp_create_decomp_list(decompList)
 
-      decompFunc => mpas_uniform_decomp
+      decompFunc => uniform_decomp
 
       call mpas_decomp_register_method(decompList, 'uniform', decompFunc, ierr)
 
@@ -544,14 +544,200 @@ module init_atm_core_interface
 
    function cien(block, manager) result(dim_size)
 
+      use mpas_stream_manager, only : MPAS_get_stream_filename
+      use mpas_io_streams
+
       type (block_type), intent(in) :: block
       type (mpas_streamManager_type), intent(inout) :: manager
 
       integer :: dim_size
 
-      dim_size = 100
+      integer :: ierr
+      character(len=StrKIND) :: mesh_stream, mesh_filename
+      type (MPAS_streamInfo_type) :: streamInfo
+
+      integer, pointer :: nCellsSolve
+
+      integer, dimension(:), pointer :: indexToCellID
+      integer, dimension(:), pointer :: bdyMaskCell
+      integer :: fieldtype
+
+      type (MPAS_IO_Handle_type) :: handle
+
+      integer :: iCell
+      integer :: nBdyCells_local, nBdyCells
+
+
+      ierr = init_atm_get_mesh_stream(block % configs, streamInfo, mesh_stream)
+      call mpas_log_write('Mesh stream is '//trim(mesh_stream))
+
+      call MPAS_get_stream_filename(manager, trim(mesh_stream), filename=mesh_filename)
+      call mpas_log_write('Mesh filename is '//trim(mesh_filename))
+
+
+      nullify(indexToCellID)
+      call mpas_pool_get_array(block % allFields, 'indexToCellID_blk', indexToCellID)
+
+      nullify(nCellsSolve)
+      call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', nCellsSolve)
+
+      if (associated(nCellsSolve)) then
+          call mpas_log_write('Found nCellsSolve $i', intArgs=[nCellsSolve])
+      else
+          call mpas_log_write('Could not find nCellsSolve')
+      end if
+
+      allocate(bdyMaskCell(nCellsSolve))
+
+      if (associated(indexToCellID)) then
+          call mpas_log_write('Found indexToCellID')
+      else
+          call mpas_log_write('Could not find indexToCellID')
+      end if
+
+      handle = MPAS_io_open(trim(mesh_filename), MPAS_IO_READ, MPAS_IO_NETCDF, manager % ioContext, ierr=ierr)
+      if (ierr /= MPAS_IO_NOERR) then
+          call mpas_log_write('MGD  - Error opening '//trim(mesh_filename), messageType=MPAS_LOG_ERR)
+      else
+          call mpas_log_write('MGD - OK opening '//trim(mesh_filename))
+      end if
+
+      call MPAS_io_inq_var(handle, 'bdyMaskCell', fieldtype=fieldtype, ierr=ierr)
+      if (ierr /= MPAS_IO_NOERR) then
+          call mpas_log_write('MGD  - Error inquiring about bdyMaskCell', messageType=MPAS_LOG_ERR)
+      else
+          call mpas_log_write('MGD - OK inquiring about bdyMaskCell')
+      end if
+
+      call MPAS_io_set_var_indices(handle, 'bdyMaskCell', indexToCellID(1:nCellsSolve), ierr)
+      if (ierr /= MPAS_IO_NOERR) then
+          call mpas_log_write('MGD  - Error setting indices', messageType=MPAS_LOG_ERR)
+      else
+          call mpas_log_write('MGD - OK setting indices')
+      end if
+
+      call MPAS_io_get_var(handle, 'bdyMaskCell', bdyMaskCell, ierr=ierr)
+      if (ierr /= MPAS_IO_NOERR) then
+          call mpas_log_write('MGD  - Error reading bdyMaskCell', messageType=MPAS_LOG_ERR)
+      else
+          call mpas_log_write('MGD - OK reading bdyMaskCell')
+      end if
+
+      call MPAS_io_close(handle)
+      if (ierr /= MPAS_IO_NOERR) then
+          call mpas_log_write('MGD  - Error closing '//trim(mesh_filename), messageType=MPAS_LOG_ERR)
+      else
+          call mpas_log_write('MGD - OK closing '//trim(mesh_filename))
+      end if
+
+      call mpas_log_write('Min/max bdyMaskCell=$i $i', intArgs=[minval(bdyMaskCell), maxval(bdyMaskCell)])
+
+      nBdyCells_local = 0
+      do iCell = 1, nCellsSolve
+          if (bdyMaskCell(iCell) > 0) nBdyCells_local = nBdyCells_local + 1
+      end do
+
+      call mpas_dmpar_sum_int(block % domain % dminfo, nBdyCells_local, nBdyCells)
+
+      call mpas_log_write('nBdyCells = $i', intArgs=[nBdyCells])
+
+      deallocate(bdyMaskCell)
+
+      dim_size = nBdyCells
 
    end function cien
+
+
+   function uniform_decomp(block, manager, globalDimSize, numBlocks, ownedIndices) result(iErr)
+
+      use mpas_stream_manager, only : MPAS_get_stream_filename
+      use mpas_io_streams
+
+      type (block_type), intent(in) :: block
+      type (mpas_streamManager_type), intent(inout) :: manager
+      integer, intent(in) :: globalDimSize
+      integer, intent(in) :: numBlocks
+
+      integer, dimension(:), pointer :: ownedIndices
+
+      integer :: iErr
+      
+      integer :: blockDimSize, blockStart, i
+
+
+      ! -- for testing stream reads
+      character(len=StrKIND) :: mesh_stream, mesh_filename
+      type (MPAS_streamInfo_type) :: streamInfo
+
+      type (field1DInteger), pointer :: bdyMaskCellField
+      integer, dimension(:), pointer :: bdyMaskCell
+
+      integer, pointer :: nCellsSolve
+
+      type (MPAS_Stream_type) :: stream
+
+      
+      iErr = 0
+      
+      blockDimSize = globalDimSize / numBlocks
+      if ( block % blockID < mod(globalDimSize, numBlocks) ) then
+         blockDimSize = blockDimSize + 1
+      end if
+
+      blockStart = block % blockID * blockDimSize
+      if ( block % blockID >= mod(globalDimSize, numBlocks) ) then
+         blockStart = blockStart + mod(globalDimSize, numBlocks)
+      end if
+
+      allocate(ownedIndices(blockDimSize))
+      do i = 1, blockDimSize
+         ownedIndices(i) = blockStart + i
+      end do
+
+      ierr = init_atm_get_mesh_stream(block % configs, streamInfo, mesh_stream)
+      call mpas_log_write('Mesh stream is '//trim(mesh_stream))
+
+      call MPAS_get_stream_filename(manager, trim(mesh_stream), filename=mesh_filename)
+      call mpas_log_write('Mesh filename is '//trim(mesh_filename))
+
+      nullify(bdyMaskCellField)
+      call mpas_pool_get_field(block % allFields, 'bdyMaskCell', bdyMaskCellField)
+
+      nullify(bdyMaskCell)
+      call mpas_pool_get_array(block % allFields, 'indexToCellID_blk', bdyMaskCell)
+
+      nullify(nCellsSolve)
+      call mpas_pool_get_dimension(block % dimensions, 'nCellsSolve', nCellsSolve)
+
+      if (associated(nCellsSolve)) then
+          call mpas_log_write('Found nCellsSolve $i', intArgs=[nCellsSolve])
+      else
+          call mpas_log_write('Could not find nCellsSolve')
+      end if
+
+      if (associated(bdyMaskCellField)) then
+          call mpas_log_write('Found bdyMaskCellField')
+      else
+          call mpas_log_write('Could not find bdyMaskCellField')
+      end if
+
+      if (associated(bdyMaskCell)) then
+          call mpas_log_write('Found bdyMaskCell')
+      else
+          call mpas_log_write('Could not find bdyMaskCell')
+      end if
+
+!      call MPAS_createStream(stream, block % domain % ioContext, trim(mesh_filename), MPAS_IO_NETCDF, MPAS_IO_READ)
+!      call MPAS_streamAddField(stream, bdyMaskCellField)
+!      call MPAS_readStream(stream, 1)
+!      call MPAS_closeStream(stream)
+
+      call mpas_log_write('nCellsSolve = $i', intArgs=[nCellsSolve])
+      call mpas_log_write('Min/max bdyMaskCell=$i $i', &
+                          intArgs=[minval(bdyMaskCell(1:nCellsSolve)), maxval(bdyMaskCell(1:nCellsSolve))])
+      call mpas_log_write('size(bdyMaskCell)=$i', intArgs=[size(bdyMaskCell)])
+      
+   end function uniform_decomp
 
 
 #include "setup_immutable_streams.inc"
