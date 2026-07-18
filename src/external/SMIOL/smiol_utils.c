@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include "smiol_utils.h"
 
+char * smiol_timestamp();
+
 /*
  * Prototypes for functions used only internally by SMIOL utilities
  */
@@ -158,8 +160,13 @@ int transfer_field(const struct SMIOL_decomp *decomp, int dir,
 		return SMIOL_INVALID_ARGUMENT;
 	}
 
-	comm = MPI_Comm_f2c(decomp->context->fcomm);
-	comm_rank = decomp->context->comm_rank;
+	comm = MPI_Comm_f2c(decomp->exch_comm);
+
+	if (comm == MPI_COMM_NULL) {
+		return SMIOL_SUCCESS;
+	}
+
+	MPI_Comm_rank(comm, &comm_rank);
 
 	/*
 	 * Throughout this function, operate on the fields as arrays of bytes
@@ -541,12 +548,11 @@ int get_io_elements(int comm_rank, int num_io_tasks, int io_stride,
  * error code is returned and the decomp pointer is NULL.
  *
  *******************************************************************************/
-int build_exchange(struct SMIOL_context *context,
+int build_exchange(struct SMIOL_context *context, MPI_Comm exch_comm,
                    size_t n_compute_elements, SMIOL_Offset *compute_elements,
                    size_t n_io_elements, SMIOL_Offset *io_elements,
                    struct SMIOL_decomp **decomp)
 {
-	MPI_Comm comm;
 	int comm_size;
 	int comm_rank;
 	int ierr;
@@ -569,6 +575,28 @@ int build_exchange(struct SMIOL_context *context,
 	const SMIOL_Offset UNKNOWN_TASK = (SMIOL_Offset)(-1);
 
 
+	if (exch_comm == MPI_COMM_NULL) {
+		*decomp = (struct SMIOL_decomp *)malloc(sizeof(struct SMIOL_decomp));
+
+		/*
+		 * Initialize the SMIOL_decomp struct
+		 */
+		(*decomp)->context = context;
+		(*decomp)->comp_list = NULL;
+		(*decomp)->io_list = NULL;
+		(*decomp)->io_start = 0;
+		(*decomp)->io_count = 0;
+		(*decomp)->agg_factor = 1;   /* Group with 1 task -> no aggregation */
+		(*decomp)->agg_comm = MPI_Comm_c2f(MPI_COMM_NULL);
+		(*decomp)->exch_comm = MPI_Comm_c2f(MPI_COMM_NULL);
+		(*decomp)->n_compute = 0;
+		(*decomp)->n_compute_agg = 0;
+		(*decomp)->counts = NULL;
+		(*decomp)->displs = NULL;
+
+		return SMIOL_SUCCESS;
+	}
+
 	if (context == NULL) {
 		return SMIOL_INVALID_ARGUMENT;
 	}
@@ -580,12 +608,13 @@ int build_exchange(struct SMIOL_context *context,
 	if (io_elements == NULL && n_io_elements != 0) {
 		return SMIOL_INVALID_ARGUMENT;
 	}
+//if (context->comm_rank == 0) fprintf(stderr, "        %s Begin build_exchange\n", smiol_timestamp());
 
 
-	comm = MPI_Comm_f2c(context->fcomm);
-	comm_size = context->comm_size;
-	comm_rank = context->comm_rank;
+	MPI_Comm_size(exch_comm, &comm_size);
+	MPI_Comm_rank(exch_comm, &comm_rank);
 
+//if (context->comm_rank == 0) fprintf(stderr, "        %s comm_size = %i\n", smiol_timestamp(), comm_size);
 
 	/*
 	 * Because the count argument to MPI_Isend and MPI_Irecv is an int, at
@@ -607,7 +636,7 @@ int build_exchange(struct SMIOL_context *context,
 	}
 
 	ierr = MPI_Allreduce((const void *)&i, (void *)&j, 1, MPI_INT, MPI_MAX,
-	                     comm);
+	                     exch_comm);
 	if (j > 0) {
 		return SMIOL_INVALID_ARGUMENT;
 	} else if (ierr != MPI_SUCCESS) {
@@ -685,11 +714,11 @@ int build_exchange(struct SMIOL_context *context,
 		 */
 		ierr = MPI_Irecv((void *)&nbuf_in, 1, MPI_INT,
 		                 (comm_rank - 1 + comm_size) % comm_size,
-		                 (comm_rank + i), comm, &req_in);
+		                 (comm_rank + i), exch_comm, &req_in);
 
 		ierr = MPI_Isend((const void *)&nbuf_out, 1, MPI_INT,
 		                 (comm_rank + 1) % comm_size,
-		                 ((comm_rank + 1) % comm_size + i), comm,
+		                 ((comm_rank + 1) % comm_size + i), exch_comm,
 		                 &req_out);
 
 		/*
@@ -710,7 +739,7 @@ int build_exchange(struct SMIOL_context *context,
 		count *= (int)sizeof(SMIOL_Offset);
 		ierr = MPI_Irecv((void *)buf_in, count, MPI_BYTE,
 		                 (comm_rank - 1 + comm_size) % comm_size,
-		                 (comm_rank + i), comm, &req_in);
+		                 (comm_rank + i), exch_comm, &req_in);
 
 		/*
 		 * Wait until the outgoing buffer size has been sent
@@ -724,7 +753,7 @@ int build_exchange(struct SMIOL_context *context,
 		count *= (int)sizeof(SMIOL_Offset);
 		ierr = MPI_Isend((const void *)buf_out, count, MPI_BYTE,
 		                 (comm_rank + 1) % comm_size,
-		                 ((comm_rank + 1) % comm_size + i), comm,
+		                 ((comm_rank + 1) % comm_size + i), exch_comm,
 		                 &req_out);
 
 		/*
@@ -832,6 +861,7 @@ int build_exchange(struct SMIOL_context *context,
 	(*decomp)->io_count = 0;
 	(*decomp)->agg_factor = 1;   /* Group with 1 task -> no aggregation */
 	(*decomp)->agg_comm = MPI_Comm_c2f(MPI_COMM_NULL);
+	(*decomp)->exch_comm = MPI_Comm_c2f(MPI_COMM_NULL);
 	(*decomp)->n_compute = 0;
 	(*decomp)->n_compute_agg = 0;
 	(*decomp)->counts = NULL;
@@ -1012,6 +1042,8 @@ int build_exchange(struct SMIOL_context *context,
 	}
 
 	free(compute_ids);
+
+//if (context->comm_rank == 0) fprintf(stderr, "        %s Finish build_exchange\n", smiol_timestamp());
 
 	return SMIOL_SUCCESS;
 }

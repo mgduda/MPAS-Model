@@ -149,9 +149,10 @@ module mpas_block_decomp
                call mpas_log_write('Scotch partitioning not available when config_number_of_blocks != 0 ', MPAS_LOG_CRIT)
             end if
 
-            call mpas_log_write('No existing block decomposition file found, invoking Scotch.')
+            call mpas_log_write(time_string()//' No existing block decomposition file found, invoking Scotch.')
             call mpas_block_decomp_scotch(dminfo, partial_global_graph_info, blockFilePrefix, filename)
 
+            call mpas_log_write(time_string()//' Done with mpas_block_decomp_scotch')
             if (dminfo % my_proc_id == IO_NODE) then
                open(unit=iunit, file=trim(filename), form='formatted', status='old', iostat=istatus)
                if (istatus /= 0) then
@@ -164,6 +165,8 @@ module mpas_block_decomp
 
          if (dminfo % my_proc_id == IO_NODE) then
 
+               call mpas_log_write(time_string()//' Beginning to read graph partition file on IO_NODE')
+
                local_nvertices(:) = 0
                do i=1,partial_global_graph_info % nVerticesTotal
                   read(unit=iunit, fmt=*, iostat=err) global_block_id
@@ -175,6 +178,7 @@ module mpas_block_decomp
                   call mpas_get_owning_proc(dminfo, global_block_id, owning_proc)
                   local_nvertices(owning_proc+1) = local_nvertices(owning_proc+1) + 1
                end do
+               call mpas_log_write(time_string()//' Done reading graph partition file on IO_NODE')
 
                read(unit=iunit, fmt=*, iostat=err)
 
@@ -188,6 +192,8 @@ module mpas_block_decomp
               global_start(i) = global_start(i-1) + local_nvertices(i-1)
            end do
 
+           call mpas_log_write(time_string()//' Finished scan to find global_start for all tasks')
+
            rewind(unit=iunit)
 
            do i=1,partial_global_graph_info % nVerticesTotal
@@ -197,10 +203,14 @@ module mpas_block_decomp
               global_start(owning_proc+1) = global_start(owning_proc+1) + 1
            end do
 
+           call mpas_log_write(time_string()//' Done reading a second time')
+
            global_start(1) = 0
            do i=2,dminfo % nprocs
               global_start(i) = global_start(i-1) + local_nvertices(i-1)
            end do
+
+           call mpas_log_write(time_string()//' Done scanning a second time')
 
            call mpas_dmpar_bcast_ints(dminfo, dminfo % nprocs, local_nvertices)
            allocate(local_cell_list(local_nvertices(dminfo % my_proc_id + 1)))
@@ -209,20 +219,27 @@ module mpas_block_decomp
            call mpas_dmpar_scatter_ints(dminfo, dminfo % nprocs, local_nvertices(dminfo % my_proc_id + 1), &
                                    global_start, local_nvertices, global_list, local_cell_list)
 
+           call mpas_log_write(time_string()//' Finished mpas_dmpar_scatter_ints')
+
            ! Reset global start for second read of global_block_list
            global_start(1) = 1
            do i=2,dminfo % nprocs
               global_start(i) = global_start(i-1) + local_nvertices(i-1)
            end do
 
+           call mpas_log_write(time_string()//' Done with third scan')
+
            rewind(unit=iunit)
 
+           call mpas_log_write(time_string()//' About to read yet again...')
            do i=1,partial_global_graph_info % nVerticesTotal
               read(unit=iunit, fmt=*) global_block_id
               call mpas_get_owning_proc(dminfo, global_block_id, owning_proc)
               global_list(global_start(owning_proc+1)) = global_block_id
               global_start(owning_proc+1) = global_start(owning_proc+1) + 1
            end do
+
+           call mpas_log_write(time_string()//' Done with read a third time')
 
            ! Recompute global start after second read of global_block_list
            global_start(1) = 0
@@ -232,6 +249,8 @@ module mpas_block_decomp
 
            call mpas_dmpar_scatter_ints(dminfo, dminfo % nprocs, local_nvertices(dminfo % my_proc_id + 1), &
                                    global_start, local_nvertices, global_list, local_block_list)
+
+           call mpas_log_write(time_string()//' Done with second call to mpas_dmpar_scatter_ints')
 
            close(unit=iunit)
            call mpas_release_unit(iunit)
@@ -248,6 +267,8 @@ module mpas_block_decomp
            call mpas_dmpar_scatter_ints(dminfo, dminfo % nprocs, local_nvertices(dminfo % my_proc_id + 1), &
                                    global_start, local_nvertices, global_list, local_block_list)
         end if
+
+        call mpas_log_write(time_string()//' Moving on now...')
 
         if(blocks_per_proc == 0) then
            no_blocks = .true.
@@ -324,6 +345,7 @@ module mpas_block_decomp
            block_count(1) = 0
         end if
       end if
+      call mpas_log_write(time_string()//' Done with mpas_block_decomp_cells_for_proc')
 
       call mpas_timer_stop('mpas_block_decomp_cells_for_proc')
 
@@ -447,12 +469,14 @@ module mpas_block_decomp
 
       ! Build the distributed Scotch graph and save it in scotchdgraph
       ! Note: Optional arguments veloloctab, vlblloctab, edgegsttab, and edloloctab are not needed here.
+      call mpas_log_write(time_string()//' Begin scotch_dgraphbuild')
       call scotch_dgraphbuild (scotchdgraph, &
                         nLocVerticesGraph, & ! num of local vertices on the calling process
                         vertloctab, & ! Array of start indices in edgeloctab for each local vertex
                         nLocEdgesGraph, & ! Number of local edges, including to ghost vertices
                         edgelocsiz, & ! Defined previously
                         edgeloctab) ! Holds the adjacency array for every local vertex
+      call mpas_log_write(time_string()//' Finish scotch_dgraphbuild')
 
       ! Only needed during development/debugging. 
       call scotch_dgraphcheck (scotchdgraph)
@@ -463,17 +487,21 @@ module mpas_block_decomp
       call mpas_timer_start('scotch_graph_partitioning')
       ! Partition the distributed graph and save the result in local_block_id_arr
       npart = dminfo % nProcs
+      call mpas_log_write(time_string()//' Begin scotch_dgraphpart')
       call scotch_dgraphpart (scotchdgraph, npart, stradat, local_block_id_arr)
+      call mpas_log_write(time_string()//' Finish scotch_dgraphpart')
 
       call mpas_timer_stop('scotch_graph_partitioning')
 
       ! After the paritioning above, each processor would not necessarily have information about all of the
       ! vertices it owns. To obtain this information, Scotch provides a convenience function to redistribute the graph
       ! to all processors, so that each processor has information about all of the vertices it owns.
+      call mpas_log_write(time_string()//' Begin scotch_dgraphredist')
       call scotch_dgraphredist(scotchdgraph, & ! Input: original distributed graph
                                  local_block_id_arr, & ! Input: the partition array
                                  scotchdgraph_redist, & ! Output: re-distributed graph
                                  num_local_vertices) ! Output: number of local vertices
+      call mpas_log_write(time_string()//' Finish scotch_dgraphredist')
 
       ! DO NOT REMOVE: This call is required if we want to read the local cell list directly after partitioning,
       ! instead of reading it from the output partition file.
@@ -520,7 +548,7 @@ module mpas_block_decomp
          end if
          write(blockFilename,'(a,i0)') trim(partitionFilePrefix), dminfo % nProcs
 
-         call mpas_log_write('Writing out Scotch Graph partitioning data to '//trim(blockFilename))
+         call mpas_log_write(time_string()//' Writing out Scotch Graph partitioning data to '//trim(blockFilename))
          call mpas_new_unit(ounit)
          open(unit=ounit, file=trim(blockFilename), form='formatted', status='new', action="write", iostat=ostatus)
          do i=1,partial_global_graph_info % nVerticesTotal
@@ -528,6 +556,7 @@ module mpas_block_decomp
          end do
          close(unit=ounit)
          call mpas_release_unit(ounit)
+         call mpas_log_write(time_string()//' Done writing out Scotch Graph partitioning')
       end if
 
       ! Clean up
@@ -983,5 +1012,17 @@ module mpas_block_decomp
      deallocate(dminfo % block_proc_list)
      deallocate(dminfo % block_local_id_list)
    end subroutine mpas_finish_block_proc_list!}}}
+
+
+   function time_string()
+
+       character(len=16) :: time_string
+
+       integer :: count, count_rate
+
+       call system_clock(count=count, count_rate=count_rate)
+       write(time_string, '(f14.1)') real(count) / real(count_rate)
+
+   end function time_string
 
 end module mpas_block_decomp

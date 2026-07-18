@@ -147,6 +147,8 @@ module mpas_bootstrapping
       integer :: nHalos
 
 
+      call mpas_log_write(time_string()//' Begin mpas_bootstrap_framework_phase1')
+
       call mpas_pool_get_config(domain % configs, 'config_num_halos', config_num_halos)
       call mpas_pool_get_config(domain % configs, 'config_number_of_blocks', config_number_of_blocks)
       call mpas_pool_get_config(domain % configs, 'config_explicit_proc_decomp', config_explicit_proc_decomp)
@@ -156,6 +158,7 @@ module mpas_bootstrapping
       nHalos = config_num_halos
 
 
+      call mpas_log_write(time_string()//' Bootstrap phase1: mpas_io_open mesh file')
       inputHandle = MPAS_io_open(trim(mesh_filename), MPAS_IO_READ, mesh_iotype, domain % ioContext, &
                                  pio_file_desc=pio_file_desc, ierr=ierr)
       if (ierr /= MPAS_IO_NOERR) then
@@ -168,6 +171,7 @@ module mpas_bootstrapping
       !
       ! Read global number of cells/edges/vertices
       !
+      call mpas_log_write(time_string()//' Bootstrap phase1: read global dims')
       call mpas_io_inq_dim(inputHandle, 'nCells', nCells, ierr)
       call mpas_io_inq_dim(inputHandle, 'nEdges', nEdges, ierr)
       call mpas_io_inq_dim(inputHandle, 'maxEdges', maxEdges, ierr)
@@ -196,14 +200,17 @@ module mpas_bootstrapping
       ! Allocate and read fields that we will need in order to ultimately work out
       !   which cells/edges/vertices are owned by each block, and which are ghost
       !
+      call mpas_log_write(time_string()//' Bootstrap phase1: setup_cell_block_fields')
 
       call mpas_io_setup_cell_block_fields(inputHandle, nreadCells, readCellStart, readingBlock, maxEdges, &
                                            indexTocellIDField, xCellField, yCellField, zCellField, nEdgesOnCellField, &
                                            cellsOnCellField, edgesOnCellField, verticesOnCellField, nHalos)
 
+      call mpas_log_write(time_string()//' Bootstrap phase1: setup_edge_block_fields')
       call mpas_io_setup_edge_block_fields(inputHandle, nReadEdges, readEdgeStart, readingBlock, indexToEdgeIDField, &
                                            xEdgeField, yEdgeField, zEdgeField, cellsOnEdgeField, nHalos)
 
+      call mpas_log_write(time_string()//' Bootstrap phase1: setup_vertex_block_fields')
       call mpas_io_setup_vertex_block_fields(inputHandle, nReadVertices, readVertexStart, readingBlock, vertexDegree, &
                                              indexToVertexIDField, xVertexField, yVertexField, zVertexField, cellsOnVertexField, &
                                              nHalos)
@@ -214,6 +221,7 @@ module mpas_bootstrapping
       !   and the block decomp module returns with a list of global cell indices
       !   that belong to the block on this process
       !
+      call mpas_log_write(time_string()//' Bootstrap phase1: building partial global graph')
       partial_global_graph_info % nVertices = nReadCells
       partial_global_graph_info % nVerticesTotal = nCells
       partial_global_graph_info % maxDegree = maxEdges
@@ -242,6 +250,7 @@ module mpas_bootstrapping
       deallocate(partial_global_graph_info % nAdjacent)
       deallocate(partial_global_graph_info % adjacencyList)
 
+      call mpas_log_write(time_string()//' Bootstrap phase1: setup_blocks_and_0halo_cells')
       !
       ! Transfer owned cells from local_cell_list into the indexToCellID_Block field (which may contain multiple blocks)
       !
@@ -253,14 +262,17 @@ module mpas_bootstrapping
       !    that were set up by mpas_dmpar_get_index_range. These next calls communicate the *Field mesh fields from these
       !    simple decompositions to the native MPAS decomposition in the *_Block fields.
       !
+      call mpas_log_write(time_string()//' Bootstrap phase1: build_0halo_cell_fields')
       call mpas_block_creator_build_0halo_cell_fields(nHalos, indexToCellIDField, nEdgesOnCellField, cellsOnCellField, &
                                                       verticesOnCellField, edgesOnCellField, indexToCellID_Block, &
                                                       nEdgesOnCell_Block, cellsOnCell_Block, verticesOnCell_Block, &
                                                       edgesOnCell_Block)
 
+      call mpas_log_write(time_string()//' Bootstrap phase1: build_0_and_1halo_edge_fields')
       call mpas_block_creator_build_0_and_1halo_edge_fields(nHalos, indexToEdgeIDField, cellsOnEdgeField, indexToCellID_Block, &
                                                             nEdgesOnCell_Block, edgesOnCell_Block, indexToEdgeID_Block, &
                                                             cellsOnEdge_Block, nEdgesSolveField)
+      call mpas_log_write(time_string()//' Bootstrap phase1: build_0_and_1halo_edge_fields')
       call mpas_block_creator_build_0_and_1halo_edge_fields(nHalos, indexToVertexIDField, cellsOnVertexField, indexToCellID_Block, &
                                                             nEdgesOnCell_Block, verticesOnCell_Block, indexToVertexID_Block, &
                                                             cellsOnVertex_Block, nVerticesSolveField)
@@ -271,11 +283,14 @@ module mpas_bootstrapping
       !    upon exit they contain all owned and halo elements. A side effect of this is that the exchange
       !    lists for these fields are valid (and can be used, e.g., by mpas_block_creator_finalize_block_phase1).
       !
+      call mpas_log_write(time_string()//' Bootstrap phase1: build_cell_halos')
       call mpas_block_creator_build_cell_halos(nHalos, indexToCellID_Block, nEdgesOnCell_Block, cellsOnCell_Block, &
                                                verticesOnCell_Block, edgesOnCell_Block, nCellsSolveField)
 
+      call mpas_log_write(time_string()//' Bootstrap phase1: build_edge_halos')
       call mpas_block_creator_build_edge_halos(nHalos, indexToCellID_Block, nEdgesOnCell_Block, nCellsSolveField, &
                                                edgesOnCell_Block, indexToEdgeID_Block, cellsOnEdge_Block, nEdgesSolveField)
+      call mpas_log_write(time_string()//' Bootstrap phase1: build_edge_halos')
       call mpas_block_creator_build_edge_halos(nHalos, indexToCellID_Block, nEdgesOnCell_Block, nCellsSolveField, &
                                                verticesOnCell_Block, indexToVertexID_Block, cellsOnVertex_Block, &
                                                nVerticesSolveField)
@@ -380,6 +395,7 @@ module mpas_bootstrapping
 
 
      ! Allocate blocks, and copy indexTo arrays into blocks
+     call mpas_log_write(time_string()//' Bootstrap phase1: finalize_block_phase1')
      call mpas_block_creator_finalize_block_phase1(nHalos, domain % blocklist, &
              nCellsSolveField, nEdgesSolveField, nVerticesSolveField, vertexDegree, maxEdges, &
              indexToCellID_Block, indexToEdgeID_Block, indexToVertexID_Block)
@@ -429,6 +445,8 @@ module mpas_bootstrapping
       deallocate(block_start)
       deallocate(block_count)
       deallocate(readingBlock)
+
+      call mpas_log_write(time_string()//' Finish mpas_bootstrap_framework_phase1')
 
    end subroutine mpas_bootstrap_framework_phase1 !}}}
 
@@ -483,6 +501,8 @@ module mpas_bootstrapping
       integer :: tempDim
       integer :: i, err_level, err_local
 
+
+      call mpas_log_write(time_string()//' Finish mpas_bootstrap_framework_phase2')
 
       call mpas_pool_create_pool(readableDimensions)
 
@@ -677,6 +697,8 @@ module mpas_bootstrapping
 
       call mpas_pool_destroy_pool(readableDimensions)
 
+      call mpas_log_write(time_string()//' Finish mpas_bootstrap_framework_phase2')
+
    end subroutine mpas_bootstrap_framework_phase2 !}}}
 
 
@@ -708,6 +730,8 @@ module mpas_bootstrapping
      !   which cells/edges/vertices are owned by each block, and which are ghost
      !
 
+     call mpas_log_write(time_string()//' setup_cell_block_fields before read indexToCellID')
+
      ! Global cell indices
      allocate(indexToCellID)
      allocate(indexToCellID % array(nReadCells))
@@ -715,16 +739,23 @@ module mpas_bootstrapping
      do i=1,nReadCells
         readIndices(i) = i + readCellStart - 1
      end do
+     call mpas_log_write(time_string()//' setup_cell_block_fields MPAS_io_inq_var')
      call MPAS_io_inq_var(inputHandle, 'indexToCellID', ierr=ierr)
+     call mpas_log_write(time_string()//' setup_cell_block_fields MPAS_io_set_var_indices')
      call MPAS_io_set_var_indices(inputHandle, 'indexToCellID', readIndices, ierr=ierr)
+     call mpas_log_write(time_string()//' setup_cell_block_fields MPAS_io_get_var_indices')
      call mpas_io_get_var(inputHandle, 'indexToCellID', indexToCellID % array, ierr)
      indexToCellID % dimSizes(1) = nReadCells
      indexToCellID % block => readingBlock
+
+     call mpas_log_write(time_string()//' setup_cell_block_fields before multihalo_exchange_list')
+
      call mpas_dmpar_init_multihalo_exchange_list(indexToCellID % sendList, nHalos)
      call mpas_dmpar_init_multihalo_exchange_list(indexToCellID % recvList, nHalos)
      call mpas_dmpar_init_multihalo_exchange_list(indexToCellID % copyList, nHalos)
      nullify(indexToCellID % next)
 
+     call mpas_log_write(time_string()//' setup_cell_block_fields before read nEdgesOnCell')
 
      ! Number of cell/edges/vertices adjacent to each cell
      allocate(nEdgesOnCell)
@@ -738,6 +769,8 @@ module mpas_bootstrapping
      nEdgesOnCell % recvList => indexToCellID % recvList
      nEdgesOnCell % copyList => indexToCellID % copyList
      nullify(nEdgesOnCell % next)
+
+     call mpas_log_write(time_string()//' setup_cell_block_fields before read cellsOnCell')
 
      ! Global indices of cells adjacent to each cell
      allocate(cellsOnCell)
@@ -753,6 +786,8 @@ module mpas_bootstrapping
      cellsOnCell % copyList => indexToCellID % copyList
      nullify(cellsOnCell % next)
 
+     call mpas_log_write(time_string()//' setup_cell_block_fields before read edgesOnCell')
+
      ! Global indices of edges adjacent to each cell
      allocate(edgesOnCell)
      allocate(edgesOnCell % array(maxEdges,nReadCells))
@@ -766,6 +801,8 @@ module mpas_bootstrapping
      edgesOnCell % recvList => indexToCellID % recvList
      edgesOnCell % copyList => indexToCellID % copyList
      nullify(edgesOnCell % next)
+
+     call mpas_log_write(time_string()//' setup_cell_block_fields before read verticesOnCell')
 
      ! Global indices of vertices adjacent to each cell
      allocate(verticesOnCell)
@@ -782,6 +819,8 @@ module mpas_bootstrapping
      nullify(verticesOnCell % next)
 
      deallocate(readIndices)
+
+     call mpas_log_write(time_string()//' Done with setup_cell_block_fields')
 
    end subroutine mpas_io_setup_cell_block_fields !}}}
 
@@ -812,22 +851,31 @@ module mpas_bootstrapping
 
      allocate(readIndices(nReadEdges))
 
+     call mpas_log_write(time_string()//' setup_edge_block_fields before read indexToEdgeID')
+
      ! Global edge indices
      allocate(indexToEdgeID)
      allocate(indexToEdgeID % array(nReadEdges))
      do i=1,nReadEdges
         readIndices(i) = i + readEdgeStart - 1
      end do
+     call mpas_log_write(time_string()//' setup_edge_block_fields MPAS_io_inq_var')
      call MPAS_io_inq_var(inputHandle, 'indexToEdgeID', ierr=ierr)
+     call mpas_log_write(time_string()//' setup_edge_block_fields MPAS_io_set_var_indices')
      call MPAS_io_set_var_indices(inputHandle, 'indexToEdgeID', readIndices, ierr=ierr)
+     call mpas_log_write(time_string()//' setup_edge_block_fields MPAS_io_set_get_var')
      call mpas_io_get_var(inputHandle, 'indexToEdgeID', indexToEdgeID % array, ierr)
      indexToEdgeID % dimSizes(1) = nREadEdges
      indexToEdgeID % block => readingBlock
+     call mpas_log_write(time_string()//' setup_edge_block_fields init_multihalo_exchange_list')
      call mpas_dmpar_init_multihalo_exchange_list(indexToEdgeID % sendList, nHalos+1)
+     call mpas_log_write(time_string()//' setup_edge_block_fields init_multihalo_exchange_list')
      call mpas_dmpar_init_multihalo_exchange_list(indexToEdgeID % recvList, nHalos+1)
+     call mpas_log_write(time_string()//' setup_edge_block_fields init_multihalo_exchange_list')
      call mpas_dmpar_init_multihalo_exchange_list(indexToEdgeID % copyList, nHalos+1)
      nullify(indexToEdgeID % next)
 
+     call mpas_log_write(time_string()//' setup_edge_block_fields before read cellsOnEdge')
 
      ! Global indices of cells adjacent to each edge
      !    used for determining which edges are owned by a block, where
@@ -846,6 +894,8 @@ module mpas_bootstrapping
      nullify(cellsOnEdge % next)
 
      deallocate(readIndices)
+
+     call mpas_log_write(time_string()//' Done with setup_edge_block_fields')
 
    end subroutine mpas_io_setup_edge_block_fields !}}}
 
@@ -1069,5 +1119,17 @@ module mpas_bootstrapping
       end if
 
    end subroutine get_dimlist_for_field!}}}
+
+
+!   function time_string()
+!
+!       character(len=16) :: time_string
+!      
+!       integer :: count, count_rate
+!      
+!       call system_clock(count=count, count_rate=count_rate)
+!       write(time_string, '(f14.1)') real(count) / real(count_rate)
+!      
+!   end function time_string
 
 end module mpas_bootstrapping

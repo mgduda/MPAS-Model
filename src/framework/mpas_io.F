@@ -141,6 +141,8 @@ module mpas_io
       module procedure MPAS_io_put_att_text
    end interface MPAS_io_put_att
 
+   private :: time_string
+
    contains
 
 
@@ -1481,6 +1483,8 @@ module mpas_io
       integer(kind=SMIOL_offset_kind) :: smiol_n_compute_elements
 #endif
 
+call mpas_log_write(time_string()//'   Begin MPAS_io_set_var_indices')
+
 !      call mpas_log_write('Called MPAS_io_set_var_indices()')
       if (present(ierr)) ierr = MPAS_IO_NOERR
 
@@ -1506,6 +1510,7 @@ module mpas_io
          return
       end if
 !call mpas_log_write(trim(fieldname)//' has been defined')
+call mpas_log_write(time_string()//'     done checking variable')
 
       !
       ! If this is a scalar field, just return
@@ -1517,6 +1522,7 @@ module mpas_io
          return
       end if
 
+call mpas_log_write(time_string()//'     about to check for existing decomp')
 
       !
       ! Check whether a suitable decomposition already exists
@@ -1624,8 +1630,10 @@ module mpas_io
       ! 
       call mpas_dmpar_min_int(handle % ioContext % dminfo, early_return, early_return_global)
       if (early_return_global == 1) then
+call mpas_log_write(time_string()//'     decomp already exists, we can return')
          return
       end if
+call mpas_log_write(time_string()//'     decomp does not already exist')
 
 
 !call mpas_log_write('Creating a new decomposition')
@@ -1736,6 +1744,7 @@ module mpas_io
 #endif
 
 #ifdef MPAS_SMIOL_SUPPORT
+call mpas_log_write(time_string()//'     setting up smiol_indices')
       ! Save the size of the outermost (decomposed) dimension for the field for use in
       ! subsequent calls to MPAS_io_set_var_indices when checking whether this
       ! decomposition can be reused for other fields
@@ -1744,8 +1753,10 @@ module mpas_io
       allocate(smiol_indices(size(indices)))
       smiol_indices(:) = int(indices(:), kind=SMIOL_offset_kind) - 1_SMIOL_offset_kind   ! SMIOL indices are 0-based
       smiol_n_compute_elements = size(indices,kind=SMIOL_offset_kind)
+call mpas_log_write(time_string()//'     about to call SMIOLf_create_decomp')
       local_ierr = SMIOLf_create_decomp(handle % ioContext % smiol_context, smiol_n_compute_elements, smiol_indices, &
                                         new_decomp % decomphandle % smiol_decomp)
+call mpas_log_write(time_string()//'     finished call to SMIOLf_create_decomp')
       deallocate(smiol_indices)
       if (local_ierr /= SMIOL_SUCCESS) then
          call mpas_log_write('SMIOLf_create_decomp failed with error $i', intArgs=[local_ierr], messageType=MPAS_LOG_ERR)
@@ -1760,6 +1771,7 @@ module mpas_io
          return
       end if
 #endif
+call mpas_log_write(time_string()//'     adding new decomp to list')
 
       ! Add new decomposition to the list
       if (.not. associated(handle % ioContext % decomp_list)) then
@@ -1775,6 +1787,7 @@ module mpas_io
       field_cursor % fieldhandle % decomp => new_decomp % decomphandle
 
 !call mpas_log_write('All finished.')
+call mpas_log_write(time_string()//'   Finish MPAS_io_set_var_indices')
 
    end subroutine MPAS_io_set_var_indices
 
@@ -6546,5 +6559,16 @@ module mpas_io
       if (fatal .and. (ierr /= MPAS_IO_NOERR)) call mpas_log_write('ERROR In MPAS_IO', MPAS_LOG_CRIT)
 
    end subroutine MPAS_io_err_mesg
+
+   function time_string()
+    
+       character(len=16) :: time_string
+      
+       integer :: count, count_rate
+      
+       call system_clock(count=count, count_rate=count_rate)
+       write(time_string, '(f14.1)') real(count) / real(count_rate)
+      
+   end function time_string
  
 end module mpas_io

@@ -69,6 +69,7 @@ struct SMIOL_decomp {
 
 	int agg_factor;        /* Aggregation factor, or size of aggregation group */
 	MPI_Fint agg_comm;     /* Communicator for aggregation/deaggregation operations */
+	MPI_Fint exch_comm;    /* Communicator for exchange operations */
 	size_t n_compute;      /* Number of un-aggregated compute elements on the task */
 	size_t n_compute_agg;  /* Number of aggregated compute elements on the task */
 	int *counts;           /* Compute element counts for tasks in aggregation group */

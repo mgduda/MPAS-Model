@@ -116,6 +116,8 @@ module mpas_subdriver
          end subroutine xml_stream_get_attributes
       end interface
 
+!      write(0,*) time_string()//' Starting up the model!'
+
       readNamelistArg = .false.
       readStreamsArg = .false.
 
@@ -254,6 +256,7 @@ module mpas_subdriver
          call mpas_log_write('Namelist setup failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
       end if
 
+      call mpas_log_write(time_string()//' About to call mpas_framework_init_phase2')
       call mpas_framework_init_phase2(domain_ptr)
 
       !
@@ -269,22 +272,26 @@ module mpas_subdriver
                              messageType=MPAS_LOG_CRIT)
       end if
 
+      call mpas_log_write(time_string()//' About to call core % define_packages')
       ierr = domain_ptr % core % define_packages(domain_ptr % packages)
       if ( ierr /= 0 ) then
          call mpas_log_write('Package definition failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
       end if
 
+      call mpas_log_write(time_string()//' About to call core % setup_packages')
       ierr = domain_ptr % core % setup_packages(domain_ptr % configs, domain_ptr % streamInfo, domain_ptr % packages, &
                                                 domain_ptr % iocontext)
       if ( ierr /= 0 ) then
          call mpas_log_write('Package setup failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
       end if
 
+      call mpas_log_write(time_string()//' About to call core % setup_decompositions')
       ierr = domain_ptr % core % setup_decompositions(domain_ptr % decompositions)
       if ( ierr /= 0 ) then
          call mpas_log_write('Decomposition setup failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
       end if
 
+      call mpas_log_write(time_string()//' About to call core % setup_clock')
       ierr = domain_ptr % core % setup_clock(domain_ptr % clock, domain_ptr % configs)
       if ( ierr /= 0 ) then
          call mpas_log_write('Clock setup failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
@@ -304,6 +311,7 @@ module mpas_subdriver
       ! Using information from the namelist, a graph.info file, and a file containing
       !    mesh fields, build halos and allocate blocks in the domain
       !
+      call mpas_log_write(time_string()//' About to call core % get_mesh_stream')
       ierr = domain_ptr % core % get_mesh_stream(domain_ptr % configs, domain_ptr % streamInfo, mesh_stream)
       if ( ierr /= 0 ) then
          call mpas_log_write('Failed to find mesh stream for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
@@ -352,12 +360,13 @@ module mpas_subdriver
           call mpas_set_timeInterval(filename_interval, timeString=filename_interval_temp, ierr=ierr)
           call mpas_build_stream_filename(ref_time, start_time, filename_interval, mesh_filename_temp, blockID, mesh_filename, ierr)
       end if
-      call mpas_log_write(' ** Attempting to bootstrap MPAS framework using stream: ' // trim(mesh_stream))
+      call mpas_log_write(time_string()//' ** Attempting to bootstrap MPAS framework using stream: ' // trim(mesh_stream))
       call mpas_bootstrap_framework_phase1(domain_ptr, mesh_filename, mesh_iotype)
 
       !
       ! Set up run-time streams
       !
+      call mpas_log_write(time_string()//' About to call MPAS_stream_mgr_init')
       call MPAS_stream_mgr_init(domain_ptr % streamManager, domain_ptr % ioContext, domain_ptr % clock, &
                                 domain_ptr % blocklist % allFields, domain_ptr % packages, domain_ptr % blocklist % allStructs)
 
@@ -377,7 +386,7 @@ module mpas_subdriver
       !
       ! Validate streams after set-up
       !
-      call mpas_log_write(' ** Validating streams')
+      call mpas_log_write(time_string()//' ** Validating streams')
       call MPAS_stream_mgr_validate_streams(domain_ptr % streamManager, ierr = ierr)
       if ( ierr /= MPAS_STREAM_MGR_NOERR ) then
          call mpas_dmpar_global_abort('ERROR: Validation of streams failed for core ' // trim(domain_ptr % core % coreName))
@@ -386,17 +395,20 @@ module mpas_subdriver
       !
       ! Finalize the setup of blocks and fields
       !
+      call mpas_log_write(time_string()//' About to call mpas_bootstrap_framework_phase2')
       call mpas_bootstrap_framework_phase2(domain_ptr)
 
       !
       ! Initialize core
       !
+      call mpas_log_write(time_string()//' About to call core % core_init')
       iErr = domain_ptr % core % core_init(domain_ptr, timeStamp)
       if ( ierr /= 0 ) then
          call mpas_log_write('Core init failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
       end if
 
       call mpas_timer_stop('initialize')
+      call mpas_log_write(time_string()//' Done with call to mpas_init')
 
    end subroutine mpas_init
 
@@ -557,5 +569,17 @@ module mpas_subdriver
       end do
 
    end subroutine add_stream_attributes
+
+
+!   function time_string()
+!
+!       character(len=16) :: time_string
+!
+!       integer :: count, count_rate
+!
+!       call system_clock(count=count, count_rate=count_rate)
+!       write(time_string, '(f14.1)') real(count) / real(count_rate)
+!
+!   end function time_string 
 
 end module mpas_subdriver

@@ -92,6 +92,7 @@ module SMIOLf
 
         integer(c_int) ::  agg_factor       ! Aggregation factor, or size of aggregation group
         integer :: agg_comm                 ! Communicator for aggregation/deaggregation operations
+        integer :: exch_comm                ! Communicator for exchange operations
         integer(c_size_t) :: n_compute      ! Number of un-aggregated compute elements on the task
         integer(c_size_t) :: n_compute_agg  ! Number of aggregated compute elements on the task
         type (c_ptr) :: counts              ! Compute element counts for tasks in aggregation group

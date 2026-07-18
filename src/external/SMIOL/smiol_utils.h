@@ -34,7 +34,7 @@ int aggregate_list(MPI_Comm comm, int root, size_t n_in, SMIOL_Offset *in_list,
 int get_io_elements(int comm_rank, int num_io_tasks, int io_stride,
                     size_t n_io_elements, size_t *io_start, size_t *io_count);
 
-int build_exchange(struct SMIOL_context *context,
+int build_exchange(struct SMIOL_context *context, MPI_Comm exch_comm,
                    size_t n_compute_elements, SMIOL_Offset *compute_elements,
                    size_t n_io_elements, SMIOL_Offset *io_elements,
                    struct SMIOL_decomp **decomp);

@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <limits.h>
+#include <time.h>
 #include "smiol.h"
 #include "smiol_utils.h"
 
@@ -17,6 +18,8 @@
 
 #define START_COUNT_READ 0
 #define START_COUNT_WRITE 1
+
+char * smiol_timestamp();
 
 /*
  * Local functions
@@ -2146,6 +2149,7 @@ int SMIOL_create_decomp(struct SMIOL_context *context,
 	size_t n_compute_elements_agg;
 	SMIOL_Offset *compute_elements_agg = NULL;
 	MPI_Comm agg_comm = MPI_COMM_NULL;
+	MPI_Comm exch_comm = MPI_COMM_NULL;
 	int *counts = NULL;
 	int *displs = NULL;
 	int actual_agg_factor;
@@ -2165,6 +2169,8 @@ int SMIOL_create_decomp(struct SMIOL_context *context,
 	if (aggregation_factor < 0) {
 		return SMIOL_INVALID_ARGUMENT;
 	}
+
+if (context->comm_rank == 0) fprintf(stderr, "      %s Begin SMIOL_create_decomp\n", smiol_timestamp());
 
 	comm = MPI_Comm_f2c(context->fcomm);
 
@@ -2197,6 +2203,7 @@ int SMIOL_create_decomp(struct SMIOL_context *context,
 	                                 1, dtype, MPI_SUM, comm)) {
 		return SMIOL_MPI_ERROR;
 	}
+if (context->comm_rank == 0) fprintf(stderr, "      %s Computed n_io_elements_global\n", smiol_timestamp());
 
 	/*
 	 * Determine the contiguous range of elements to be read/written by
@@ -2205,6 +2212,8 @@ int SMIOL_create_decomp(struct SMIOL_context *context,
 	ierr = get_io_elements(context->comm_rank,
 	                       context->num_io_tasks, context->io_stride,
 	                       n_io_elements_global, &io_start, &io_count);
+
+if (context->comm_rank == 0) fprintf(stderr, "      %s Computed io_start, io_count\n", smiol_timestamp());
 
 	/*
 	 * Fill in io_elements from io_start through io_start + io_count - 1
@@ -2220,12 +2229,14 @@ int SMIOL_create_decomp(struct SMIOL_context *context,
 			io_elements[i] = (SMIOL_Offset)(io_start + i);
 		}
 	}
+if (context->comm_rank == 0) fprintf(stderr, "      %s Filled in io_start, io_count\n", smiol_timestamp());
 
 	/*
 	 * If aggregation_factor != 1, aggregate the list of compute_elements
 	 * before building the mapping
 	 */
 	if (aggregation_factor != 1) {
+if (context->comm_rank == 0) fprintf(stderr, "      %s Aggregating with factor %i\n", smiol_timestamp(), aggregation_factor);
 		int comm_rank = context->comm_rank;
 
 		/*
@@ -2246,6 +2257,7 @@ int SMIOL_create_decomp(struct SMIOL_context *context,
 			        ierr);
 			return SMIOL_MPI_ERROR;
 		}
+if (context->comm_rank == 0) fprintf(stderr, "      %s Successfully split communicator\n", smiol_timestamp());
 
 		ierr = MPI_Comm_size(agg_comm, &actual_agg_factor);
 		if (ierr != MPI_SUCCESS) {
@@ -2259,10 +2271,12 @@ int SMIOL_create_decomp(struct SMIOL_context *context,
 		 * aggregation factor is > 1
 		 */
 		if (actual_agg_factor > 1) {
+if (context->comm_rank == 0) fprintf(stderr, "      %s Calling aggregate_list, factor = %i\n", smiol_timestamp(), actual_agg_factor);
 			aggregate_list(agg_comm, 0, n_compute_elements,
 			               compute_elements,
 			               &n_compute_elements_agg,
 			               &compute_elements_agg, &counts, &displs);
+if (context->comm_rank == 0) fprintf(stderr, "      %s Finished aggregate_list\n", smiol_timestamp());
 		} else {
 			MPI_Comm_free(&agg_comm);
 			n_compute_elements_agg = n_compute_elements;
@@ -2274,19 +2288,38 @@ int SMIOL_create_decomp(struct SMIOL_context *context,
 		compute_elements_agg = compute_elements;
 	}
 
+	//MPI_Comm_dup(comm, &exch_comm);
+#if 1
+	MPI_Comm_split(comm,
+	               (n_compute_elements_agg != 0) || (io_count != 0),
+	               context->comm_rank,
+	               &exch_comm);
+
+	if ((n_compute_elements_agg == 0) && (io_count == 0)) {
+		MPI_Comm_free(&exch_comm);
+		exch_comm = MPI_COMM_NULL;
+	}
+#endif
+
 	/*
 	 * Build the mapping between compute tasks and I/O tasks
 	 */
-	ierr = build_exchange(context,
+if (context->comm_rank == 0) fprintf(stderr, "      %s Calling build_exchange\n", smiol_timestamp());
+// if (n_compute_elements_agg != 0) fprintf(stderr, "Rank %i has compute elements\n", context->comm_rank);
+// if (io_count != 0) fprintf(stderr, "Rank %i has I/O elements\n", context->comm_rank);
+// if (context->comm_rank == 0) fprintf(stderr, "      %s n_compute_elements_agg = %li\n", smiol_timestamp(), (long)n_compute_elements_agg);
+	ierr = build_exchange(context, exch_comm,
 	                      n_compute_elements_agg, compute_elements_agg,
 	                      io_count, io_elements,
 	                      decomp);
+if (context->comm_rank == 0) fprintf(stderr, "      %s Finished build_exchange\n", smiol_timestamp());
 
 	free(io_elements);
 
 	if (actual_agg_factor > 1) {
 		(*decomp)->agg_factor = actual_agg_factor;
 		(*decomp)->agg_comm = MPI_Comm_c2f(agg_comm);
+		(*decomp)->exch_comm = MPI_Comm_c2f(exch_comm);
 		(*decomp)->n_compute = n_compute_elements;
 		(*decomp)->n_compute_agg = n_compute_elements_agg;
 		(*decomp)->counts = counts;
@@ -2303,6 +2336,9 @@ int SMIOL_create_decomp(struct SMIOL_context *context,
 		(*decomp)->io_start = io_start;
 		(*decomp)->io_count = io_count;
 	}
+
+if (context->comm_rank == 0) fprintf(stderr, "      %s Finish SMIOL_create_decomp\n", smiol_timestamp());
+if (context->comm_rank == 0) fprintf(stderr, "      =========================================\n");
 
 	return ierr;
 }
@@ -2331,6 +2367,10 @@ int SMIOL_free_decomp(struct SMIOL_decomp **decomp)
 	free((*decomp)->io_list);
 
 	comm = MPI_Comm_f2c((*decomp)->agg_comm);
+	if (comm != MPI_COMM_NULL) {
+		MPI_Comm_free(&comm);
+	}
+	comm = MPI_Comm_f2c((*decomp)->exch_comm);
 	if (comm != MPI_COMM_NULL) {
 		MPI_Comm_free(&comm);
 	}
@@ -2876,3 +2916,16 @@ int read_chunk_pnetcdf(struct SMIOL_file *file,
 	return ierr;
 }
 #endif
+
+char * smiol_timestamp()
+{
+	static char timestamp[24];
+	struct timespec tp;
+
+	clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
+
+	snprintf(timestamp, 24, "%lu.%04lu", (unsigned long)tp.tv_sec, (unsigned long)(tp.tv_nsec)/100000);
+	timestamp[23] = '\0';
+
+	return timestamp;
+}
