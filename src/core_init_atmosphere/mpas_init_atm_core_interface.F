@@ -14,6 +14,7 @@ module init_atm_core_interface
    use mpas_io_units
    use mpas_log, only : mpas_log_write
 
+
    contains
 
 
@@ -745,15 +746,17 @@ module init_atm_core_interface
       i = 1
       do iElem = 1, nElemsSolve
           if (bdyMaskElem(iElem) > 0) then
-              temp(1,i) = indexToElemID(iElem)
+              temp(1,i) = indexToElemID(iElem)   ! Parent element
+              temp(2,i) = i                      ! Compute order on task
               i = i + 1
           end if
       end do
 
       call mpas_quicksort(nBdyElems, temp)
 
+      allocate(ownedIndices(nBdyElems))
       do iElem = 1, nBdyElems
-          temp(2,iElem) = iElem
+          ownedIndices(iElem) = iElem            ! Tentative boundary-only offset
       end do
 
       srcRank = mod(myRank + nRanks - 1, nRanks)
@@ -761,7 +764,7 @@ module init_atm_core_interface
       n = nBdyElems
       allocate(bdyIDs(n))
 
-      bdyIDs(:) = temp(1,:)
+      bdyIDs(:) = temp(1,:)     ! Full domain boundary offsets
 
       do i = 1, nRanks - 1
           call MPI_Irecv(n_next, 1, MPI_INTEGER, srcRank, srcRank, comm, req, ierr)
@@ -796,7 +799,7 @@ module init_atm_core_interface
           do j = 1, n
               do k = nBdyElems, 1, -1
                   if (bdyIDs(j) < temp(1,k)) then
-                      temp(2,k) = temp(2,k) + 1
+                      ownedIndices(k) = ownedIndices(k) + 1
                   else
                       exit
                   end if
@@ -806,8 +809,11 @@ module init_atm_core_interface
       end do
       deallocate(bdyIDs)
 
-      allocate(ownedIndices(nBdyElems))
-      ownedIndices(:) = temp(2,:)
+      ! Place elements back in original order
+      temp(1,:) = ownedIndices(:)                ! Tentative boundary-only offset
+      do iElem = 1, nBdyElems
+          ownedIndices(temp(2,iElem)) = temp(1,iElem)
+      end do
 
       deallocate(temp)
       deallocate(bdyMaskElem)
