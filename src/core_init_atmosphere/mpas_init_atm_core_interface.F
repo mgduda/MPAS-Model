@@ -796,6 +796,16 @@ module init_atm_core_interface
           bdyIDs => bdyIDs_next
           n = n_next
 
+#if 1
+          j = 0
+          do k = 1, nBdyElems
+              do while (j < n)
+                  if (bdyIDs(j+1) > temp(1,k)) exit
+                  j = j + 1
+              end do
+              ownedIndices(k) = ownedIndices(k) + j
+          end do
+#else
           do j = 1, n
               do k = nBdyElems, 1, -1
                   if (bdyIDs(j) < temp(1,k)) then
@@ -805,6 +815,7 @@ module init_atm_core_interface
                   end if
               end do
           end do
+#endif
 
       end do
       deallocate(bdyIDs)
