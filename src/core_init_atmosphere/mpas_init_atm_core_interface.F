@@ -627,9 +627,7 @@ module init_atm_core_interface
    function boundary_cells(block, manager, globalDimSize, numBlocks, ownedIndices) result(iErr)
 
       use mpas_stream_manager, only : MPAS_get_stream_filename
-      use mpas_io_streams
-      use mpi_f08
-      use mpas_sort
+      use mpas_timer
 
       type (block_type), intent(in) :: block
       type (mpas_streamManager_type), intent(inout) :: manager
@@ -640,7 +638,9 @@ module init_atm_core_interface
 
       integer :: iErr
       
+      call mpas_timer_start('boundary_cells')
       iErr = boundary_elems(block, manager, globalDimSize, numBlocks, ownedIndices, 'Cell', 'Cells')
+      call mpas_timer_stop('boundary_cells')
 
    end function boundary_cells
 
@@ -648,9 +648,7 @@ module init_atm_core_interface
    function boundary_edges(block, manager, globalDimSize, numBlocks, ownedIndices) result(iErr)
 
       use mpas_stream_manager, only : MPAS_get_stream_filename
-      use mpas_io_streams
-      use mpi_f08
-      use mpas_sort
+      use mpas_timer
 
       type (block_type), intent(in) :: block
       type (mpas_streamManager_type), intent(inout) :: manager
@@ -661,7 +659,9 @@ module init_atm_core_interface
 
       integer :: iErr
       
+      call mpas_timer_start('boundary_edges')
       iErr = boundary_elems(block, manager, globalDimSize, numBlocks, ownedIndices, 'Edge', 'Edges')
+      call mpas_timer_stop('boundary_edges')
 
    end function boundary_edges
 
@@ -726,8 +726,19 @@ module init_atm_core_interface
 !          call mpas_log_write('No boundary Elems')
 !      end if
 
-      comm = block % domain % dminfo % comm
+      ! comm = block % domain % dminfo % comm
+      if (nBdyElems > 0) then
+          call MPI_Comm_split(block % domain % dminfo % comm, 1, block % domain % dminfo % my_proc_id, comm, ierr)
+      else
+          call MPI_Comm_split(block % domain % dminfo % comm, 0, block % domain % dminfo % my_proc_id, comm, ierr)
+      end if
+      if (ierr /= MPI_SUCCESS) then
+          call mpas_log_write('Failed to split comm', messageType=MPAS_LOG_ERR)
+      else
+          call mpas_log_write('Successfully split comm', intArgs=[nRanks])
+      end if
 
+if (nBdyElems > 0) then
       call MPI_Comm_size(comm, nRanks, ierr)
       if (ierr /= MPI_SUCCESS) then
           call mpas_log_write('Failed to get comm size', messageType=MPAS_LOG_ERR)
@@ -827,7 +838,20 @@ module init_atm_core_interface
       end do
 
       deallocate(temp)
+
+else
+
+      allocate(ownedIndices(nBdyElems))
+
+end if
       deallocate(bdyMaskElem)
+
+      call MPI_Comm_free(comm, ierr)
+      if (ierr /= MPI_SUCCESS) then
+          call mpas_log_write('Failed to free comm', messageType=MPAS_LOG_ERR)
+      else
+          call mpas_log_write('Successfully freed comm', intArgs=[nRanks])
+      end if
 
    end function boundary_elems
 
