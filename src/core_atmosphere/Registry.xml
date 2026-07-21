@@ -1207,6 +1207,23 @@
 
                 </stream>
 
+                <stream name="lbc_bdy_in"
+                        type="input"
+                        filename_template="lbc_bdy.$Y-$M-$D_$h.$m.$s.nc"
+                        filename_interval="input_interval"
+                        input_interval="3:00:00" 
+                        runtime_format="single_file"
+                        immutable="true"
+                        packages="limited_area">
+
+                        <var name="lbc_u_io" />
+                        <var name="lbc_w_io" />
+                        <var name="lbc_rho_io" />
+                        <var name="lbc_theta_io" />
+                        <var_array name="lbc_scalars_io" />
+
+                </stream>
+
 #ifdef DO_PHYSICS
                 <stream name="ugwp_oro_data_in"
                         type="input"
@@ -2209,6 +2226,34 @@
                              units="m^2 s^{-3}"
                              description="Lateral boundary tendency of TKE"
                              packages="les"/>
+                </var_array>
+        </var_struct>
+
+        <var_struct name="lbc_bdy" time_levs="1" packages="limited_area">
+                <var name="lbc_u_io" type="real" dimensions="nVertLevels nBdyEdges Time" units="m s^{-2}"
+                     description="Lateral boundary tendency of u"/>
+
+                <var name="lbc_w_io" type="real" dimensions="nVertLevelsP1 nBdyCells Time" units="m s^{-2}"
+                     description="Lateral boundary tendency of w"/>
+
+                <var name="lbc_rho_io" type="real" dimensions="nVertLevels nBdyCells Time" units="kg m^{-3} s^{-1}"
+                     description="Lateral boundary tendency of rho"/>
+
+                <var name="lbc_theta_io" type="real" dimensions="nVertLevels nBdyCells Time" units="K s^{-2}"
+                     description="Lateral boundary tendency of theta"/>
+
+                <var_array name="lbc_scalars_io" type="real" dimensions="nVertLevels nBdyCells Time">
+                        <var name="lbc_qv_io" name_in_code="qv" array_group="moist"
+                             units="kg kg^{-1} s^{-1}"
+                             description="Lateral boundary tendency of water vapor mixing ratio"/>
+
+                        <var name="lbc_qc_io" name_in_code="qc" array_group="moist"  packages="bl_mynn_in;cu_ntiedtke_in;mp_kessler_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in"
+                             units="kg kg^{-1} s^{-1}"
+                             description="Lateral boundary tendency of cloud water mixing ratio"/>
+
+                        <var name="lbc_qr_io" name_in_code="qr" array_group="moist"  packages="mp_kessler_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in"
+                             units="kg kg^{-1} s^{-1}"
+                             description="Lateral boundary tendency of rain water mixing ratio"/>
                 </var_array>
         </var_struct>
 

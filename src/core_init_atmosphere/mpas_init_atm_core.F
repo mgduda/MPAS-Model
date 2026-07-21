@@ -84,7 +84,8 @@ module init_atm_core
       j = 1
       do i = 1, nCellsSolve
           if (bdyMaskCell(i) > 0) then
-             bdyParentCellID(j) = indexToCellID(i)
+!             bdyParentCellID(j) = indexToCellID(i)
+             bdyParentCellID(j) = i
              j = j + 1
           end if
       end do
@@ -96,7 +97,8 @@ module init_atm_core
       j = 1
       do i = 1, nEdgesSolve
           if (bdyMaskEdge(i) > 0) then
-             bdyParentEdgeID(j) = indexToEdgeID(i)
+!             bdyParentEdgeID(j) = indexToEdgeID(i)
+             bdyParentEdgeID(j) = i
              j = j + 1
           end if
       end do

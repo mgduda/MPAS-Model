@@ -150,6 +150,16 @@ module mpas_atm_boundaries
                                    'to update lateral boundary tendencies', messageType=MPAS_LOG_ERR)
                ierr = 1
             end if
+
+            call MPAS_stream_mgr_read(streamManager, streamID='lbc_bdy_in', timeLevel=1, whence=MPAS_STREAM_LATEST_BEFORE, &
+                                      actualWhen=read_time, ierr=ierr)
+            if (ierr /= MPAS_STREAM_MGR_NOERR) then
+               call mpas_log_write('Could not read from ''lbc_bdy_in'' stream on or before the current date '// &
+                                   'to update lateral boundary tendencies', messageType=MPAS_LOG_ERR)
+               ierr = 1
+            end if
+
+            call cp_bdy_vals(block)
         else
             call mpas_pool_shift_time_levels(lbc)
             call MPAS_stream_mgr_read(streamManager, streamID='lbc_in', timeLevel=2, whence=MPAS_STREAM_EARLIEST_STRICTLY_AFTER, &
@@ -159,6 +169,16 @@ module mpas_atm_boundaries
                                    'to update lateral boundary tendencies', messageType=MPAS_LOG_ERR)
                ierr = 1
             end if
+
+            call MPAS_stream_mgr_read(streamManager, streamID='lbc_bdy_in', timeLevel=1, whence=MPAS_STREAM_EARLIEST_STRICTLY_AFTER, &
+                                      actualWhen=read_time, ierr=ierr)
+            if (ierr /= MPAS_STREAM_MGR_NOERR) then
+               call mpas_log_write('Could not read from ''lbc_bdy_in'' stream after the current date '// &
+                                   'to update lateral boundary tendencies', messageType=MPAS_LOG_ERR)
+               ierr = 1
+            end if
+
+            call cp_bdy_vals(block)
         end if
         if (ierr /= 0) then
            return
@@ -872,5 +892,73 @@ module mpas_atm_boundaries
         ierr = 0
 
     end subroutine mpas_atm_bdy_checks
+
+    subroutine cp_bdy_vals(block)
+
+        use mpas_log, only : mpas_log_write
+
+        implicit none
+
+        type (block_type), intent(inout) :: block
+
+        integer :: i
+        type (mpas_pool_type), pointer :: lbc, lbc_bdy, mesh
+        integer, pointer :: nBdyCells, nBdyEdges
+        integer, pointer :: index_qv, index_qc, index_qr
+        integer, pointer :: index_qv_lbc, index_qc_lbc, index_qr_lbc
+
+        integer, dimension(:), pointer :: bdyParentCellID, bdyParentEdgeID
+        real(kind=RKIND), dimension(:,:), pointer :: theta, lbc_theta
+        real(kind=RKIND), dimension(:,:), pointer :: rho, lbc_rho
+        real(kind=RKIND), dimension(:,:), pointer :: u, lbc_u
+        real(kind=RKIND), dimension(:,:), pointer :: w, lbc_w
+        real(kind=RKIND), dimension(:,:,:), pointer :: scalars, lbc_scalars
+
+        call mpas_pool_get_subpool(block % structs, 'lbc', lbc)
+        call mpas_pool_get_subpool(block % structs, 'lbc_bdy', lbc_bdy)
+        call mpas_pool_get_subpool(block % structs, 'mesh', mesh)
+
+        call mpas_pool_get_dimension(lbc_bdy, 'nBdyCells', nBdyCells)
+        call mpas_pool_get_dimension(lbc_bdy, 'nBdyEdges', nBdyEdges)
+
+        call mpas_pool_get_dimension(lbc, 'index_qv', index_qv)
+        call mpas_pool_get_dimension(lbc, 'index_qc', index_qc)
+        call mpas_pool_get_dimension(lbc, 'index_qr', index_qr)
+
+        call mpas_pool_get_dimension(lbc_bdy, 'index_qv', index_qv_lbc)
+        call mpas_pool_get_dimension(lbc_bdy, 'index_qc', index_qc_lbc)
+        call mpas_pool_get_dimension(lbc_bdy, 'index_qr', index_qr_lbc)
+
+        call mpas_pool_get_array(lbc, 'lbc_u', u, 2)
+        call mpas_pool_get_array(lbc, 'lbc_w', w, 2)
+        call mpas_pool_get_array(lbc, 'lbc_theta', theta, 2)
+        call mpas_pool_get_array(lbc, 'lbc_rho', rho, 2)
+        call mpas_pool_get_array(lbc, 'lbc_scalars', scalars, 2)
+
+        call mpas_pool_get_array(lbc_bdy, 'lbc_u_io', lbc_u, 1)
+        call mpas_pool_get_array(lbc_bdy, 'lbc_w_io', lbc_w, 1)
+        call mpas_pool_get_array(lbc_bdy, 'lbc_theta_io', lbc_theta, 1)
+        call mpas_pool_get_array(lbc_bdy, 'lbc_rho_io', lbc_rho, 1)
+        call mpas_pool_get_array(lbc_bdy, 'lbc_scalars_io', lbc_scalars, 1)
+
+        call mpas_pool_get_array(mesh, 'bdyParentCellID', bdyParentCellID)
+        call mpas_pool_get_array(mesh, 'bdyParentEdgeID', bdyParentEdgeID)
+
+        call mpas_log_write('Copying boundary values $i $i', intArgs=[nBdyCells, nBdyEdges])
+
+        do i = 1, nBdyCells
+            w(:,bdyParentCellID(i)) = lbc_w(:,i)
+            rho(:,bdyParentCellID(i)) = lbc_rho(:,i)
+            theta(:,bdyParentCellID(i)) = lbc_theta(:,i)
+            scalars(index_qv,:,bdyParentCellID(i)) = lbc_scalars(index_qv_lbc,:,i)
+            scalars(index_qc,:,bdyParentCellID(i)) = lbc_scalars(index_qc_lbc,:,i)
+            scalars(index_qr,:,bdyParentCellID(i)) = lbc_scalars(index_qr_lbc,:,i)
+        end do
+
+        do i = 1, nBdyEdges
+            u(:,bdyParentEdgeID(i)) = lbc_u(:,i)
+        end do
+
+    end subroutine cp_bdy_vals
 
 end module mpas_atm_boundaries

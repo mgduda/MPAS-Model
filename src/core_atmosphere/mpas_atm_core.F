@@ -306,7 +306,8 @@ module atm_core
       j = 1
       do i = 1, nCellsSolve
           if (bdyMaskCell(i) > 0) then
-             bdyParentCellID(j) = indexToCellID(i)
+!             bdyParentCellID(j) = indexToCellID(i)
+             bdyParentCellID(j) = i
              j = j + 1
           end if
       end do
@@ -318,7 +319,8 @@ module atm_core
       j = 1
       do i = 1, nEdgesSolve
           if (bdyMaskEdge(i) > 0) then
-             bdyParentEdgeID(j) = indexToEdgeID(i)
+!             bdyParentEdgeID(j) = indexToEdgeID(i)
+             bdyParentEdgeID(j) = i
              j = j + 1
           end if
       end do
@@ -809,6 +811,7 @@ module atm_core
          ! Regardless of whether boundary tendencies were updated, above, we do not want to read the 'lbc_in' stream
          ! as a general input stream, below.
          call MPAS_stream_mgr_reset_alarms(domain % streamManager, streamID='lbc_in', direction=MPAS_STREAM_INPUT, ierr=ierr)
+         call MPAS_stream_mgr_reset_alarms(domain % streamManager, streamID='lbc_bdy_in', direction=MPAS_STREAM_INPUT, ierr=ierr)
 
 
          !

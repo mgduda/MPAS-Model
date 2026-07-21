@@ -63,6 +63,7 @@ module init_atm_cases
       type (mpas_pool_type), pointer :: diag
       type (mpas_pool_type), pointer :: diag_physics
       type (mpas_pool_type), pointer :: lbc_state
+      type (mpas_pool_type), pointer :: lbc_state_io
 
       integer, pointer :: config_init_case
       logical, pointer :: config_static_interp
@@ -330,6 +331,7 @@ module init_atm_cases
                call mpas_pool_get_subpool(block_ptr % structs, 'state', state)
                call mpas_pool_get_subpool(block_ptr % structs, 'diag', diag)
                call mpas_pool_get_subpool(block_ptr % structs, 'lbc_state', lbc_state)
+               call mpas_pool_get_subpool(block_ptr % structs, 'lbc_state_io', lbc_state_io)
 
                call mpas_pool_get_array(state, 'xtime', xtime)
                call mpas_pool_get_array(state, 'Time', Time)
@@ -345,7 +347,7 @@ module init_atm_cases
                Time = dt
 
                call init_atm_case_lbc(timeString, block_ptr, mesh, nCells, nEdges, nVertLevels, fg, state, &
-                                      diag, lbc_state, block_ptr % dimensions, block_ptr % configs)
+                                      diag, lbc_state, lbc_state_io, block_ptr % dimensions, block_ptr % configs)
 
                call mpas_get_time(start_time, dateTimeString=timeStart)
                call init_atm_thompson_aerosols_lbc(timeString, timeStart, block_ptr, mesh, diag, lbc_state)
@@ -355,6 +357,9 @@ module init_atm_cases
 
             call mpas_stream_mgr_write(stream_manager, streamID='lbc', ierr=ierr)
             call mpas_stream_mgr_reset_alarms(stream_manager, streamID='lbc', direction=MPAS_STREAM_OUTPUT, ierr=ierr)
+
+            call mpas_stream_mgr_write(stream_manager, streamID='lbc_bdy', ierr=ierr)
+            call mpas_stream_mgr_reset_alarms(stream_manager, streamID='lbc_bdy', direction=MPAS_STREAM_OUTPUT, ierr=ierr)
 
             call mpas_advance_clock(domain % clock)
             curr_time = mpas_get_clock_time(domain % clock, MPAS_NOW)
@@ -367,6 +372,7 @@ module init_atm_cases
          ! output streams with ringing alarms.
          !
          call mpas_stream_mgr_reset_alarms(stream_manager, streamID='lbc', direction=MPAS_STREAM_OUTPUT, ierr=ierr)
+         call mpas_stream_mgr_reset_alarms(stream_manager, streamID='lbc_bdy', direction=MPAS_STREAM_OUTPUT, ierr=ierr)
 
       else if (config_init_case == 10) then
 
@@ -5431,7 +5437,8 @@ call mpas_log_write('Done with soil consistency check')
    !>  fields that are needed as model lateral boundary conditions.
    !
    !-----------------------------------------------------------------------
-   subroutine init_atm_case_lbc(timestamp, block, mesh, nCells, nEdges, nVertLevels, fg, state, diag, lbc_state, dims, configs)
+   subroutine init_atm_case_lbc(timestamp, block, mesh, nCells, nEdges, nVertLevels, fg, state, diag, &
+                                lbc_state, lbc_state_io, dims, configs)
 
       use mpas_dmpar, only : mpas_dmpar_min_real, mpas_dmpar_max_real
       use init_atm_read_met, only : met_data, read_met_init, read_met_close, read_next_met_field
@@ -5451,6 +5458,7 @@ call mpas_log_write('Done with soil consistency check')
       type (mpas_pool_type), intent(inout) :: state
       type (mpas_pool_type), intent(inout) :: diag
       type (mpas_pool_type), intent(inout) :: lbc_state
+      type (mpas_pool_type), intent(inout) :: lbc_state_io
       type (mpas_pool_type), intent(inout):: dims
       type (mpas_pool_type), intent(inout):: configs
 
@@ -5545,6 +5553,16 @@ call mpas_log_write('Done with soil consistency check')
 
       real (kind=RKIND) :: max_zgrid_local, max_zgrid_global
 
+!--------
+      integer, pointer :: nBdyCells, nBdyEdges
+      integer, dimension(:), pointer :: bdyParentCellID, bdyParentEdgeID
+      real (kind=RKIND), dimension(:,:,:), pointer :: scalars_io
+      real (kind=RKIND), dimension(:,:), pointer :: u_io
+      real (kind=RKIND), dimension(:,:), pointer :: w_io
+      real (kind=RKIND), dimension(:,:), pointer :: theta_io
+      real (kind=RKIND), dimension(:,:), pointer :: rho_io
+!--------
+
 
       call mpas_log_write('Interpolating LBCs at time '//trim(timestamp))
 
@@ -5624,6 +5642,18 @@ call mpas_log_write('Done with soil consistency check')
       nVertLevelsP1 = nVertLevels + 1
 
       call mpas_pool_get_dimension(state, 'index_qv', index_qv)
+
+!--------
+      call mpas_pool_get_dimension(dims, 'nBdyCells', nBdyCells)
+      call mpas_pool_get_dimension(dims, 'nBdyEdges', nBdyEdges)
+      call mpas_pool_get_array(mesh, 'bdyParentCellID', bdyParentCellID)
+      call mpas_pool_get_array(mesh, 'bdyParentEdgeID', bdyParentEdgeID)
+      call mpas_pool_get_array(lbc_state_io, 'lbc_theta_io', theta_io)
+      call mpas_pool_get_array(lbc_state_io, 'lbc_rho_io', rho_io)
+      call mpas_pool_get_array(lbc_state_io, 'lbc_u_io', u_io)
+      call mpas_pool_get_array(lbc_state_io, 'lbc_w_io', w_io)
+      call mpas_pool_get_array(lbc_state_io, 'lbc_scalars_io', scalars_io)
+!--------
 
       etavs = (1.0_RKIND - 0.252_RKIND) * pii / 2.0_RKIND
       rcv = rgas / (cp - rgas)
@@ -6214,6 +6244,19 @@ call mpas_log_write('Done with soil consistency check')
             theta(k,iCell) = t(k,iCell) / (1.0 + 1.61 * scalars(index_qv,k,iCell))
          end do
       end do
+
+!--------
+      do iCell = 1, nBdyCells
+         theta_io(:,iCell) = theta(:,bdyParentCellID(iCell))
+         rho_io(:,iCell) = rho(:,bdyParentCellID(iCell))
+         w_io(:,iCell) = w(:,bdyParentCellID(iCell))
+         scalars_io(:,:,iCell) = scalars(:,:,bdyParentCellID(iCell))
+      end do
+
+      do iEdge = 1, nBdyEdges
+         u_io(:,iEdge) = u(:,bdyParentEdgeID(iEdge))
+      end do
+!--------
 
    end subroutine init_atm_case_lbc
 

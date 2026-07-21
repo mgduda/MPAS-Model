@@ -696,6 +696,19 @@
 			<var_struct name="lbc_state"/>
 		</stream>
 
+		<stream name="lbc_bdy"
+                        type="output"
+                        filename_template="lbc_bdy.$Y-$M-$D_$h.$m.$s.nc"
+                        output_interval="3:00:00"
+                        filename_interval="output_interval"
+                        packages="lbcs"
+                        immutable="true">
+
+			<var name="xtime"/>
+			<var name="Time"/>
+			<var_struct name="lbc_state_io"/>
+		</stream>
+
 	</streams>
 
 
@@ -1225,6 +1238,44 @@
                              packages="mp_thompson_aers_in"/>
 
                         <var name="lbc_nwfa" array_group="number" units="nb kg^{-1}"
+                             description="Gocart water-friendly aerosol number concentration on lateral boundary cells"
+                             packages="mp_thompson_aers_in"/>
+                </var_array>
+
+        </var_struct>
+
+        <var_struct name="lbc_state_io" time_levs="1">
+                <var name="lbc_u_io" type="real" dimensions="nVertLevels nBdyEdges Time" packages="lbcs"
+                     units="m s^{-1}"
+                     description="Horizontal normal velocity on domain lateral boundary edges"/>
+
+                <var name="lbc_w_io" type="real" dimensions="nVertLevelsP1 nBdyCells Time" packages="lbcs"
+                     units="m s^{-1}"
+                     description="Vertical velocity on domain lateral boundary vertical cell faces"/>
+
+                <var name="lbc_rho_io" type="real" dimensions="nVertLevels nBdyCells Time" packages="lbcs"
+                     units="kg m^{-3}"
+                     description="Dry air density on lateral boundary cells"/>
+
+                <var name="lbc_theta_io" type="real" dimensions="nVertLevels nBdyCells Time" packages="lbcs"
+                     units="K"
+                     description="Potential temperature on lateral boundary cells"/>
+
+                <var_array name="lbc_scalars_io" type="real" dimensions="nVertLevels nBdyCells Time" packages="lbcs">
+                        <var name="lbc_qv_io" array_group="moist" units="kg kg^{-1}"
+                             description="Water vapor mixing ratio on lateral boundary cells"/>
+
+                        <var name="lbc_qc_io" array_group="moist" units="kg kg^{-1}"
+                             description="Cloud water mixing ratio on lateral boundary cells"/>
+
+                        <var name="lbc_qr_io" array_group="moist" units="kg kg^{-1}"
+                             description="Rain water mixing ratio on lateral boundary cells"/>
+
+                        <var name="lbc_nifa_io" array_group="number" units="nb kg^{-1}"
+                             description="Gocart ice-friendly aerosol number concentration on lateral boundary cells"
+                             packages="mp_thompson_aers_in"/>
+
+                        <var name="lbc_nwfa_io" array_group="number" units="nb kg^{-1}"
                              description="Gocart water-friendly aerosol number concentration on lateral boundary cells"
                              packages="mp_thompson_aers_in"/>
                 </var_array>
