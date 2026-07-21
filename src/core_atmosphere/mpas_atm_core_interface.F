@@ -418,29 +418,52 @@ module atm_core_interface
    !>  domain type, and register any decompositons the core wants within it.
    !
    !-----------------------------------------------------------------------
-   function atm_setup_decompositions(decompList) result(ierr)
+   function atm_setup_decompositions(decompList, methodList) result(ierr)
 
-      use mpas_derived_types, only : mpas_decomp_list, mpas_decomp_function, MPAS_DECOMP_NOERR
-      use mpas_decomp, only : mpas_decomp_create_decomp_list, mpas_decomp_register_method, &
-                              mpas_uniform_decomp
+      use mpas_derived_types, only : mpas_decomp_list, mpas_decomp_function, MPAS_DECOMP_NOERR, &
+                                     mpas_dim_size_fn_list, mpas_computed_dim_size_fn, MPAS_COMPUTED_DIM_NOERR
+      use mpas_decomp, only : mpas_decomp_create_decomp_list, mpas_decomp_register_method
+      use mpas_computed_dims, only : mpas_computed_dims_create_list, mpas_computed_dims_register_method
 
       implicit none
 
       type (mpas_decomp_list), pointer :: decompList
+      type (mpas_dim_size_fn_list), pointer :: methodList
       integer :: ierr
 
       procedure (mpas_decomp_function), pointer :: decompFunc
+      procedure (mpas_computed_dim_size_fn), pointer :: dimSizeFunc
 
       ierr = 0
 
       call mpas_decomp_create_decomp_list(decompList)
 
-      decompFunc => mpas_uniform_decomp
+      decompFunc => boundary_cells
+      call mpas_decomp_register_method(decompList, 'boundary_cells', decompFunc, ierr)
 
-      call mpas_decomp_register_method(decompList, 'uniform', decompFunc, ierr)
+      decompFunc => boundary_edges
+      call mpas_decomp_register_method(decompList, 'boundary_edges', decompFunc, ierr)
 
       if ( ierr == MPAS_DECOMP_NOERR ) then
          ierr = 0
+      else
+         ierr = 1
+         return
+      end if
+
+      call mpas_computed_dims_create_list(methodList)
+
+      dimSizeFunc => num_boundary_cells
+      call mpas_computed_dims_register_method(methodList, 'num_boundary_cells', dimSizeFunc, ierr)
+
+      dimSizeFunc => num_boundary_edges
+      call mpas_computed_dims_register_method(methodList, 'num_boundary_edges', dimSizeFunc, ierr)
+
+      if ( ierr == MPAS_COMPUTED_DIM_NOERR ) then
+         ierr = 0
+      else
+         ierr = 1
+         return
       end if
 
    end function atm_setup_decompositions
@@ -630,6 +653,8 @@ module atm_core_interface
       call mpas_pool_add_field(block % allFields, 'scalars_tend', scalarsField)
 
    end function atm_allocate_scalars
+
+#include "boundary_decomposition.inc"
 
 #include "setup_immutable_streams.inc"
 

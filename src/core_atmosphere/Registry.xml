@@ -32,6 +32,10 @@
                      description="The number of atmospheric layers"/>
                 <dim name="nVertLevelsP1"      definition="nVertLevels+1"
                      description="The number of atmospheric levels, always one more than the number of layers"/>
+                <dim name="nBdyCells" decomposition="boundary_cells"
+                     description="The number of boundary cells in the mesh"/>
+                <dim name="nBdyEdges" decomposition="boundary_edges"
+                     description="The number of boundary edges in the mesh"/>
 
 #ifdef DO_PHYSICS
                 <dim name="nMonths"            definition="namelist:months"
@@ -596,6 +600,8 @@
 			<var name="soilcl3"/>
 			<var name="soilcl4"/>
 #endif
+                        <var name="bdyParentCellID"/>
+                        <var name="bdyParentEdgeID"/>
 
                 </stream>
 
@@ -1026,6 +1032,8 @@
 			<var name="smois"/>
 			<var name="tslb"/>
 #endif
+                        <var name="bdyParentCellID"/>
+                        <var name="bdyParentEdgeID"/>
 		</stream>
 
 		<stream name="diagnostics" 
@@ -1354,6 +1362,12 @@
 <!-- **************************************************************************************** -->
 
         <var_struct name="mesh" time_levs="1">
+
+                <var name="bdyParentCellID" type="integer" dimensions="nBdyCells" units="-"
+                     description="Indices of full-domain parent cells for boundary cells"/>
+
+                <var name="bdyParentEdgeID" type="integer" dimensions="nBdyEdges" units="-"
+                     description="Indices of full-domain parent edges for boundary edges"/>
 
                 <!-- horizontal grid structure -->
                 <var name="latCell" type="real" dimensions="nCells" units="rad"

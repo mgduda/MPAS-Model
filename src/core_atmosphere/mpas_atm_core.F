@@ -68,6 +68,12 @@ module atm_core
       character (len=ShortStrKIND) :: init_stream_name
       real (kind=R8KIND) :: input_start_time, input_stop_time
 
+      integer :: i, j
+      integer, pointer :: nCellsSolve
+      integer, dimension(:), pointer :: bdyParentCellID, bdyMaskCell, indexToCellID
+      integer, pointer :: nEdgesSolve
+      integer, dimension(:), pointer :: bdyParentEdgeID, bdyMaskEdge, indexToEdgeID
+
 
       ierr = 0
 
@@ -292,6 +298,30 @@ module atm_core
 #ifdef DO_CHEMISTRY
       call chemistry_init(domain % blocklist % configs, domain % blocklist % dimensions)
 #endif
+
+      call mpas_pool_get_dimension(mesh, 'nCellsSolve', nCellsSolve)
+      call mpas_pool_get_array(mesh, 'bdyParentCellID', bdyParentCellID)
+      call mpas_pool_get_array(mesh, 'bdyMaskCell', bdyMaskCell)
+      call mpas_pool_get_array(mesh, 'indexToCellID', indexToCellID)
+      j = 1
+      do i = 1, nCellsSolve
+          if (bdyMaskCell(i) > 0) then
+             bdyParentCellID(j) = indexToCellID(i)
+             j = j + 1
+          end if
+      end do
+
+      call mpas_pool_get_dimension(mesh, 'nEdgesSolve', nEdgesSolve)
+      call mpas_pool_get_array(mesh, 'bdyParentEdgeID', bdyParentEdgeID)
+      call mpas_pool_get_array(mesh, 'bdyMaskEdge', bdyMaskEdge)
+      call mpas_pool_get_array(mesh, 'indexToEdgeID', indexToEdgeID)
+      j = 1
+      do i = 1, nEdgesSolve
+          if (bdyMaskEdge(i) > 0) then
+             bdyParentEdgeID(j) = indexToEdgeID(i)
+             j = j + 1
+          end if
+      end do
 
    end function atm_core_init
 
