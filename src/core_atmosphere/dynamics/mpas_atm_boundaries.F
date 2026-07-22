@@ -896,6 +896,7 @@ module mpas_atm_boundaries
     subroutine cp_bdy_vals(block)
 
         use mpas_log, only : mpas_log_write
+        use mpas_atm_halos, only: exchange_halo_group
 
         implicit none
 
@@ -958,6 +959,8 @@ module mpas_atm_boundaries
         do i = 1, nBdyEdges
             u(:,bdyParentEdgeID(i)) = lbc_u(:,i)
         end do
+
+        call exchange_halo_group(block % domain, 'lbc:state')
 
     end subroutine cp_bdy_vals
 

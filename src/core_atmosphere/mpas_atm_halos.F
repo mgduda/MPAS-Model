@@ -166,6 +166,13 @@ module mpas_atm_halos
          call mpas_dmpar_exch_group_add_field(domain, 'physics:cuten', 'rvcuten', timeLevel=1, haloLayers=(/1,2/))
 #endif
 
+         call mpas_dmpar_exch_group_create(domain, 'lbc:state')
+         call mpas_dmpar_exch_group_add_field(domain, 'lbc:state', 'lbc_u', timeLevel=2, haloLayers=(/1,2,3/))
+         call mpas_dmpar_exch_group_add_field(domain, 'lbc:state', 'lbc_w', timeLevel=2, haloLayers=(/1,2/))
+         call mpas_dmpar_exch_group_add_field(domain, 'lbc:state', 'lbc_rho', timeLevel=2, haloLayers=(/1,2/))
+         call mpas_dmpar_exch_group_add_field(domain, 'lbc:state', 'lbc_theta', timeLevel=2, haloLayers=(/1,2/))
+         call mpas_dmpar_exch_group_add_field(domain, 'lbc:state', 'lbc_scalars', timeLevel=2, haloLayers=(/1,2/))
+
          !
          ! Set routine to exchange a halo group
          !
@@ -298,6 +305,14 @@ module mpas_atm_halos
          call mpas_halo_exch_group_add_field(domain, 'physics:cuten', 'rvcuten', timeLevel=1, haloLayers=(/1,2/))
          call mpas_halo_exch_group_complete(domain, 'physics:cuten')
 #endif
+
+         call mpas_halo_exch_group_create(domain, 'lbc:state')
+         call mpas_halo_exch_group_add_field(domain, 'lbc:state', 'lbc_u', timeLevel=2, haloLayers=(/1,2,3/))
+         call mpas_halo_exch_group_add_field(domain, 'lbc:state', 'lbc_w', timeLevel=2, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_add_field(domain, 'lbc:state', 'lbc_rho', timeLevel=2, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_add_field(domain, 'lbc:state', 'lbc_theta', timeLevel=2, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_add_field(domain, 'lbc:state', 'lbc_scalars', timeLevel=2, haloLayers=(/1,2/))
+         call mpas_halo_exch_group_complete(domain, 'lbc:state')
 
          !
          ! Set routine to exchange a halo group
