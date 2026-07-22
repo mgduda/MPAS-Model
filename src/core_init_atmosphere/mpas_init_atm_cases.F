@@ -358,9 +358,6 @@ module init_atm_cases
             call mpas_stream_mgr_write(stream_manager, streamID='lbc', ierr=ierr)
             call mpas_stream_mgr_reset_alarms(stream_manager, streamID='lbc', direction=MPAS_STREAM_OUTPUT, ierr=ierr)
 
-            call mpas_stream_mgr_write(stream_manager, streamID='lbc_bdy', ierr=ierr)
-            call mpas_stream_mgr_reset_alarms(stream_manager, streamID='lbc_bdy', direction=MPAS_STREAM_OUTPUT, ierr=ierr)
-
             call mpas_advance_clock(domain % clock)
             curr_time = mpas_get_clock_time(domain % clock, MPAS_NOW)
 
@@ -372,7 +369,6 @@ module init_atm_cases
          ! output streams with ringing alarms.
          !
          call mpas_stream_mgr_reset_alarms(stream_manager, streamID='lbc', direction=MPAS_STREAM_OUTPUT, ierr=ierr)
-         call mpas_stream_mgr_reset_alarms(stream_manager, streamID='lbc_bdy', direction=MPAS_STREAM_OUTPUT, ierr=ierr)
 
       else if (config_init_case == 10) then
 

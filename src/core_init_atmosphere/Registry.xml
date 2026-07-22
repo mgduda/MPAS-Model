@@ -693,19 +693,6 @@
 
 			<var name="xtime"/>
 			<var name="Time"/>
-			<var_struct name="lbc_state"/>
-		</stream>
-
-		<stream name="lbc_bdy"
-                        type="output"
-                        filename_template="lbc_bdy.$Y-$M-$D_$h.$m.$s.nc"
-                        output_interval="3:00:00"
-                        filename_interval="output_interval"
-                        packages="lbcs"
-                        immutable="true">
-
-			<var name="xtime"/>
-			<var name="Time"/>
 			<var_struct name="lbc_state_io"/>
 		</stream>
 
