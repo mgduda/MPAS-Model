@@ -151,14 +151,6 @@ module mpas_atm_boundaries
                ierr = 1
             end if
 
-            call MPAS_stream_mgr_read(streamManager, streamID='lbc_bdy_in', timeLevel=1, whence=MPAS_STREAM_LATEST_BEFORE, &
-                                      actualWhen=read_time, ierr=ierr)
-            if (ierr /= MPAS_STREAM_MGR_NOERR) then
-               call mpas_log_write('Could not read from ''lbc_bdy_in'' stream on or before the current date '// &
-                                   'to update lateral boundary tendencies', messageType=MPAS_LOG_ERR)
-               ierr = 1
-            end if
-
             call cp_bdy_vals(block)
         else
             call mpas_pool_shift_time_levels(lbc)
@@ -166,14 +158,6 @@ module mpas_atm_boundaries
                                       actualWhen=read_time, ierr=ierr)
             if (ierr /= MPAS_STREAM_MGR_NOERR) then
                call mpas_log_write('Could not read from ''lbc_in'' stream after the current date '// &
-                                   'to update lateral boundary tendencies', messageType=MPAS_LOG_ERR)
-               ierr = 1
-            end if
-
-            call MPAS_stream_mgr_read(streamManager, streamID='lbc_bdy_in', timeLevel=1, whence=MPAS_STREAM_EARLIEST_STRICTLY_AFTER, &
-                                      actualWhen=read_time, ierr=ierr)
-            if (ierr /= MPAS_STREAM_MGR_NOERR) then
-               call mpas_log_write('Could not read from ''lbc_bdy_in'' stream after the current date '// &
                                    'to update lateral boundary tendencies', messageType=MPAS_LOG_ERR)
                ierr = 1
             end if
