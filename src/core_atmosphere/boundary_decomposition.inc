@@ -120,7 +120,11 @@
 
       use mpas_stream_manager, only : MPAS_get_stream_filename
       use mpas_io_streams
+#ifdef MPAS_USE_MPI_F08
       use mpi_f08
+#else
+      use mpi
+#endif
       use mpas_sort
 
       type (block_type), intent(in) :: block
@@ -144,8 +148,13 @@
       integer :: iElem
       integer :: nBdyElems_local, nBdyElems
 
+#ifdef MPAS_USE_MPI_F08
       type (MPI_Comm) :: comm
       type (MPI_Request) :: req
+#else
+      integer :: comm
+      integer :: req
+#endif
       integer :: nRanks, myRank
 
       integer, dimension(:,:), allocatable :: temp
