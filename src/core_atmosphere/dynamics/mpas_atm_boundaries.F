@@ -83,6 +83,11 @@ module mpas_atm_boundaries
         use mpas_derived_types, only : MPAS_STREAM_MGR_NOERR, MPAS_LOG_ERR
         use mpas_timekeeping, only : mpas_get_time
 
+        use mpas_stream_manager, only : MPAS_stream_mgr_ringing_alarms, mpas_get_stream_filename, &
+                                        MPAS_stream_mgr_get_stream_interval
+        use mpas_derived_types, only : MPAS_STREAM_INPUT, MPAS_TimeInterval_type
+        use mpas_timekeeping, only : mpas_get_timeInterval, mpas_get_clock_time, operator(+)
+
         implicit none
 
         type (mpas_clock_type), intent(in) :: clock
@@ -135,6 +140,8 @@ module mpas_atm_boundaries
         integer :: iEdge, iCell, k, j
         integer :: cell1, cell2
 
+        character(len=StrKIND) :: lbc_filename
+
 
         ierr = 0
 
@@ -151,6 +158,16 @@ module mpas_atm_boundaries
                ierr = 1
             end if
         else
+
+            if (MPAS_stream_mgr_ringing_alarms(streamManager, streamID='lbc_in', direction=MPAS_STREAM_INPUT)) then
+               currTime = mpas_get_clock_time(clock, MPAS_NOW, ierr)
+               lbc_interval = MPAS_stream_mgr_get_stream_interval(streamManager, 'lbc_in', MPAS_STREAM_INPUT, ierr)
+               currTime = currTime + lbc_interval
+               call mpas_get_time(currTime, dateTimeString=read_time)
+               call mpas_get_stream_filename(streamManager, 'lbc_in', when=trim(read_time), filename=lbc_filename)
+               call mpas_log_write('****** Time to read another LBC file ('//trim(lbc_filename)//')! ******')
+            end if
+
             call mpas_pool_shift_time_levels(lbc)
             call MPAS_stream_mgr_read(streamManager, streamID='lbc_in', timeLevel=2, whence=MPAS_STREAM_EARLIEST_STRICTLY_AFTER, &
                                       actualWhen=read_time, ierr=ierr)
