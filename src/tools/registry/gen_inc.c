@@ -1128,7 +1128,7 @@ int parse_dimensions_from_registry(ezxml_t registry)/*{{{*/
 				} else if(strncmp(dimdef, "function:", 9) == 0){
 					snprintf(option_name, 1024, "%s", (dimdef)+9);
 					fortprintf(fd, "         %s = %s_func(block, manager)\n", dimname, option_name);
-					fortprintf(fd, "call mpas_log_write('       %s = $i (%s)', intArgs=(/%s_func(block, manager)/))\n", dimname, option_name, option_name);
+					fortprintf(fd, "call mpas_log_write('       %s = $i (%s)', intArgs=(/%s/))\n", dimname, option_name, dimname);
 				} else {
 					fortprintf(fd, "         %s = %s\n", dimname, dimdef);
 					fortprintf(fd, "call mpas_log_write('       %s = $i', intArgs=(/%s/))\n", dimname, dimdef);
