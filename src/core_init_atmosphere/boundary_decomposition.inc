@@ -179,23 +179,17 @@
       end if
       if (ierr /= MPI_SUCCESS) then
           call mpas_log_write('Failed to split comm', messageType=MPAS_LOG_ERR)
-      else
-          call mpas_log_write('Successfully split comm')
       end if
 
       if (nBdyElems > 0) then
           call MPI_Comm_size(comm, nRanks, ierr)
           if (ierr /= MPI_SUCCESS) then
               call mpas_log_write('Failed to get comm size', messageType=MPAS_LOG_ERR)
-          else
-              call mpas_log_write('nRanks = $i', intArgs=[nRanks])
           end if
 
           call MPI_Comm_rank(comm, myRank, ierr)
           if (ierr /= MPI_SUCCESS) then
               call mpas_log_write('Failed to get comm rank', messageType=MPAS_LOG_ERR)
-          else
-              call mpas_log_write('myRank = $i', intArgs=[myRank])
           end if
 
           allocate(temp(2,nBdyElems))
@@ -279,8 +273,6 @@
       call MPI_Comm_free(comm, ierr)
       if (ierr /= MPI_SUCCESS) then
           call mpas_log_write('Failed to free comm', messageType=MPAS_LOG_ERR)
-      else
-          call mpas_log_write('Successfully freed comm', intArgs=[nRanks])
       end if
 
    end function boundary_elems
@@ -308,10 +300,10 @@
 
 
       ierr = block % domain % core % get_mesh_stream(block % configs, block % domain % streamInfo, mesh_stream)
-      call mpas_log_write('Mesh stream is '//trim(mesh_stream))
+!      call mpas_log_write('Mesh stream is '//trim(mesh_stream))
 
       call MPAS_get_stream_filename(manager, trim(mesh_stream), filename=mesh_filename)
-      call mpas_log_write('Mesh filename is '//trim(mesh_filename))
+!      call mpas_log_write('Mesh filename is '//trim(mesh_filename))
 
       nullify(indexToElemID)
       call mpas_pool_get_array(block % allFields, 'indexTo'//elemType//'ID_blk', indexToElemID)
@@ -319,53 +311,39 @@
       nullify(nElemsSolve)
       call mpas_pool_get_dimension(block % dimensions, 'n'//elemTypePlural//'Solve', nElemsSolve)
 
-      if (associated(nElemsSolve)) then
-          call mpas_log_write('Found nElemsSolve $i', intArgs=[nElemsSolve])
-      else
-          call mpas_log_write('Could not find nElemsSolve')
+      if (.not. associated(nElemsSolve)) then
+          call mpas_log_write('Could not find nElemsSolve', messageType=MPAS_LOG_ERR)
       end if
 
       allocate(bdyMaskElem(nElemsSolve))
 
-      if (associated(indexToElemID)) then
-          call mpas_log_write('Found indexToElemID')
-      else
-          call mpas_log_write('Could not find indexToElemID')
+      if (.not. associated(indexToElemID)) then
+          call mpas_log_write('Could not find indexToElemID', messageType=MPAS_LOG_ERR)
       end if
 
       handle = MPAS_io_open(trim(mesh_filename), MPAS_IO_READ, MPAS_IO_NETCDF, manager % ioContext, ierr=ierr)
       if (ierr /= MPAS_IO_NOERR) then
-          call mpas_log_write('MGD  - Error opening '//trim(mesh_filename), messageType=MPAS_LOG_ERR)
-      else
-          call mpas_log_write('MGD - OK opening '//trim(mesh_filename))
+          call mpas_log_write('Error opening '//trim(mesh_filename), messageType=MPAS_LOG_ERR)
       end if
 
       call MPAS_io_inq_var(handle, 'bdyMask'//elemType, fieldtype=fieldtype, ierr=ierr)
       if (ierr /= MPAS_IO_NOERR) then
-          call mpas_log_write('MGD  - Error inquiring about bdyMaskElem', messageType=MPAS_LOG_ERR)
-      else
-          call mpas_log_write('MGD - OK inquiring about bdyMaskElem')
+          call mpas_log_write('Error inquiring about bdyMaskElem', messageType=MPAS_LOG_ERR)
       end if
 
       call MPAS_io_set_var_indices(handle, 'bdyMask'//elemType, indexToElemID(1:nElemsSolve), ierr)
       if (ierr /= MPAS_IO_NOERR) then
-          call mpas_log_write('MGD  - Error setting indices', messageType=MPAS_LOG_ERR)
-      else
-          call mpas_log_write('MGD - OK setting indices')
+          call mpas_log_write('Error setting indices', messageType=MPAS_LOG_ERR)
       end if
 
       call MPAS_io_get_var(handle, 'bdyMask'//elemType, bdyMaskElem, ierr=ierr)
       if (ierr /= MPAS_IO_NOERR) then
-          call mpas_log_write('MGD  - Error reading bdyMaskElem', messageType=MPAS_LOG_ERR)
-      else
-          call mpas_log_write('MGD - OK reading bdyMaskElem')
+          call mpas_log_write('Error reading bdyMaskElem', messageType=MPAS_LOG_ERR)
       end if
 
       call MPAS_io_close(handle)
       if (ierr /= MPAS_IO_NOERR) then
-          call mpas_log_write('MGD  - Error closing '//trim(mesh_filename), messageType=MPAS_LOG_ERR)
-      else
-          call mpas_log_write('MGD - OK closing '//trim(mesh_filename))
+          call mpas_log_write('Error closing '//trim(mesh_filename), messageType=MPAS_LOG_ERR)
       end if
 
    end subroutine read_bdy_mask
