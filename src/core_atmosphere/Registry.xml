@@ -2237,6 +2237,43 @@
                         <var name="lbc_qr_io" name_in_code="qr" array_group="moist"  packages="mp_kessler_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in"
                              units="kg kg^{-1} s^{-1}"
                              description="Lateral boundary tendency of rain water mixing ratio"/>
+
+                        <var name="lbc_qi_io" name_in_code="qi" array_group="moist"  packages="bl_mynn_in;cu_ntiedtke_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in"
+                             units="kg kg^{-1} s^{-1}"
+                             description="Lateral boundary tendency of ice mixing ratio"/>
+
+                        <var name="lbc_qs_io" name_in_code="qs" array_group="moist"  packages="mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in"
+                             units="kg kg^{-1} s^{-1}"
+                             description="Lateral boundary tendency of snow mixing ratio"/>
+
+                        <var name="lbc_qg_io" name_in_code="qg" array_group="moist"  packages="mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in"
+                             units="kg kg^{-1} s^{-1}"
+                             description="Lateral boundary tendency of graupel mixing ratio"/>
+
+                        <var name="lbc_nr_io" name_in_code="nr" array_group="number" packages="mp_thompson_in;mp_thompson_aers_in"
+                             units="m^{-3} s^{-1}"
+                             description="Lateral boundary tendency of rain number concentration"/>
+
+                        <var name="lbc_ni_io" name_in_code="ni" array_group="number" packages="bl_mynn_in;mp_thompson_in;mp_thompson_aers_in"
+                             units="m^{-3} s^{-1}"
+                             description="Lateral boundary tendency of ice number concentration"/>
+
+                        <var name="lbc_nc_io" name_in_code="nc" array_group="number" packages="mp_thompson_aers_in"
+                             units="m^{-3} s^{-1}"
+                             description="Lateral boundary tendency of cloud water number concentration"/>
+
+                        <var name="lbc_nifa_io" name_in_code="nifa" array_group="number" packages="mp_thompson_aers_in"
+                             units="m^{-3} s^{-1}"
+                             description="Lateral boundary tendency of ice-friendly aerosol number concentration"/>
+
+                        <var name="lbc_nwfa_io" name_in_code="nwfa" array_group="number" packages="mp_thompson_aers_in"
+                             units="m^{-3} s^{-1}"
+                             description="Lateral boundary tendency of water-friendly aerosol number concentration"/>
+
+                        <var name="lbc_tke_io" name_in_code="tke" array_group="turbulence"
+                             units="m^2 s^{-3}"
+                             description="Lateral boundary tendency of TKE"
+                             packages="les"/>
                 </var_array>
         </var_struct>
 

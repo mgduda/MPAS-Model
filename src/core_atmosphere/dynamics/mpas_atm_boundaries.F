@@ -929,15 +929,11 @@ module mpas_atm_boundaries
         call mpas_pool_get_array(mesh, 'bdyParentCellID', bdyParentCellID)
         call mpas_pool_get_array(mesh, 'bdyParentEdgeID', bdyParentEdgeID)
 
-        call mpas_log_write('Copying boundary values $i $i', intArgs=[nBdyCells, nBdyEdges])
-
         do i = 1, nBdyCells
             w(:,bdyParentCellID(i)) = lbc_w(:,i)
             rho(:,bdyParentCellID(i)) = lbc_rho(:,i)
             theta(:,bdyParentCellID(i)) = lbc_theta(:,i)
-            scalars(index_qv,:,bdyParentCellID(i)) = lbc_scalars(index_qv_lbc,:,i)
-            scalars(index_qc,:,bdyParentCellID(i)) = lbc_scalars(index_qc_lbc,:,i)
-            scalars(index_qr,:,bdyParentCellID(i)) = lbc_scalars(index_qr_lbc,:,i)
+            scalars(:,:,bdyParentCellID(i)) = lbc_scalars(:,:,i)
         end do
 
         do i = 1, nBdyEdges
