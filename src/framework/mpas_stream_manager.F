@@ -851,6 +851,9 @@ module mpas_stream_manager
         integer :: err_level
         integer :: err_local, threadNum
 
+        character (len=:), allocatable :: fieldNameBase, constituentNames
+
+
         threadNum = mpas_threading_get_thread_num()
 
         STREAM_DEBUG_WRITE('-- Called MPAS_stream_mgr_add_field()')
@@ -858,6 +861,9 @@ module mpas_stream_manager
         if (present(ierr)) ierr = MPAS_STREAM_MGR_NOERR
 
         if ( threadNum == 0 ) then
+
+           call split_constituents(fieldName, fieldNameBase, constituentNames)
+
            !
            ! Check that stream exists
            !
@@ -881,9 +887,9 @@ module mpas_stream_manager
            ! Check that field exists
            !
            info % nDims = -1
-           call mpas_pool_get_field_info(manager % allFields, fieldName, info)
+           call mpas_pool_get_field_info(manager % allFields, fieldNameBase, info)
            if (info % nDims == -1) then
-               STREAM_ERROR_WRITE('Requested field '//trim(fieldName)//' not available')
+               STREAM_ERROR_WRITE('Requested field '//trim(fieldNameBase)//' not available')
                if (present(ierr)) ierr = MPAS_STREAM_MGR_ERROR
                return
            end if
@@ -894,10 +900,10 @@ module mpas_stream_manager
            nullify(test_ptr)
            err_level = mpas_pool_get_error_level()
            call mpas_pool_set_error_level(MPAS_POOL_SILENT)
-           call mpas_pool_get_config(stream % field_pool, fieldName, value=test_ptr)
+           call mpas_pool_get_config(stream % field_pool, fieldNameBase, value=test_ptr)
            call mpas_pool_set_error_level(err_level)
            if (associated(test_ptr)) then
-               STREAM_WARNING_WRITE('Requested field '//trim(fieldName)//' already in stream '//trim(streamID))
+               STREAM_WARNING_WRITE('Requested field '//trim(fieldNameBase)//' already in stream '//trim(streamID))
                return
            end if
 
@@ -907,7 +913,7 @@ module mpas_stream_manager
            if (present(packages)) then
                test_logical = parse_package_list(manager % allPackages, trim(packages), err_local)
                if (err_local /= 0) then
-                   STREAM_WARNING_WRITE('One or more packages in '''//trim(packages)//''' attached to field '''//trim(fieldName)//''' is undefined')
+                   STREAM_WARNING_WRITE('One or more packages in '''//trim(packages)//''' attached to field '''//trim(fieldNameBase)//''' is undefined')
                end if
            end if
 
@@ -918,12 +924,12 @@ module mpas_stream_manager
                call mpas_pool_add_config(stream % field_pool, fieldName, 1)
 
                if (present(packages)) then
-                  STREAM_DEBUG_WRITE('-- Attaching packages '//trim(packages)//' to field '//trim(fieldName)//' in stream '//trim(streamID))
-                  write(field_pkg,'(a)') trim(fieldName)//':packages'
+                  STREAM_DEBUG_WRITE('-- Attaching packages '//trim(packages)//' to field '//trim(fieldNameBase)//' in stream '//trim(streamID))
+                  write(field_pkg,'(a)') trim(fieldNameBase)//':packages'
                   call mpas_pool_add_config(stream % field_pkg_pool, field_pkg, packages)
                end if
            else
-               call mpas_log_write(' * Requested field '//trim(fieldName)//' is deactivated due to packages, or is a scratch variable.')
+               call mpas_log_write(' * Requested field '//trim(fieldNameBase)//' is deactivated due to packages, or is a scratch variable.')
            end if
         end if
 
@@ -4268,6 +4274,8 @@ module mpas_stream_manager
         logical :: active_field
         integer :: err_level
 
+        character (len=:), allocatable :: fieldNameBase, constituentNames
+
 
         if (direction == MPAS_STREAM_OUTPUT) then
 
@@ -4327,8 +4335,10 @@ module mpas_stream_manager
                 err_level = mpas_pool_get_error_level()
                 call mpas_pool_set_error_level(MPAS_POOL_SILENT)
 
+                call split_constituents(itr % memberName, fieldNameBase, constituentNames)
+
                 nullify(packages)
-                call mpas_pool_get_config(stream % field_pkg_pool, trim(itr % memberName)//':packages', packages)
+                call mpas_pool_get_config(stream % field_pkg_pool, trim(fieldNameBase)//':packages', packages)
                 if (associated(packages)) then
                     active_field = parse_package_list(allPackages, trim(packages))
                 else
@@ -4336,14 +4346,14 @@ module mpas_stream_manager
                 end if
                 call mpas_pool_set_error_level(err_level)
 
-                STREAM_DEBUG_WRITE('Is field '''//trim(itr % memberName)//''' active in stream '''//trim(stream % name)//'? $l' COMMA logicArgs=(/active_field/))
+                STREAM_DEBUG_WRITE('Is field '''//trim(fieldNameBase)//''' active in stream '''//trim(stream % name)//'? $l' COMMA logicArgs=(/active_field/))
 
                 if (.not. active_field) cycle FIELD_LOOP
 
                 ! To avoid accidentally matching in case statements below...
                 info % fieldType = -1
 
-                call mpas_pool_get_field_info(allFields, itr % memberName, info)
+                call mpas_pool_get_field_info(allFields, fieldNameBase, info)
 
                 ! Set time level to read
                 if (info % nTimeLevels >= timeLevelIn) then
@@ -4356,46 +4366,46 @@ module mpas_stream_manager
                     case (MPAS_POOL_REAL)
                         select case (info % nDims)
                             case (0)
-                                call mpas_pool_get_field(allFields, itr % memberName, real0d, timeLevel)
+                                call mpas_pool_get_field(allFields, fieldNameBase, real0d, timeLevel)
                                 call MPAS_streamAddField(stream % stream, real0d)
                             case (1)
-                                call mpas_pool_get_field(allFields, itr % memberName, real1d, timeLevel)
+                                call mpas_pool_get_field(allFields, fieldNameBase, real1d, timeLevel)
                                 call MPAS_streamAddField(stream % stream, real1d)
                             case (2)
-                                call mpas_pool_get_field(allFields, itr % memberName, real2d, timeLevel)
+                                call mpas_pool_get_field(allFields, fieldNameBase, real2d, timeLevel)
                                 call MPAS_streamAddField(stream % stream, real2d)
                             case (3)
-                                call mpas_pool_get_field(allFields, itr % memberName, real3d, timeLevel)
+                                call mpas_pool_get_field(allFields, fieldNameBase, real3d, timeLevel)
                                 call MPAS_streamAddField(stream % stream, real3d)
                             case (4)
-                                call mpas_pool_get_field(allFields, itr % memberName, real4d, timeLevel)
+                                call mpas_pool_get_field(allFields, fieldNameBase, real4d, timeLevel)
                                 call MPAS_streamAddField(stream % stream, real4d)
                             case (5)
-                                call mpas_pool_get_field(allFields, itr % memberName, real5d, timeLevel)
+                                call mpas_pool_get_field(allFields, fieldNameBase, real5d, timeLevel)
                                 call MPAS_streamAddField(stream % stream, real5d)
                         end select
                     case (MPAS_POOL_INTEGER)
                         select case (info % nDims)
                             case (0)
-                                call mpas_pool_get_field(allFields, itr % memberName, int0d, timeLevel)
+                                call mpas_pool_get_field(allFields, fieldNameBase, int0d, timeLevel)
                                 call MPAS_streamAddField(stream % stream, int0d)
                             case (1)
-                                call mpas_pool_get_field(allFields, itr % memberName, int1d, timeLevel)
+                                call mpas_pool_get_field(allFields, fieldNameBase, int1d, timeLevel)
                                 call MPAS_streamAddField(stream % stream, int1d)
                             case (2)
-                                call mpas_pool_get_field(allFields, itr % memberName, int2d, timeLevel)
+                                call mpas_pool_get_field(allFields, fieldNameBase, int2d, timeLevel)
                                 call MPAS_streamAddField(stream % stream, int2d)
                             case (3)
-                                call mpas_pool_get_field(allFields, itr % memberName, int3d, timeLevel)
+                                call mpas_pool_get_field(allFields, fieldNameBase, int3d, timeLevel)
                                 call MPAS_streamAddField(stream % stream, int3d)
                         end select
                     case (MPAS_POOL_CHARACTER)
                         select case (info % nDims)
                             case (0)
-                                call mpas_pool_get_field(allFields, itr % memberName, char0d, timeLevel)
+                                call mpas_pool_get_field(allFields, fieldNameBase, char0d, timeLevel)
                                 call MPAS_streamAddField(stream % stream, char0d)
                             case (1)
-                                 call mpas_pool_get_field(allFields, itr % memberName, char1d, timeLevel)
+                                 call mpas_pool_get_field(allFields, fieldNameBase, char1d, timeLevel)
                                  call MPAS_streamAddField(stream % stream, char1d)
                         end select
                 end select
@@ -5915,6 +5925,36 @@ module mpas_stream_manager
        return
 
     end function MPAS_stream_mgr_stream_exists!}}}
+
+
+    subroutine split_constituents(fieldName, fieldNameBase, constituentNames)
+
+        implicit none
+
+        character(len=*), intent(in) :: fieldName
+        character(len=:), allocatable, intent(out) :: fieldNameBase, constituentNames
+
+        integer :: fieldNameLen, colonIdx
+
+
+        fieldNameLen = len_trim(fieldName)
+        colonIdx = index(fieldName, ':')
+call mpas_log_write('Splitting '//trim(fieldName)//' colonIdx = $i', intArgs=[colonIdx])
+
+        if (colonIdx > 0) then
+            allocate(character(len=(colonIdx - 1)) :: fieldNameBase)
+            allocate(character(len=(fieldNameLen - colonIdx)) :: constituentNames)
+
+            fieldNameBase(:) = fieldName(1:colonIdx-1)
+            constituentNames(:) = fieldName(colonIdx+1:fieldNameLen)
+        else
+            allocate(character(len=fieldNameLen) :: fieldNameBase)
+            allocate(character(len=0) :: constituentNames)
+
+            fieldNameBase(:) = fieldName(:)
+        end if
+
+    end subroutine split_constituents
  
 
 end module mpas_stream_manager
