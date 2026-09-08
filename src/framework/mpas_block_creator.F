@@ -320,6 +320,7 @@ call mpas_log_write(time_string()//'   Calling mpas_block_decomp_all_edges_in_bl
 
        ! Determine all edges in block
        call mpas_block_decomp_all_edges_in_block(maxEdges, nCellsInBlock, nEdgesCursor % array, edgesOnCellCursor % array, nEdgesLocal, localEdgeList)
+call mpas_log_write(time_string()//'   Finished mpas_block_decomp_all_edges_in_block')
 
        ! Setup indexToEdge block
        indexToEdgeCursor % block => indexToCellCursor % block
@@ -336,8 +337,11 @@ call mpas_log_write(time_string()//'   Calling init_multihalo_exchange_list x3')
 
        ! Setup exchange lists
        call mpas_dmpar_init_multihalo_exchange_list(indexToEdgeCursor % sendList, nHalos+1)
+call mpas_log_write(time_string()//'   Finished init_multihalo_exchange_list 1')
        call mpas_dmpar_init_multihalo_exchange_list(indexToEdgeCursor % recvList, nHalos+1)
+call mpas_log_write(time_string()//'   Finished init_multihalo_exchange_list 2')
        call mpas_dmpar_init_multihalo_exchange_list(indexToEdgeCursor % copyList, nHalos+1)
+call mpas_log_write(time_string()//'   Finished init_multihalo_exchange_list 3')
 
        ! Link exchange lists
        cellsOnEdgeCursor % sendList => indexToEdgeCursor % sendList
@@ -368,11 +372,13 @@ call mpas_log_write(time_string()//'   Calling mpas_dmpar_get_exch_list')
 
      ! Build exchangel ists from read in blocks to owned blocks.
      call mpas_dmpar_get_exch_list(1, indexToEdgeIDBlock, indexToEdgeID_0Halo)
+call mpas_log_write(time_string()//'   Finished mpas_dmpar_get_exch_list')
 
 call mpas_log_write(time_string()//'   Calling mpas_dmpar_alltoall_field')
 
      ! Perform all to all to get owned block data
      call mpas_dmpar_alltoall_field(cellsOnEdgeBlock, cellsOnEdge_0Halo, sendingHaloLayers)
+call mpas_log_write(time_string()//'   Finished mpas_dmpar_alltoall_field')
 
      ! Setup first block's fields if there is at least 1 block.
      if(associated(indexToEdgeID_0Halo)) then
@@ -401,6 +407,7 @@ call mpas_log_write(time_string()//'   Calling mpas_block_decomp_partitioned_edg
        call mpas_block_decomp_partitioned_edge_list(indexToCellCursor % dimSizes(1), indexToCellCursor % array, &
                                                     edgeDegree, indexToEdgeCursor % dimSizes(1), cellsOnEdgeCursor % array, &
                                                     indexToEdgeCursor % array, haloStart)
+call mpas_log_write(time_string()//'   Finished mpas_block_decomp_partitioned_edge_list')
 
        ! Link blocks                                                
        haloCursor % block => indexToEdgeCursor % block
@@ -457,6 +464,7 @@ call mpas_log_write(time_string()//'   Calling mpas_block_decomp_partitioned_edg
 call mpas_log_write(time_string()//'   Calling mpas_dmpar_get_exch_list')
      ! Create exchange lists from 0 halo to 1 haloedges 
      call mpas_dmpar_get_exch_list(1, indexToEdgeID_0Halo, haloIndices, offSetField, edgeLimitField)
+call mpas_log_write(time_string()//'   Finished mpas_dmpar_get_exch_list')
 
      ! Deallocate fields that are not needed anymore.
      call mpas_deallocate_field(haloIndices)
