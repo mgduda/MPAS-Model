@@ -978,7 +978,7 @@ ifeq "$(GEN_F90)" "true"
 	GEN_F90_MESSAGE="MPAS generated and was built with intermediate .f90 files."
 else
 	override GEN_F90=false
-	GEN_F90_MESSAGE="MPAS was built with .F files."
+	GEN_F90_MESSAGE="MPAS was built with .F90 files."
 endif
 
 ifeq "$(OPENMP)" "true"
