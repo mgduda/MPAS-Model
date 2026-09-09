@@ -1,1 +1,1 @@
-../core_atmosphere/physics/mpas_atmphys_functions.F
+../core_atmosphere/physics/mpas_atmphys_functions.F90

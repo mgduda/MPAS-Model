@@ -1,1 +1,1 @@
-../core_atmosphere/physics/mpas_atmphys_constants.F
+../core_atmosphere/physics/mpas_atmphys_constants.F90
