@@ -1,4 +1,4 @@
-.SUFFIXES: .F .o
+.SUFFIXES: .F90 .o
 
 OBJS = mpas_atm_time_integration.o \
        mpas_atm_boundaries.o \
@@ -17,11 +17,11 @@ clean:
 	@# This removes them during the clean process
 	$(RM) *.i
 
-.F.o:
+.F90.o:
 	$(RM) $@ $*.mod
 ifeq "$(GEN_F90)" "true"
 	$(CPP) $(CPPFLAGS) $(PHYSICS) $(CPPINCLUDES) $< > $*.f90
 	$(FC) $(FFLAGS) -c $*.f90 $(FCINCLUDES) -I.. -I../../framework -I../../operators -I../physics -I../physics/physics_wrf -I../physics/physics_mmm $(MPAS_ESMF_INC)
 else
-	$(FC) $(CPPFLAGS) $(PHYSICS) $(FFLAGS) -c $*.F $(CPPINCLUDES) $(FCINCLUDES) -I.. -I../../framework -I../../operators -I../physics -I../physics/physics_wrf -I../physics/physics_mmm $(MPAS_ESMF_INC)
+	$(FC) $(CPPFLAGS) $(PHYSICS) $(FFLAGS) -c $*.F90 $(CPPINCLUDES) $(FCINCLUDES) -I.. -I../../framework -I../../operators -I../physics -I../physics/physics_wrf -I../physics/physics_mmm $(MPAS_ESMF_INC)
 endif

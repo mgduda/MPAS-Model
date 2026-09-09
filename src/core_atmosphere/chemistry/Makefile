@@ -1,4 +1,4 @@
-.SUFFIXES: .F .o
+.SUFFIXES: .F90 .o
 
 all:
 ifeq ($(MUSICA),true)
@@ -37,11 +37,11 @@ clean:
 	@# This removes them during the clean process
 	$(RM) *.i
 
-.F.o:
+.F90.o:
 	$(RM) $@ $*.mod
 ifeq "$(GEN_F90)" "true"
 	$(CPP) $(CPPFLAGS) $(CPPINCLUDES) $< > $*.f90
 	$(FC) $(FFLAGS) -c $*.f90 $(FCINCLUDES) -I./musica -I.. -I../../framework $(MPAS_ESMF_INC)
 else
-	$(FC) $(CPPFLAGS) $(FFLAGS) -c $*.F $(CPPINCLUDES) $(FCINCLUDES) -I./musica -I.. -I../../framework $(MPAS_ESMF_INC)
+	$(FC) $(CPPFLAGS) $(FFLAGS) -c $*.F90 $(CPPINCLUDES) $(FCINCLUDES) -I./musica -I.. -I../../framework $(MPAS_ESMF_INC)
 endif

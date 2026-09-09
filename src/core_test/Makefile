@@ -1,4 +1,4 @@
-.SUFFIXES: .F .o
+.SUFFIXES: .F90 .o
 
 OBJS = mpas_test_core.o \
        mpas_test_core_interface.o \
@@ -63,11 +63,11 @@ clean:
 	$(RM) *.i
 	$(RM) -r default_inputs
 
-.F.o:
+.F90.o:
 	$(RM) $@ $*.mod
 ifeq "$(GEN_F90)" "true"
 	$(CPP) $(CPPFLAGS) $(CPPINCLUDES) $< > $*.f90
 	$(FC) $(FFLAGS) -c $*.f90 $(FCINCLUDES) -I../framework -I../operators $(MPAS_ESMF_INC)
 else
-	$(FC) $(CPPFLAGS) $(FFLAGS) -c $*.F $(CPPINCLUDES) $(FCINCLUDES) -I../framework -I../operators $(MPAS_ESMF_INC)
+	$(FC) $(CPPFLAGS) $(FFLAGS) -c $*.F90 $(CPPINCLUDES) $(FCINCLUDES) -I../framework -I../operators $(MPAS_ESMF_INC)
 endif

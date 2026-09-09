@@ -1,4 +1,4 @@
-.SUFFIXES: .F .o
+.SUFFIXES: .F90 .o
 
 #
 # To build a dycore-only MPAS-Atmosphere model, comment-out or delete
@@ -91,11 +91,11 @@ clean:
 	$(RM) *.i
 	$(RM) -r default_inputs
 
-.F.o:
+.F90.o:
 	$(RM) $@ $*.mod
 ifeq "$(GEN_F90)" "true"
 	$(CPP) $(CPPFLAGS) $(PHYSICS) $(CHEMISTRY) $(CPPINCLUDES) -I./inc $< > $*.f90
 	$(FC) $(FFLAGS) -c $*.f90 $(FCINCLUDES) -I../framework -I../operators -I./physics -I./dynamics -I./diagnostics -I./physics/physics_wrf -I./physics/physics_mmm -I./physics/physics_noaa/UGWP $(MPAS_ESMF_INC) -I./chemistry
 else
-	$(FC) $(CPPFLAGS) $(PHYSICS) $(CHEMISTRY) $(FFLAGS) -c $*.F $(CPPINCLUDES) $(FCINCLUDES) -I./inc -I../framework -I../operators -I./physics -I./dynamics -I./diagnostics -I./physics/physics_wrf -I./physics/physics_mmm -I./physics/physics_noaa/UGWP $(MPAS_ESMF_INC) -I./chemistry
+	$(FC) $(CPPFLAGS) $(PHYSICS) $(CHEMISTRY) $(FFLAGS) -c $*.F90 $(CPPINCLUDES) $(FCINCLUDES) -I./inc -I../framework -I../operators -I./physics -I./dynamics -I./diagnostics -I./physics/physics_wrf -I./physics/physics_mmm -I./physics/physics_noaa/UGWP $(MPAS_ESMF_INC) -I./chemistry
 endif

@@ -1,4 +1,4 @@
-.SUFFIXES: .F .o
+.SUFFIXES: .F90 .o
 
 .PHONY: physics_wrf physics_wrf_lib
 
@@ -120,10 +120,10 @@ clean:
 	@# This removes them during the clean process
 	$(RM) *.i
 
-.F.o:
+.F90.o:
 ifeq "$(GEN_F90)" "true"
 	$(CPP) $(CPPFLAGS) $(COREDEF) $(CPPINCLUDES) $< > $*.f90
 	$(FC) $(FFLAGS) -c $*.f90 $(FCINCLUDES) -I.. -I../physics_mmm -I../../../framework $(MPAS_ESMF_INC)
 else
-	$(FC) $(CPPFLAGS) $(COREDEF) $(FFLAGS) -c $*.F $(CPPINCLUDES) $(FCINCLUDES) -I.. -I../physics_mmm -I../physics_noaa/UGWP -I../../../framework $(MPAS_ESMF_INC)
+	$(FC) $(CPPFLAGS) $(COREDEF) $(FFLAGS) -c $*.F90 $(CPPINCLUDES) $(FCINCLUDES) -I.. -I../physics_mmm -I../physics_noaa/UGWP -I../../../framework $(MPAS_ESMF_INC)
 endif
