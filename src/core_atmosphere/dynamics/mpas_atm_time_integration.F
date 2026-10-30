@@ -109,6 +109,12 @@ module atm_time_integration
    ! if damping in the model changed with the simulation calendar
    real (kind=RKIND), parameter, private :: seconds_per_day = 86400.0_RKIND
 
+   !
+   ! Internal routine used when printing min/max of scalar constituents
+   ! in time step summary
+   !
+   private :: setup_padded_constituents
+
 
    contains
 
@@ -8548,6 +8554,9 @@ module atm_time_integration
        real (kind=RKIND), dimension(:,:), pointer :: w
        real (kind=RKIND), dimension(:,:), pointer :: u, v, uReconstructZonal, uReconstructMeridional, uReconstructX, uReconstructY, uReconstructZ
        real (kind=RKIND), dimension(:,:,:), pointer :: scalars, scalars_1, scalars_2
+       type (field3DReal), pointer :: scalars_field
+
+       character(len=:), dimension(:), allocatable :: constituentNames_padded
 
        logical :: found_NaN
 
@@ -8561,6 +8570,7 @@ module atm_time_integration
       call mpas_pool_get_array(state, 'u', u, 2)
       call mpas_pool_get_array(diag, 'v', v)
       call mpas_pool_get_array(state, 'scalars', scalars, 2)
+      call mpas_pool_get_field(state, 'scalars', scalars_field, 2)
       call mpas_pool_get_dimension(state, 'nCellsSolve', nCellsSolve_ptr)
       call mpas_pool_get_dimension(state, 'nEdgesSolve', nEdgesSolve_ptr)
       call mpas_pool_get_dimension(state, 'nVertLevels', nVertLevels_ptr)
@@ -8905,6 +8915,9 @@ module atm_time_integration
       end if
 
       if (config_print_global_minmax_sca) then
+
+         call setup_padded_constituents(scalars_field % constituentNames, constituentNames_padded)
+
          if (.not. (config_print_global_minmax_vel .or. config_print_detailed_minmax_vel)) then
             call mpas_log_write('')
          end if
@@ -8923,11 +8936,60 @@ module atm_time_integration
             !$acc end parallel
             call mpas_dmpar_min_real(domain % dminfo, scalar_min, global_scalar_min)
             call mpas_dmpar_max_real(domain % dminfo, scalar_max, global_scalar_max)
-            call mpas_log_write(' global min, max scalar $i $r $r', intArgs=(/iScalar/), realArgs=(/global_scalar_min, global_scalar_max/))
+            call mpas_log_write(' global min, max scalar $i (' // trim(constituentNames_padded(iScalar)) // &
+                                ') $r $r', intArgs=(/iScalar/), realArgs=(/global_scalar_min, global_scalar_max/))
          end do
+
+         deallocate(constituentNames_padded)
 
       end if
 
    end subroutine summarize_timestep
+
+
+   !-----------------------------------------------------------------------
+   !  routine setup_padded_constituents
+   !
+   !> \brief Allocates and returns an array of whitespace-padded constituent names
+   !> \author Michael Duda
+   !> \date   21 September 2026
+   !> \details
+   !>  This routine returns a pointer to a newly allocated instance of an
+   !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+   !>  and finalize() that may be called.
+   !>
+   !>  After all queries via the MPAS_streamInfo_type instance have been
+   !>  completed, the instance finalize() method should be called before the
+   !>  instance is deallocated.
+   !
+   !-----------------------------------------------------------------------
+   subroutine setup_padded_constituents(constituentNames, constituentNames_padded)
+
+      implicit none
+
+      ! Arguments
+      character(len=*), dimension(:), intent(in) :: constituentNames
+      character(len=:), dimension(:), allocatable, intent(inout) :: constituentNames_padded
+
+      ! Local variables
+      integer :: i, n, ncons, maxlen
+
+
+      ncons = size(constituentNames)
+
+      maxlen = 0
+      do i = 1, ncons
+         maxlen = max(maxlen, len_trim(constituentNames(i)))
+      end do
+
+      allocate(character(len=maxlen) :: constituentNames_padded(ncons))
+
+      do i = 1, ncons
+          n = len_trim(constituentNames(i))
+          constituentNames_padded(i)(1:maxlen-n) = ' '
+          constituentNames_padded(i)(maxlen-n+1:maxlen) = trim(constituentNames(i))
+      end do
+
+   end subroutine setup_padded_constituents
 
 end module atm_time_integration
