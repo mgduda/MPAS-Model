@@ -196,14 +196,16 @@ module init_atm_cases
             ! check that the intermediate file with terrain information exists if config_blend_bdy_terrain = true.
             !
             ! NB: When calling blend_bdy_terrain(...) with the 'dryrun' argument set, the nCells, latCell, lonCell,
-            !     bdyMaskCell, and ter arguments are not used -- only the config_met_prefix and config_start_time
+            !     and ter arguments are not used -- only the config_met_prefix, config_start_time, and bdyMaskCell
             !     arguments are used.
             !
             if (config_blend_bdy_terrain) then
                 call mpas_pool_get_config(block_ptr % configs, 'config_start_time', config_start_time)
                 call mpas_pool_get_config(block_ptr % configs, 'config_met_prefix', config_met_prefix)
 
-                call blend_bdy_terrain(config_met_prefix, config_start_time, &
+                call mpas_pool_get_array(mesh, 'bdyMaskCell', bdyMaskCell)
+
+                call blend_bdy_terrain(domain % dminfo, config_met_prefix, config_start_time, &
                                        nCells, latCell, lonCell, bdyMaskCell, ter, .true., ierr)
                 if (ierr /= 0) then
                     call mpas_log_write('*************************************************************', messageType=MPAS_LOG_ERR)
@@ -3003,7 +3005,8 @@ module init_atm_cases
          call mpas_pool_get_array(mesh, 'bdyMaskCell', bdyMaskCell)
          call mpas_pool_get_array(mesh, 'ter', ter)
 
-         call blend_bdy_terrain(config_met_prefix, config_start_time, nCells, latCell, lonCell, bdyMaskCell, ter, .false., istatus)
+         call blend_bdy_terrain(dminfo, config_met_prefix, config_start_time, &
+                                nCells, latCell, lonCell, bdyMaskCell, ter, .false., istatus)
          if (istatus /= 0) then
              call mpas_log_write('*************************************************************', messageType=MPAS_LOG_ERR)
              call mpas_log_write('* Blending of terrain along domain boundaries failed!       *', messageType=MPAS_LOG_ERR)
@@ -7792,23 +7795,27 @@ call mpas_log_write('Done with soil consistency check')
    !>  and 1, the terrain field is a combination of the first-guess terrain and the high-resolution
    !>  "static" terrain field.
    !>
-   !>  When dryrun=true, the nCells, latCell, lonCell, bdyMaskCell, and ter arguments are not used
-   !>   -- only the config_met_prefix and config_start_time arguments are used. The dryrun argument
-   !>  allows calling code to determine if blend_bdy_terrain will succeed without actually blending
-   !>  the boundary terrain.
+   !>  When dryrun=true, the nCells, latCell, lonCell, and ter arguments are not used -- only
+   !>  the config_met_prefix, config_start_time, and bdyMaskCell arguments are used. The dryrun
+   !>  argument allows calling code to determine if blend_bdy_terrain will succeed without actually
+   !>  blending the boundary terrain.
    !>
    !>  For global meshes, where bdyMaskCell == 0 everywhere, this routine will have no impact
    !>  on the model terrain field.
    !
    !-----------------------------------------------------------------------
-   subroutine blend_bdy_terrain(config_met_prefix, config_start_time, nCells, latCell, lonCell, bdyMaskCell, ter, dryrun, ierr)
+   subroutine blend_bdy_terrain(dminfo, config_met_prefix, config_start_time, &
+                                nCells, latCell, lonCell, bdyMaskCell, ter, dryrun, ierr)
 
+      use mpas_derived_types, only : dm_info
       use init_atm_read_met, only : read_met_init, read_met_close, read_next_met_field, met_data
       use init_atm_llxy, only : map_init, map_set, proj_info, latlon_to_ij, PROJ_LATLON, PROJ_GAUSS, DEG_PER_RAD
       use init_atm_hinterp, only : interp_sequence, FOUR_POINT
+      use mpas_atm_boundaries, only : mpas_atm_has_specified_boundaries
 
       implicit none
 
+      type (dm_info), intent(in) :: dminfo
       character(len=*), intent(in) :: config_met_prefix
       character(len=*), intent(in) :: config_start_time
       integer, intent(in) :: nCells
@@ -7834,6 +7841,14 @@ call mpas_log_write('Done with soil consistency check')
 
 
       ierr = 0
+
+      if (.not. mpas_atm_has_specified_boundaries(dminfo, bdyMaskCell)) then
+         if (.not. dryrun) then
+            call mpas_log_write('No need to blend first-guess terrain along domain boundary, because')
+            call mpas_log_write('domain has no specified boundaries.')
+         end if
+         return
+      end if
 
       if (.not. dryrun) then
          call mpas_log_write('Blending first-guess terrain field along domain boundary')
