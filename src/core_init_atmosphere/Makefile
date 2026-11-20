@@ -27,7 +27,8 @@ OBJS =  \
 	mpas_stack.o \
 	mpas_kd_tree.o \
 	mpas_parse_geoindex.o \
-	mpas_geotile_manager.o
+	mpas_geotile_manager.o \
+        mpas_atm_boundaries.o
 
 all: core_hyd
 
