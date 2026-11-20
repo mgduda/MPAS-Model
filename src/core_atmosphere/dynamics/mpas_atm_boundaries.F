@@ -41,7 +41,8 @@ module mpas_atm_boundaries
               mpas_atm_get_bdy_tend, &
               mpas_atm_get_bdy_state, &
               mpas_atm_setup_bdy_masks, &
-              mpas_atm_bdy_checks
+              mpas_atm_bdy_checks, &
+              mpas_atm_has_specified_boundaries
 
     public :: nBdyZone, nSpecZone, nRelaxZone
 
@@ -872,5 +873,59 @@ module mpas_atm_boundaries
         ierr = 0
 
     end subroutine mpas_atm_bdy_checks
+
+
+    !***********************************************************************
+    !
+    !  routine mpas_atm_has_specified_boundaries
+    !
+    !> \brief   Determines whether specified boundaries are present
+    !> \author  Michael Duda
+    !> \date    19 November 2026
+    !> \details 
+    !>  This function checks the bdyMaskCell field to determine whether a domain
+    !>  has specified boundaries. If so, the function returns .true., and it
+    !>  returns .false. otherwise. The check is performed across all MPI ranks,
+    !>  so if any individual rank detects specified boundaries, all ranks will
+    !>  return .true.; consequently, this function must be called collectively
+    !>  by all MPI ranks.
+    !>
+    !>  Specified boundaries (compared with periodic boundaries, or other types
+    !>  of yet unimplemented boundary conditions like symmetric BCs) are
+    !>  identified by the presence of non-zero values in the bdyMaskCell field.
+    !>  In future, however, the bdyMaskCell field may be used to indicate
+    !>  various types of boundaries or boundary conditions, and so the use of
+    !>  this routine is preferable to a hard-coded check for non-zero values in
+    !>  bdyMaskCell.
+    !
+    !-----------------------------------------------------------------------
+    function mpas_atm_has_specified_boundaries(dminfo, bdyMaskCell) result(has_spec_bdys)
+
+        use mpas_dmpar, only : mpas_dmpar_max_int
+        use mpas_derived_types, only : dm_info
+
+        implicit none
+
+        ! Arguments
+        type (dm_info), intent(in) :: dminfo
+        integer, dimension(:), intent(in) :: bdyMaskCell
+
+        ! Return value
+        logical :: has_spec_bdys
+
+        ! Local variables
+        integer :: local_max, global_max
+
+
+        has_spec_bdys = .false.
+
+        local_max = maxval(bdyMaskCell)
+        call mpas_dmpar_max_int(dminfo, local_max, global_max)
+
+        if (global_max > 0 .and. global_max <= nBdyZone) then
+            has_spec_bdys = .true.
+        end if
+
+    end function mpas_atm_has_specified_boundaries
 
 end module mpas_atm_boundaries
